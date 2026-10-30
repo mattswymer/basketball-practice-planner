@@ -1,4 +1,4 @@
-import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid} from "../store.js";
+import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid} from "../core/store.js";
 function uniqueIds(block){return drillsInBlock(block).map(drill=>drill.id);}
 function setBlockStatus(plan,block,status){
   const ids=uniqueIds(block);
