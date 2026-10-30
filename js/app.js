@@ -48,6 +48,7 @@ function deletePlan(id) {
   saveApp();renderApp();toast("Plan deleted: "+removed.name, true);
 }
 function switchTeam(teamId) {
+  if(state.live.active)releaseWakeLock();
   setActiveTeam(teamId);state.selectedTeamId=teamId;state.statsTeamId=teamId;
   state.planDetailOpen=false;renderApp();
 }
