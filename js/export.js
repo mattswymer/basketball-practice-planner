@@ -75,6 +75,9 @@ export function exportPracticePDF() {
   doc.setFontSize(8);doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||""),margin,21);
   doc.setFont("helvetica","bold");doc.setFontSize(9);
   doc.text(durationLabel(totalPracticeMinutes(plan))+" court time  ·  "+entries.length+" drills",width-margin,11,{align:"right"});
+  doc.setFont("helvetica","normal");doc.setFontSize(6.5);
+  const gearSummary=equipment?"GEAR: "+equipment:"GEAR: —";
+  doc.text(doc.splitTextToSize(gearSummary,width-margin*2),margin,27);
   if(layout.max>available) {
     doc.setFontSize(6);doc.text("Condensed to one page",width-margin,19,{align:"right"});
   }
