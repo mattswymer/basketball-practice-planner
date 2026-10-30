@@ -1,5 +1,5 @@
 // Coach-supplied drill bank. Descriptions and estimates are retained from the supplied list.
-const DEFAULT_TAGS = ["layups","dribbling","defense","shooting","rebounding","triple threat","stance","passing","team building","plays","sprints","free throws","pivot","post","warm up","stretch","rest"];
+const DEFAULT_TAGS = ["layups","dribbling","defense","shooting","rebounding","triple threat","stance","passing","team building","plays","sprints","free throws","pivot","off-ball movement","post","warm up","stretch","rest"];
 const TAG_COLORS = {
   "dribbling": "#3b82a0",
   "shooting": "#c58a35",
@@ -15,6 +15,7 @@ const TAG_COLORS = {
   "triple threat": "#a16d45",
   "pivot": "#6b8c85",
   "post": "#786b9c",
+  "off-ball movement": "#63816b",
   "off-ball movement": "#63816b",
   "warm up": "#6b9a83",
   "stretch": "#8a9d78",
