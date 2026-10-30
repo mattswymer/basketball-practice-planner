@@ -70,6 +70,7 @@
             <div><span class="live-dot"></span><strong>LIVE</strong><span id="live-position">1 / 1</span></div>
             <div class="live-actions">
               <button class="small-btn" id="live-previous" aria-label="Previous drill">←</button>
+              <button class="small-btn live-skip" id="live-skip">Skip</button>
               <button class="small-btn live-next" id="live-next">Done · Next</button>
               <button class="small-btn" id="live-exit">End</button>
             </div>
@@ -207,6 +208,20 @@
     <div class="sheet-actions"><span></span><button type="button" class="primary-btn" data-close="equipment-sheet">Done</button></div>
   </dialog>
 
+  <dialog id="group-sheet" class="sheet">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head"><div><p class="eyebrow">DRILL GROUPS</p><h2 id="group-sheet-title">Assign players</h2></div><button class="close-sheet" data-close="group-sheet" aria-label="Close">×</button></div>
+    <div class="group-sheet-toolbar"><button class="secondary-btn" id="randomize-drill-groups">Randomize</button><button class="primary-btn" id="add-drill-group">+ Group</button></div>
+    <div id="drill-group-board" class="drill-group-board"></div>
+    <div class="sheet-actions"><span></span><button class="primary-btn" data-close="group-sheet">Done</button></div>
+  </dialog>
+  <dialog id="skill-sheet" class="sheet short-sheet">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head"><div><p class="eyebrow">DRILL LIBRARY</p><h2>Skills</h2></div><button class="close-sheet" data-close="skill-sheet" aria-label="Close">×</button></div>
+    <div id="skill-list" class="skill-list"></div>
+    <div class="add-skill-row"><input id="new-skill-name" maxlength="40" placeholder="New skill"><button class="add-circle" id="add-skill" aria-label="Add skill">+</button></div>
+    <div class="sheet-actions"><span></span><button class="primary-btn" data-close="skill-sheet">Done</button></div>
+  </dialog>
   <dialog id="backup-sheet" class="sheet short-sheet">
     <div class="sheet-grabber"></div>
     <div class="sheet-head"><div><p class="eyebrow">YOUR DATA</p><h2>Backup</h2></div><button class="close-sheet" data-close="backup-sheet" aria-label="Close">×</button></div>
