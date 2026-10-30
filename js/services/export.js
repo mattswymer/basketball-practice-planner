@@ -98,12 +98,12 @@ export function exportPracticePDF() {
       y+=step.text.length*(item.bodySize*.47)+.5*scale;
     });
   });
-  const safeName=(plan.name||"Basketball-Practice").replace(/[^a-z0-9_-]+/gi,"_");
-  doc.save(safeName+"_"+(plan.date||"practice")+".pdf");
+  const safeName=value=>String(value||"").normalize("NFKD").replace(/[^a-z0-9_-]+/gi,"_").replace(/^_+|_+$/g,"");
+  doc.save((safeName(team?.name)||"Team")+"_"+(safeName(plan.date)||"No-Date")+".pdf");
   return {ok:true,scale,compact,overflow,format};
 }
 export function exportBackup() {
-  const data={app:"basketball-practice-planner",version:1,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds};
+  const data={app:"basketball-practice-planner",version:2,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:state.skills,skillColors:state.skillColors};
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
   const a=document.createElement("a");a.href=url;a.download="basketball-practice-backup.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
@@ -111,14 +111,14 @@ export async function importBackup(file) {
   if(!file||file.size>8000000) throw new Error("Backup file is too large or missing.");
   const data=JSON.parse(await file.text());
   if(data.app==="basketball-practice-planner"&&Array.isArray(data.teams)&&data.plansByTeam) {
-    localStorage.setItem("bbp_app_v1",JSON.stringify(data));
+    localStorage.setItem("bbp_app_v2",JSON.stringify(data));
     return;
   }
   // Accept backups produced by the previous planner format and pass them through its migration path.
   if(Array.isArray(data.schedule) || data.schedulesByTeam) {
     const teams=Array.isArray(data.teams)&&data.teams.length?data.teams:(data.team?[data.team]:[]);
     if(!teams.length) throw new Error("Legacy backup is missing its team.");
-    localStorage.removeItem("bbp_app_v1");
+    localStorage.removeItem("bbp_app_v2");localStorage.removeItem("bbp_app_v1");
     localStorage.setItem("cyb_teams_v1",JSON.stringify(teams));
     localStorage.setItem("cyb_active_team_v1",data.activeTeamId||teams[0].id||"");
     if(Array.isArray(data.drillBank)) localStorage.setItem("cyb_drill_bank_v2",JSON.stringify(data.drillBank));
