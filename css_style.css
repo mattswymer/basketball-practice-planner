@@ -99,3 +99,67 @@ body { font-family: var(--font-family); background: var(--bg-color); color: var(
 
 .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; padding: 20px; overflow-y: auto; }
 .chart-card { background: #fff; padding: 16px; border-radius: 6px; border: 1px solid var(--border-color); }
+/* Usability, accessibility, and responsive layout improvements */
+button, input, select, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(13, 92, 145, 0.28);
+  outline-offset: 2px;
+}
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+.bank-item {
+  display: block; width: 100%; color: inherit; text-align: left; font: inherit;
+}
+.bank-item:hover { border-color: var(--primary-color); background: #f5f9fc; }
+.live-control-bar { gap: 12px; flex-wrap: wrap; }
+.live-btn-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.live-drill-detail {
+  background: #fff; border: 1px solid var(--active-border);
+  border-left: 5px solid var(--active-border); border-radius: 6px;
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.live-drill-detail[hidden] { display: none; }
+.live-drill-detail h3 { font-size: 16px; margin-bottom: 5px; }
+.live-drill-detail p { color: var(--text-main); white-space: normal; }
+.live-drill-detail .live-detail-meta { color: var(--text-muted); font-size: 12px; margin-bottom: 7px; }
+.empty-state { padding: 18px; color: var(--text-muted); text-align: center; background: #fff; border: 1px dashed var(--border-color); border-radius: 6px; }
+.scheduled-card .drill-name { border: 0; background: transparent; padding: 0; text-align: left; color: inherit; font: inherit; }
+.scheduled-card .drill-name:focus-visible { outline-offset: 3px; }
+.summary-banner { line-height: 1.5; }
+.app-dialog { max-height: 90vh; overflow-y: auto; }
+.form-group input, .form-group textarea, .form-group select,
+.dialog-content input, .dialog-content textarea, .dialog-content select { min-width: 0; }
+@media (max-width: 900px) {
+  .app-container { height: auto; min-height: 100vh; }
+  .content-area { overflow: visible; }
+  .view-panel.active { min-height: 0; }
+  #view-planner { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 300px; border-right: 0; border-bottom: 1px solid var(--border-color); }
+  .schedule-container { min-height: 55vh; overflow: visible; padding: 12px; }
+  .practice-meta-bar { align-items: flex-start; }
+  .meta-actions { width: 100%; }
+  .meta-actions .btn { flex: 1 1 auto; }
+  .analytics-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  body { font-size: 13px; }
+  .main-header { padding: 10px; }
+  .top-bar { align-items: flex-start; }
+  .team-selector-wrap { display: flex; flex-wrap: wrap; align-items: center; }
+  .header-nav { display: flex; width: 100%; }
+  .header-nav .btn { flex: 1; }
+  .meta-field { flex: 1 1 30%; flex-direction: column; align-items: flex-start; }
+  .meta-field input { width: 100%; }
+  .live-control-bar { align-items: flex-start; }
+  .live-status { flex: 1 1 100%; }
+  .live-timer { font-size: 22px; }
+  .live-btn-group { width: 100%; }
+  .live-btn-group .btn { flex: 1; }
+  .scheduled-card { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .scheduled-card .left-info { width: 100%; align-items: flex-start; flex-direction: column; gap: 7px; }
+  .scheduled-card .card-actions { width: 100%; justify-content: flex-end; }
+  .scheduled-card .time-badge { white-space: normal; }
+  .form-row { align-items: stretch; flex-direction: column; }
+  .dialog-actions { flex-wrap: wrap; }
+  .dialog-actions .spacer { display: none; }
+  .analytics-grid { padding: 10px; }
+}
