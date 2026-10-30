@@ -5,7 +5,7 @@ export function addTeam(name) {
   remember();
   const team={id:uid("team"),name:value,players:[]};
   state.teams.push(team);state.plansByTeam[team.id]=[];state.activePlanIds[team.id]=null;
-  state.activeTeamId=team.id;state.activePlanId=null;state.selectedTeamId=team.id;save();return true;
+  state.activeTeamId=team.id;state.activePlanId=null;state.activePlanIds[team.id]=null;state.selectedTeamId=team.id;state.statsTeamId=team.id;state.live={active:false,currentBlockId:null,planId:null};save();return true;
 }
 export function renameTeam(id,name) {
   const team=state.teams.find(item=>item.id===id),value=String(name||"").trim();
