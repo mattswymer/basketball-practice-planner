@@ -54,12 +54,20 @@ function parseLegacyEquipment(value) {
 }
 function normalizeEquipment(input, legacyText="", oldCatalog=[]) {
   if(Array.isArray(input) && input.length) {
-    return input.map(item=>{
+    const mapped=input.map(item=>{
       if(!item) return null;
       if(item.name) return {name:String(item.name).trim(),quantity:Math.max(1,Math.min(999,Math.round(Number(item.quantity)||1))),perPlayer:!!item.perPlayer};
       const option=oldCatalog.find(x=>x.id===item.optionId || x.id===item.id);
       return {name:String(option?.name || item.name || "Equipment"),quantity:Math.max(1,Math.min(999,Math.round(Number(item.quantity)||1))),perPlayer:false};
     }).filter(x=>x.name);
+    // The previous version stored "one ball for each player" as a fixed quantity of one.
+    // Preserve its item selection but recover the intended per-player multiplier from the original note.
+    for(const inferred of parseLegacyEquipment(legacyText).filter(x=>x.perPlayer)) {
+      const existing=mapped.find(x=>x.name.toLowerCase()===inferred.name.toLowerCase());
+      if(existing){existing.quantity=inferred.quantity;existing.perPlayer=true;}
+      else mapped.push(inferred);
+    }
+    return mapped;
   }
   return parseLegacyEquipment(legacyText);
 }
