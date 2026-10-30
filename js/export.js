@@ -92,7 +92,7 @@ export function exportPracticePDF() {
 export function exportBackup() {
   const data={app:"basketball-practice-planner",version:1,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds};
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
-  const a=document.createElement("a");a.href=url;a.download="basketball-practice-backup.json";a.click();URL.revokeObjectURL(url);
+  const a=document.createElement("a");a.href=url;a.download="basketball-practice-backup.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 export async function importBackup(file) {
   if(!file||file.size>8000000) throw new Error("Backup file is too large or missing.");
