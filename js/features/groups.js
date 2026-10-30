@@ -1,4 +1,4 @@
-import {state,activePlan,activeTeam,flattenDrills,remember,save,uid} from "../store.js";
+import {state,activePlan,activeTeam,flattenDrills,remember,save,uid} from "../core/store.js";
 export function currentGroupedDrill() {
   const plan=activePlan();
   return flattenDrills(plan).find(drill=>drill.id===state.groupingDrillId)||null;
