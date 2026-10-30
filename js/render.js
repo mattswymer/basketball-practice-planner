@@ -108,6 +108,7 @@ function renderPlanDetail() {
   if(live) {
     const index=drills.findIndex(d=>d.id===state.live.currentDrillId);
     $("live-position").textContent=(index+1)+" / "+drills.length;
+    $("live-previous").disabled=index<=0;
     $("live-next").textContent=index===drills.length-1?"Finish":"Done · Next";
   }
 }
