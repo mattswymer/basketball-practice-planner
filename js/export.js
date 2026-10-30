@@ -32,7 +32,7 @@ export function exportPracticePDF() {
     const cols=[[],[]],ys=[bodyTop,bodyTop];
     const layouts=[];
     for(const item of entries) {
-      const drill=item.drill,col=ys[0]<=ys[1]?0:1,x=margin+col*(colWidth+gap),pad=3;
+      const drill=item.drill,col=ys[0]<=ys[1]?0:1,x=margin+col*(colWidth+gap),pad=3*scale;
       const title=(item.lane?item.lane+" · ":"")+drill.name;
       const titleSize=9*scale,bodySize=7.1*scale,smallSize=6.2*scale;
       doc.setFont("helvetica","bold");doc.setFontSize(titleSize);
@@ -49,7 +49,7 @@ export function exportPracticePDF() {
         steps.push({text:wrapped,number:i+1});
       });
       const stepsH=steps.reduce((n,x)=>n+x.text.length*(bodySize*.47)+.5*scale,0);
-      const h=pad+Math.max(6,titleH+1)+ (gearLines.length?gearH+1:0)+stepsH+pad+1.5*scale;
+      const h=pad+Math.max(6*scale,titleH+1*scale)+ (gearLines.length?gearH+1*scale:0)+stepsH+pad+1.5*scale;
       const y=ys[col];ys[col]+=h;
       layouts.push({x,y,w:colWidth,h,drill,title,titleLines,titleSize,bodySize,smallSize,gearLines,steps,col});
     }
@@ -82,7 +82,7 @@ export function exportPracticePDF() {
     const c=colorHex(skillColor(item.drill.primarySkill)),bg=pale(skillColor(item.drill.primarySkill),.88);
     doc.setFillColor(...bg);doc.roundedRect(item.x,item.y,item.w,item.h,2,2,"F");
     doc.setFillColor(...c);doc.roundedRect(item.x,item.y,1.5,item.h,.6,.6,"F");
-    let y=item.y+2.8;
+    let y=item.y+2.8*scale;
     doc.setTextColor(...c);doc.setFont("helvetica","bold");doc.setFontSize(6.1*scale);
     doc.text(String(item.drill.primarySkill||"").toUpperCase(),item.x+4,y);y+=3.1*scale;
     doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(item.titleSize);
