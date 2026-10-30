@@ -340,3 +340,29 @@ export function undo() {
   state.live={active:false,currentDrillId:null,planId:null}; save(); return true;
 }
 export function canUndo() { return undoStack.length>0; }
+
+export function addSkill(name,color) {
+  const value=String(name||"").trim();
+  if(!value||SKILLS.some(x=>x.toLowerCase()===value.toLowerCase()))return false;
+  remember();SKILLS.push(value);state.skillColors[value]=color||PALETTE[(SKILLS.length-1)%PALETTE.length];save();return true;
+}
+export function renameSkill(oldName,newName,color) {
+  const value=String(newName||"").trim();
+  if(!SKILLS.includes(oldName)||!value||SKILLS.some(x=>x!==oldName&&x.toLowerCase()===value.toLowerCase()))return false;
+  remember();
+  SKILLS.splice(SKILLS.indexOf(oldName),1,value);
+  if(oldName!==value){state.skillColors[value]=state.skillColors[oldName]||color;delete state.skillColors[oldName];}
+  if(color)state.skillColors[value]=color;
+  const update=drill=>drill.tags=[...new Set(drill.tags.map(x=>x===oldName?value:x))];
+  state.drillBank.forEach(update);
+  Object.values(state.plansByTeam).flat().forEach(plan=>flattenDrills(plan).forEach(update));
+  save();return true;
+}
+export function deleteSkill(name) {
+  if(!SKILLS.includes(name))return false;
+  remember();SKILLS.splice(SKILLS.indexOf(name),1);delete state.skillColors[name];
+  const update=drill=>drill.tags=drill.tags.filter(x=>x!==name);
+  state.drillBank.forEach(update);
+  Object.values(state.plansByTeam).flat().forEach(plan=>flattenDrills(plan).forEach(update));
+  save();return true;
+}
