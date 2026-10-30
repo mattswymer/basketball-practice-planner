@@ -1,46 +1,59 @@
 # Basketball Practice Planner
 
-A phone-first basketball practice planner and live coaching tool. Open `index.html` in a modern browser; there is no build step or server requirement.
+A phone-first basketball practice planning app. It is a static site with no build step. Serve it from HTTPS (for example, GitHub Pages) to install it and use its offline cache.
 
-## Practice planning
-- Search, filter, sort, add, edit, remove, and reorder drills.
-- Drag drills from the bank into a practice schedule. Drag a scheduled item back to the bank to remove only that scheduled copy.
-- Every scheduled item shows its start/end time and allotted minutes.
-- Set the gym start/end time and fit all activities proportionally to the available window.
-- Create concurrent station rotations. Each rotation has one allotted duration; its stations run at the same time.
-- Add drills to a station by choosing from its list or dragging from the bank onto a station card.
+## Main workflow
+
+- **Plans** — create multiple named practice plans for each team. Each plan owns its date, start/end time, schedule, and equipment checklist.
+- **Drills** — browse the drill bank, add drills to a plan, and edit either the bank drill or an individual scheduled copy.
+- **Teams** — manage teams and player rows (jersey number + name), assign groups, randomize groups, and rename/delete teams.
+- **Stats** — see planned and manually completed minutes by each drill's single primary skill. Secondary tags are filters/metadata and are not counted, so skill totals do not double-count.
+
+## Practice plans
+
+- Tap a plan to open it. Use the **+** button to add a drill from the bottom sheet.
+- Tap a scheduled drill to edit its name, primary skill, minutes, equipment, and individual instruction steps.
+- Use the grip handle: press and hold, then drag to reorder or move an individual drill between the plan and station lanes.
+- A station rotation contains concurrent lanes. Each lane holds the same editable drill objects used by the main plan. Drills keep their own minutes, skill, equipment, and steps when moved.
+- Lane time is the sum of drills in that lane; station time is the longest lane (lanes run concurrently).
+- Empty lanes are placeholders only. They are ignored by stats, equipment totals, and the PDF.
 
 ## Live practice
-- Start a countdown for the first scheduled item.
-- The active item is highlighted and expands to show its instructions and equipment. Other schedule items stay compact while the timer runs.
-- Pause, resume, move backward/forward, and end the live session.
 
-## Drill library
-- 59 activities: 33 updated coach-provided activities and 26 additional activities retained from the historical practice workbook.
-- Skill tags are editable checkbox selections and support filtering.
-- Add custom drills and update a bank default from a scheduled copy.
+- Open a plan and tap **Start practice**.
+- The current drill expands in place with full equipment and numbered instructions. The whole card uses its primary-skill color.
+- **Done · Next** marks the current drill complete and advances. Previous and End are manual; there is no timer.
+- The app requests Screen Wake Lock during live practice when the browser supports it. The screen may still lock if the browser or device does not grant the request.
 
 ## Equipment
-- Select equipment options for a drill and set quantities.
-- Add, rename, and remove equipment options in the editable catalog.
-- The practice equipment view totals selected quantities across drills and station activities.
-- Existing equipment descriptions are automatically mapped to matching catalog items when possible. Review quantities such as ball-per-player or team-wide equipment after the first load.
 
-## Teams and groups
-- Maintain separate teams, rosters, and practice schedules. Teams can be deleted; at least one team must remain.
-- Save a roster to close team management.
-- Randomize roster players into groups or assign them manually. Drag players between groups on desktop, or use each player's Move to selector on a phone.
+- Add any equipment item with a quantity and optionally mark it **per player**.
+- The plan's equipment sheet aggregates quantities across all drills, including station lanes, and saves checklist checks on that plan.
+- Known legacy text such as “one ball for each player” is migrated as a per-player quantity. Review migrated equipment quantities once after upgrading, especially vague notes such as “all cones”.
 
 ## Export and storage
-- Changes save in the current browser using localStorage. They do not automatically sync to other devices.
-- Export/import a JSON backup containing teams, schedules, drills, and equipment catalog.
-- PDF creates and downloads an actual `.pdf` file (not an HTML print page).
+
+- The PDF export uses the bundled jsPDF library and creates a one-page, color-coded landscape handout with numbered steps. Very long plans are condensed to fit; review readability before sharing.
+- JSON backup/restore includes teams, players, groups, drills, plans, and saved equipment checks.
+- Data is stored locally in this browser. It does not automatically sync between devices. Use Backup to move data.
+- The service worker caches the app shell and PDF library after the first successful online visit.
+
+## Data migration
+
+On first load after this update, the app migrates the previous planner's teams, rosters, drill bank, and saved schedules into the new format. The old one-schedule-per-team practice becomes a plan named **Practice plan** for each team, with the old date and time window copied into that plan. Existing custom drill edits are retained where the drill IDs or names match.
 
 ## Files
-- `index.html` — app interface and dialogs
-- `css_style.css` — phone-first layout and styles
-- `js_app.js` — planner, persistence, timer, equipment, groups, and PDF generation
-- `js_drills_db.js` — default skill tags and 59-drill library
+
+- `index.html` — app layout and bottom sheets
+- `css_style.css` — touch-first mobile styling and skill colors
+- `js/store.js` — plan-first data model, migration, persistence, and undo
+- `js/render.js` — Plans, Drills, Teams, Stats, and schedule rendering
+- `js/app.js` — UI interactions, touch sorting, and manual live mode
+- `js/export.js` — one-page PDF and JSON backup
+- `js_drills_db.js` — basketball drill library and primary-skill palette
+- `vendor/jspdf.umd.min.js` — vendored jsPDF 4.2.1 (MIT license in the same folder)
+- `manifest.webmanifest` and `service-worker.js` — installability and offline app shell
 
 ## GitHub Pages
-To publish, open repository **Settings → Pages**, select **Deploy from a branch**, choose `main` and the root folder, then save.
+
+Open repository **Settings → Pages**, choose **Deploy from a branch**, select `main` and the root folder, then save. Open the published HTTPS URL once while online so the service worker can cache the app.
