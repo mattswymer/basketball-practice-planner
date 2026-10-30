@@ -177,12 +177,10 @@ function saveStation(event) {
   saveApp();close("station-sheet");stationDraft=null;stationEditingId=null;renderApp();toast("Station saved.");
 }
 function deleteStation() {
-  const plan=activePlan();if(!plan||!stationEditingId)return;
-  const block=plan.blocks.find(x=>x.id===stationEditingId);if(!block)return;
-  const ids=block.lanes.flatMap(l=>l.drills.map(d=>d.id));
-  remember();plan.blocks=plan.blocks.filter(x=>x.id!==stationEditingId);
-  plan.completedIds=plan.completedIds.filter(id=>!ids.includes(id));
-  saveApp();close("station-sheet");stationDraft=null;stationEditingId=null;renderApp();toast("Station removed.",true);
+  if(!stationEditingId)return;
+  const id=stationEditingId;
+  close("station-sheet");stationDraft=null;stationEditingId=null;
+  removeBlock(id);
 }
 function addBankDrill(id) {
   const plan=activePlan(),bank=getBankDrill(id);if(!plan||!bank)return;
@@ -200,6 +198,11 @@ function removeBlock(id) {
   const block=plan.blocks.find(x=>x.id===id);if(!block)return;
   const ids=block.kind==="station"?block.lanes.flatMap(l=>l.drills.map(d=>d.id)):[block.id];
   remember();plan.blocks=plan.blocks.filter(x=>x.id!==id);plan.completedIds=plan.completedIds.filter(x=>!ids.includes(x));
+  if(state.live.active&&ids.includes(state.live.currentDrillId)) {
+    const remaining=flattenDrills(plan);
+    if(remaining.length)state.live.currentDrillId=remaining[0].id;
+    else {state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
+  }
   saveApp();renderApp();toast("Removed from practice.",true);
 }
 function moveToPlan(id) {
@@ -303,7 +306,11 @@ function deleteTeam() {
   const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
   if(state.teams.length<=1){toast("Keep at least one team.");return;}
   remember();state.teams=state.teams.filter(t=>t.id!==team.id);delete state.plansByTeam[team.id];delete state.activePlanIds[team.id];
-  if(state.activeTeamId===team.id){state.activeTeamId=state.teams[0].id;state.activePlanId=state.activePlanIds[state.activeTeamId]||state.plansByTeam[state.activeTeamId]?.[0]?.id||null;}
+  if(state.activeTeamId===team.id){
+    if(state.live.active)releaseWakeLock();
+    state.live={active:false,currentDrillId:null,planId:null};
+    state.activeTeamId=state.teams[0].id;state.activePlanId=state.activePlanIds[state.activeTeamId]||state.plansByTeam[state.activeTeamId]?.[0]?.id||null;
+  }
   state.selectedTeamId=state.activeTeamId;saveApp();renderApp();toast(team.name+" deleted.",true);
 }
 function addPlayer() {
