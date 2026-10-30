@@ -76,7 +76,7 @@
           </div>
           <div class="schedule-heading">
             <div><p class="eyebrow">PRACTICE FLOW</p><h2>Schedule</h2></div>
-            <button class="small-btn" id="add-station">+ Station</button>
+            <div class="plan-actions"><button class="small-btn" id="fit-practice">Fit time</button><button class="small-btn" id="add-station">+ Station</button></div>
           </div>
           <div id="plan-blocks" class="plan-blocks" data-drop-root>
             <div class="empty-state">Your plan is empty. Add a drill to get started.</div>
@@ -88,13 +88,13 @@
       <section id="view-drills" class="view" hidden>
         <div class="section-title-row">
           <div><p class="eyebrow">YOUR LIBRARY</p><h1>Drills</h1></div>
-          <button class="primary-btn" id="new-bank-drill">New drill <span aria-hidden="true">+</span></button>
+          <div class="drill-header-actions"><button class="secondary-btn" id="manage-skills">Skills</button><button class="primary-btn" id="new-bank-drill">New drill <span aria-hidden="true">+</span></button></div>
         </div>
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m16 16 5 5"/></svg>
           <input id="drill-search" type="search" placeholder="Find a drill" aria-label="Search drills">
         </div>
-        <div class="filter-row"><select id="drill-skill-filter" aria-label="Filter by primary skill"><option value="">All skills</option></select><span id="drill-count"></span></div>
+        <div class="filter-row"><select id="drill-skill-filter" aria-label="Filter by skill"><option value="">All skills</option></select><span id="drill-count"></span></div>
         <div id="drill-library" class="drill-library"></div>
       </section>
 
@@ -163,7 +163,7 @@
     <form id="drill-form" class="sheet-form">
       <label class="full-field">Name<input id="edit-name" maxlength="120" required></label>
       <div class="form-grid">
-        <label>PRIMARY SKILL<select id="edit-skill"></select></label>
+        <div class="full-field"><span class="form-label">SKILLS</span><div id="edit-tags" class="tag-options skill-picker" aria-label="Skills"></div></div>
         <label>MINUTES<input id="edit-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
       </div>
       <div class="editor-section">
@@ -174,10 +174,6 @@
         <div class="editor-section-head"><h3>Instructions</h3><button type="button" class="text-btn" id="add-step">+ Step</button></div>
         <div id="edit-steps"></div>
       </div>
-      <details class="secondary-skills">
-        <summary>Additional skills</summary>
-        <div id="edit-tags" class="tag-options"></div>
-      </details>
       <div class="sheet-actions">
         <button type="button" class="text-btn danger-text" id="delete-drill" hidden>Delete</button>
         <span class="action-spacer"></span><button type="button" class="secondary-btn" data-close="drill-sheet">Cancel</button>
@@ -192,7 +188,7 @@
     <form id="station-form" class="sheet-form">
       <label class="full-field">Name<input id="station-name" maxlength="100" required></label>
       <div class="editor-section">
-        <div class="editor-section-head"><h3>Lanes</h3><button type="button" class="text-btn" id="add-lane">+ Lane</button></div>
+        <label class="full-field">TOTAL STATION TIME<input id="station-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>\n        <div class="editor-section-head"><h3>Lanes</h3><button type="button" class="text-btn" id="add-lane">+ Lane</button></div>
         <div id="station-lanes-editor"></div>
       </div>
       <div class="sheet-actions">
