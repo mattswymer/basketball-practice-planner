@@ -16,7 +16,6 @@ const TAG_COLORS = {
   "pivot": "#6b8c85",
   "post": "#786b9c",
   "off-ball movement": "#63816b",
-  "off-ball movement": "#63816b",
   "warm up": "#6b9a83",
   "stretch": "#8a9d78",
   "rest": "#87909d"
@@ -35,7 +34,7 @@ const COACH_DRILLS = [
       "triple threat",
       "stance"
     ],
-    "notes": "1. Player 1A starts at top at cone, 1B starts under basketbal with ball\n2. Player 1B passes to 1A and runs out to close out\n3. Player 1A has two dribbles; more dribbles is a turnover\n4. Play continues until 1A scores or 1B gets the ball through violation, turnover, or rebound",
+    "notes": "1. Player 1A starts at top at cone, 1B starts under the basket with the ball\n2. Player 1B passes to 1A and runs out to close out\n3. Player 1A has two dribbles; more dribbles is a turnover\n4. Play continues until 1A scores or 1B gets the ball through violation, turnover, or rebound",
     "id": "coach-2-dribble-1v1",
     "source": "coach"
   },
@@ -813,3 +812,7 @@ const HISTORICAL_DRILLS = [
   }
 ];
 const PRESET_DRILLS = [...COACH_DRILLS, ...HISTORICAL_DRILLS];
+
+
+// Shared with the modular planner.
+window.PLANNER_DATA = { DEFAULT_TAGS, TAG_COLORS, PRESET_DRILLS };
