@@ -1,4 +1,4 @@
-import {state,uid,remember,save} from "../store.js";
+import {state,uid,remember,save} from "../core/store.js";
 export function addTeam(name) {
   const value=String(name||"").trim();
   if(!value||state.teams.some(team=>team.name.toLowerCase()===value.toLowerCase()))return false;
