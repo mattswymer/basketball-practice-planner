@@ -317,7 +317,7 @@ function deletePlayer(id) {
 }
 function updatePlayer(id,field,value) {
   const team=state.teams.find(t=>t.id===state.selectedTeamId),player=team?.players.find(p=>p.id===id);if(!player)return;
-  player[field]=value;saveApp();
+  player[field]=value;saveApp();renderOneTeam();
 }
 function updateGroup(id,value) {
   const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
