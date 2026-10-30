@@ -20,7 +20,7 @@ export function renameDrillGroup(groupId,name) {
   const group=currentGroupedDrill()?.grouping.groups.find(item=>item.id===groupId);
   if(!group)return false;
   const value=String(name||"").trim();if(!value)return false;
-  group.name=value;save();return true;
+  remember();group.name=value;save();return true;
 }
 export function deleteDrillGroup(groupId) {
   const drill=currentGroupedDrill();if(!drill)return;
