@@ -8,6 +8,7 @@ let state = {
   activeTeamId: null,
   drillBank: [],
   schedule: [],
+  schedulesByTeam: {},
   live: {
     active: false,
     currentIndex: 0,
@@ -15,6 +16,49 @@ let state = {
     timeRemainingSec: 0
   }
 };
+
+
+// Defensive storage and rendering helpers
+const STORAGE_KEY_ACTIVE_TEAM = 'cyb_active_team_v1';
+const STORAGE_KEY_TEAM_SCHEDULES = 'cyb_team_schedules_v1';
+const STORAGE_KEY_META = 'cyb_practice_meta_v1';
+
+function readStoredJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (error) {
+    console.warn('Could not read saved app data for ' + key, error);
+    return fallback;
+  }
+}
+function makeId(prefix) {
+  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function localDateValue(date) {
+  const d = date || new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+function escapeHTML(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(character) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character];
+  });
+}
+function normalizeDrill(drill, index, scheduled) {
+  const item = drill && typeof drill === 'object' ? drill : {};
+  const clean = Object.assign({}, item);
+  clean.id = typeof item.id === 'string' && item.id ? item.id : makeId('drill' + index);
+  clean.name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Untitled activity';
+  clean.duration = Math.max(1, Math.min(240, Math.round(Number(item.duration) || 10)));
+  clean.equipment = typeof item.equipment === 'string' ? item.equipment : '';
+  clean.notes = typeof item.notes === 'string' ? item.notes : '';
+  clean.tags = Array.isArray(item.tags) ? item.tags.filter(function(tag) { return typeof tag === 'string'; }) : [];
+  if (scheduled) clean.schedId = typeof item.schedId === 'string' && item.schedId ? item.schedId : makeId('scheduled');
+  return clean;
+}
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,41 +69,92 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadData() {
-  const savedTeams = localStorage.getItem(STORAGE_KEY_TEAMS);
-  state.teams = savedTeams ? JSON.parse(savedTeams) : [
+  const defaultTeams = [
     { id: 't1', name: 'CYB Indian Knoll 3B-2', roster: ['10 Jordan', '12 Alex', '15 Sam', '22 Taylor', '30 Chris'] },
     { id: 't2', name: 'CYB 1B-2 Team', roster: ['3 Morgan', '5 Riley', '11 Casey', '14 Jamie'] }
   ];
-  state.activeTeamId = state.teams[0].id;
+  const savedTeams = readStoredJSON(STORAGE_KEY_TEAMS, defaultTeams);
+  state.teams = Array.isArray(savedTeams) ? savedTeams.filter(Boolean).map(function(team, index) {
+    return {
+      id: typeof team.id === 'string' && team.id ? team.id : makeId('team' + index),
+      name: typeof team.name === 'string' && team.name.trim() ? team.name.trim() : 'Team ' + (index + 1),
+      roster: Array.isArray(team.roster) ? team.roster.map(String) : []
+    };
+  }) : defaultTeams;
+  if (!state.teams.length) state.teams = [{ id: makeId('team'), name: 'My Team', roster: [] }];
 
-  const savedBank = localStorage.getItem(STORAGE_KEY_BANK);
-  state.drillBank = savedBank ? JSON.parse(savedBank) : JSON.parse(JSON.stringify(PRESET_DRILLS));
+  const savedActiveTeamId = localStorage.getItem(STORAGE_KEY_ACTIVE_TEAM);
+  state.activeTeamId = state.teams.some(function(team) { return team.id === savedActiveTeamId; })
+    ? savedActiveTeamId : state.teams[0].id;
 
-  const savedSchedule = localStorage.getItem(STORAGE_KEY_SCHEDULE);
-  if (savedSchedule) {
-    state.schedule = JSON.parse(savedSchedule);
-  } else {
-    // Default initial practice plan from preset bank
-    state.schedule = state.drillBank.slice(0, 5).map(d => ({
-      ...JSON.parse(JSON.stringify(d)),
-      schedId: 's_' + Math.random().toString(36).substr(2, 9)
-    }));
+  const savedBank = readStoredJSON(STORAGE_KEY_BANK, null);
+  state.drillBank = Array.isArray(savedBank)
+    ? savedBank.map(function(drill, index) { return normalizeDrill(drill, index, false); })
+    : JSON.parse(JSON.stringify(PRESET_DRILLS));
+
+  const savedSchedulesByTeam = readStoredJSON(STORAGE_KEY_TEAM_SCHEDULES, {});
+  state.schedulesByTeam = {};
+  if (savedSchedulesByTeam && typeof savedSchedulesByTeam === 'object' && !Array.isArray(savedSchedulesByTeam)) {
+    Object.keys(savedSchedulesByTeam).forEach(function(teamId) {
+      if (Array.isArray(savedSchedulesByTeam[teamId])) {
+        state.schedulesByTeam[teamId] = savedSchedulesByTeam[teamId].map(function(item, index) {
+          return normalizeDrill(item, index, true);
+        });
+      }
+    });
   }
 
-  document.getElementById('practice-date').value = new Date().toISOString().split('T')[0];
-}
+  // Migrate the original single-schedule storage into the currently selected team.
+  const legacySchedule = readStoredJSON(STORAGE_KEY_SCHEDULE, null);
+  if (!Object.prototype.hasOwnProperty.call(state.schedulesByTeam, state.activeTeamId)) {
+    state.schedulesByTeam[state.activeTeamId] = Array.isArray(legacySchedule)
+      ? legacySchedule.map(function(item, index) { return normalizeDrill(item, index, true); })
+      : state.drillBank.slice(0, 5).map(function(drill) {
+          const item = JSON.parse(JSON.stringify(drill));
+          item.schedId = makeId('scheduled');
+          return item;
+        });
+  }
+  state.schedule = JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId]));
 
+  const meta = readStoredJSON(STORAGE_KEY_META, {});
+  document.getElementById('practice-date').value = meta.date || localDateValue();
+  document.getElementById('practice-start-time').value = meta.startTime || '18:00';
+  document.getElementById('practice-end-time').value = meta.endTime || '19:30';
+}
 function saveData() {
-  localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(state.teams));
-  localStorage.setItem(STORAGE_KEY_BANK, JSON.stringify(state.drillBank));
-  localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(state.schedule));
+  try {
+    localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(state.teams));
+    localStorage.setItem(STORAGE_KEY_ACTIVE_TEAM, state.activeTeamId || '');
+    localStorage.setItem(STORAGE_KEY_BANK, JSON.stringify(state.drillBank));
+    state.schedulesByTeam[state.activeTeamId] = JSON.parse(JSON.stringify(state.schedule));
+    localStorage.setItem(STORAGE_KEY_TEAM_SCHEDULES, JSON.stringify(state.schedulesByTeam));
+    localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(state.schedule));
+    localStorage.setItem(STORAGE_KEY_META, JSON.stringify({
+      date: document.getElementById('practice-date').value,
+      startTime: document.getElementById('practice-start-time').value,
+      endTime: document.getElementById('practice-end-time').value
+    }));
+  } catch (error) {
+    console.error('Could not save the practice planner data.', error);
+    alert('The browser could not save your changes. Export a JSON backup before closing this page.');
+  }
 }
 
 // Event Bindings
 function bindEvents() {
   document.getElementById('active-team-select').addEventListener('change', (e) => {
-    state.activeTeamId = e.target.value;
+    if (state.live.active) stopLivePractice();
     saveData();
+    state.activeTeamId = e.target.value;
+    state.schedule = Array.isArray(state.schedulesByTeam[state.activeTeamId])
+      ? JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId])) : [];
+    state.live.completed = false;
+    state.live.currentIndex = 0;
+    saveData();
+    renderTeamSelects();
+    renderSchedule();
+    updateCharts();
   });
 
   document.getElementById('btn-manage-teams').onclick = () => openTeamsModal();
@@ -79,8 +174,9 @@ function bindEvents() {
   document.getElementById('btn-remove-scheduled').onclick = removeScheduledItem;
   document.getElementById('btn-update-bank-default').onclick = updateBankDefaultFromModal;
 
-  document.getElementById('practice-start-time').onchange = renderSchedule;
-  document.getElementById('practice-end-time').onchange = renderSchedule;
+  document.getElementById('practice-start-time').onchange = () => { saveData(); renderSchedule(); };
+  document.getElementById('practice-end-time').onchange = () => { saveData(); renderSchedule(); };
+  document.getElementById('practice-date').onchange = saveData;
   document.getElementById('btn-fit-practice').onclick = fitToAllottedTime;
 
   document.getElementById('btn-equipment').onclick = openEquipmentModal;
@@ -100,6 +196,20 @@ function bindEvents() {
   document.getElementById('btn-prev-drill').onclick = () => stepLiveDrill(-1);
   document.getElementById('btn-next-drill').onclick = () => stepLiveDrill(1);
   document.getElementById('btn-stop-practice').onclick = stopLivePractice;
+
+  document.getElementById('bank-list').addEventListener('click', function(event) {
+    const card = event.target.closest('[data-drill-id]');
+    if (card) addDrillToSchedule(card.dataset.drillId);
+  });
+  document.getElementById('schedule-board').addEventListener('click', function(event) {
+    const control = event.target.closest('[data-action]');
+    if (!control) return;
+    const action = control.dataset.action;
+    if (action === 'edit') openEditModal(control.dataset.id);
+    if (action === 'move-up') moveScheduledItem(Number(control.dataset.index), -1);
+    if (action === 'move-down') moveScheduledItem(Number(control.dataset.index), 1);
+    if (action === 'delete') deleteScheduledItem(control.dataset.id);
+  });
 }
 
 function switchView(viewName) {
@@ -125,12 +235,17 @@ function renderAll() {
 function renderTeamSelects() {
   const activeSelect = document.getElementById('active-team-select');
   const rosterSelect = document.getElementById('roster-team-select');
-  activeSelect.innerHTML = state.teams.map(t => `<option value="${t.id}" ${t.id === state.activeTeamId ? 'selected' : ''}>${t.name}</option>`).join('');
-  rosterSelect.innerHTML = state.teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-  
-  rosterSelect.onchange = () => {
-    const t = state.teams.find(x => x.id === rosterSelect.value);
-    document.getElementById('team-roster-input').value = t ? t.roster.join('\n') : '';
+  activeSelect.innerHTML = state.teams.map(function(team) {
+    return '<option value="' + escapeHTML(team.id) + '"' +
+      (team.id === state.activeTeamId ? ' selected' : '') + '>' + escapeHTML(team.name) + '</option>';
+  }).join('');
+  rosterSelect.innerHTML = state.teams.map(function(team) {
+    return '<option value="' + escapeHTML(team.id) + '">' + escapeHTML(team.name) + '</option>';
+  }).join('');
+  rosterSelect.value = state.activeTeamId;
+  rosterSelect.onchange = function() {
+    const team = state.teams.find(function(item) { return item.id === rosterSelect.value; });
+    document.getElementById('team-roster-input').value = team ? team.roster.join('\n') : '';
   };
 }
 
@@ -140,50 +255,47 @@ function renderTagFilterOptions() {
 }
 
 function renderDrillBank() {
-  const search = document.getElementById('bank-search').value.toLowerCase();
+  const search = document.getElementById('bank-search').value.toLowerCase().trim();
   const tagFilter = document.getElementById('bank-tag-filter').value;
   const list = document.getElementById('bank-list');
-
-  const filtered = state.drillBank.filter(d => {
-    const matchesSearch = d.name.toLowerCase().includes(search) || (d.equipment && d.equipment.toLowerCase().includes(search));
-    const matchesTag = !tagFilter || (d.tags && d.tags.includes(tagFilter));
-    return matchesSearch && matchesTag;
+  const filtered = state.drillBank.filter(function(drill) {
+    const searchable = (drill.name + ' ' + (drill.equipment || '') + ' ' + (drill.notes || '')).toLowerCase();
+    return searchable.includes(search) && (!tagFilter || drill.tags.includes(tagFilter));
   });
-
-  list.innerHTML = filtered.map(d => `
-    <div class="bank-item" onclick="addDrillToSchedule('${d.id}')">
-      <div class="bank-item-title">
-        <span>${d.name}</span>
-        <span>${d.duration}m</span>
-      </div>
-      <div class="bank-item-meta">
-        ${d.tags.map(t => `<span class="tag-badge">${t}</span>`).join('')}
-      </div>
-    </div>
-  `).join('');
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state">No drills match those filters.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(function(drill) {
+    return '<button type="button" class="bank-item" data-drill-id="' + escapeHTML(drill.id) + '">' +
+      '<span class="bank-item-title"><span>' + escapeHTML(drill.name) + '</span><span>' + drill.duration + 'm</span></span>' +
+      '<span class="bank-item-meta">' + drill.tags.map(function(tag) {
+        return '<span class="tag-badge">' + escapeHTML(tag) + '</span>';
+      }).join('') + '</span></button>';
+  }).join('');
 }
 
 function getActiveTeam() {
-  return state.teams.find(t => t.id === state.activeTeamId) || state.teams[0];
+  return state.teams.find(function(team) { return team.id === state.activeTeamId; }) || state.teams[0] || null;
 }
-
+function getPracticeWindowMinutes() {
+  const start = (document.getElementById('practice-start-time').value || '18:00').split(':').map(Number);
+  const end = (document.getElementById('practice-end-time').value || '19:30').split(':').map(Number);
+  const startMinutes = start[0] * 60 + start[1];
+  const endMinutes = end[0] * 60 + end[1];
+  return endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 1440 - startMinutes;
+}
 function calculateTiming() {
-  const startTimeVal = document.getElementById('practice-start-time').value || "18:00";
-  const [startH, startM] = startTimeVal.split(':').map(Number);
-  let currentMins = startH * 60 + startM;
-
-  return state.schedule.map((item, idx) => {
-    const itemStartMins = currentMins;
-    const itemEndMins = currentMins + item.duration;
-    currentMins = itemEndMins;
-
-    return {
-      ...item,
-      startFormatted: formatMins(itemStartMins),
-      endFormatted: formatMins(itemEndMins),
-      startMins: itemStartMins,
-      endMins: itemEndMins
-    };
+  const start = (document.getElementById('practice-start-time').value || '18:00').split(':').map(Number);
+  let currentMinutes = start[0] * 60 + start[1];
+  return state.schedule.map(function(item) {
+    const itemStart = currentMinutes;
+    const itemEnd = currentMinutes + item.duration;
+    currentMinutes = itemEnd;
+    return Object.assign({}, item, {
+      startFormatted: formatMins(itemStart), endFormatted: formatMins(itemEnd),
+      startMins: itemStart, endMins: itemEnd
+    });
   });
 }
 
@@ -198,108 +310,160 @@ function formatMins(m) {
 function renderSchedule() {
   const timedSchedule = calculateTiming();
   const board = document.getElementById('schedule-board');
-
-  const endTimeVal = document.getElementById('practice-end-time').value || "19:30";
-  const [endH, endM] = endTimeVal.split(':').map(Number);
-  const allottedEndMins = endH * 60 + endM;
-
-  const totalMinsPlanned = state.schedule.reduce((acc, i) => acc + i.duration, 0);
-  const [startH, startM] = (document.getElementById('practice-start-time').value || "18:00").split(':').map(Number);
-  const totalMinsAllotted = allottedEndMins - (startH * 60 + startM);
-  const diff = totalMinsPlanned - totalMinsAllotted;
-
+  const totalPlanned = state.schedule.reduce(function(total, item) { return total + item.duration; }, 0);
+  const allotted = getPracticeWindowMinutes();
+  const difference = totalPlanned - allotted;
   const summary = document.getElementById('time-summary-banner');
-  if (diff > 0) {
-    summary.className = "summary-banner overtime";
-    summary.textContent = `Planned: ${totalMinsPlanned} mins | Allotted: ${totalMinsAllotted} mins (${diff} mins OVER runtime window)`;
-  } else if (diff < 0) {
-    summary.className = "summary-banner";
-    summary.textContent = `Planned: ${totalMinsPlanned} mins | Allotted: ${totalMinsAllotted} mins (${Math.abs(diff)} mins available)`;
+
+  if (!allotted) {
+    summary.className = 'summary-banner overtime';
+    summary.textContent = 'Set an end time later than the start time to calculate the practice window.';
+  } else if (difference > 0) {
+    summary.className = 'summary-banner overtime';
+    summary.textContent = 'Planned: ' + totalPlanned + ' min | Available: ' + allotted + ' min | ' + difference + ' min over.';
+  } else if (difference < 0) {
+    summary.className = 'summary-banner';
+    summary.textContent = 'Planned: ' + totalPlanned + ' min | Available: ' + allotted + ' min | ' + Math.abs(difference) + ' min available.';
   } else {
-    summary.className = "summary-banner";
-    summary.textContent = `Planned: ${totalMinsPlanned} mins | Fits allotted practice window exactly!`;
+    summary.className = 'summary-banner';
+    summary.textContent = 'Planned: ' + totalPlanned + ' min | Practice fits the allotted window exactly.';
   }
 
-  board.innerHTML = timedSchedule.map((item, idx) => {
-    const isActive = state.live.active && idx === state.live.currentIndex;
-    const nextItem = timedSchedule[idx + 1];
+  const focus = document.getElementById('live-drill-detail');
+  if (focus) {
+    const current = state.schedule[state.live.currentIndex];
+    if ((state.live.active || state.live.completed) && current) {
+      focus.hidden = false;
+      focus.innerHTML = '<h3>' + (state.live.completed ? 'Practice complete: ' : 'Current activity: ') + escapeHTML(current.name) + '</h3>' +
+        '<div class="live-detail-meta">' + current.duration + ' min' +
+        (current.equipment ? ' · Equipment: ' + escapeHTML(current.equipment) : '') + '</div>' +
+        '<p>' + (current.notes ? escapeHTML(current.notes).replace(/\n/g, '<br>') : 'No coaching notes have been added for this activity.') + '</p>';
+    } else {
+      focus.hidden = true;
+      focus.innerHTML = '';
+    }
+  }
 
-    return `
-      <div class="scheduled-card ${isActive ? 'is-active-drill' : ''}">
-        <div class="left-info">
-          <div class="time-badge">${item.startFormatted} - ${item.endFormatted} (${item.duration}m)</div>
-          <div class="drill-details">
-            <span class="drill-name" onclick="openEditModal('${item.schedId}')">${item.name}</span>
-            <div class="drill-sub">
-              ${item.tags.map(t => `<span class="tag-badge">${t}</span>`).join('')}
-              ${item.equipment ? ` | 📦 ${item.equipment}` : ''}
-            </div>
-            ${isActive && nextItem ? `
-              <div class="next-equip-box">
-                <strong>UP NEXT:</strong> ${nextItem.name} ${nextItem.equipment ? `(Need: ${nextItem.equipment})` : ''}
-              </div>
-            ` : ''}
-          </div>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-sm" onclick="moveScheduledItem(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>▲</button>
-          <button class="btn btn-sm" onclick="moveScheduledItem(${idx}, 1)" ${idx === timedSchedule.length - 1 ? 'disabled' : ''}>▼</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteScheduledItem('${item.schedId}')">✕</button>
-        </div>
-      </div>
-    `;
+  if (!timedSchedule.length) {
+    board.innerHTML = '<div class="empty-state">Your practice is empty. Add activities from the Drill Bank.</div>';
+    updateLiveUI();
+    return;
+  }
+
+  board.innerHTML = timedSchedule.map(function(item, index) {
+    const active = state.live.active && index === state.live.currentIndex;
+    const next = timedSchedule[index + 1];
+    const tags = item.tags.map(function(tag) { return '<span class="tag-badge">' + escapeHTML(tag) + '</span>'; }).join('');
+    return '<div class="scheduled-card ' + (active ? 'is-active-drill' : '') + '">' +
+      '<div class="left-info"><div class="time-badge">' + item.startFormatted + ' – ' + item.endFormatted + ' (' + item.duration + 'm)</div>' +
+      '<div class="drill-details"><button type="button" class="drill-name" data-action="edit" data-id="' + escapeHTML(item.schedId) + '">' +
+      escapeHTML(item.name) + '</button><div class="drill-sub">' + tags +
+      (item.equipment ? ' | Equipment: ' + escapeHTML(item.equipment) : '') + '</div>' +
+      (active && next ? '<div class="next-equip-box"><strong>UP NEXT:</strong> ' + escapeHTML(next.name) +
+        (next.equipment ? ' (Need: ' + escapeHTML(next.equipment) + ')' : '') + '</div>' : '') +
+      '</div></div><div class="card-actions">' +
+      '<button type="button" class="btn btn-sm" data-action="move-up" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>▲</button>' +
+      '<button type="button" class="btn btn-sm" data-action="move-down" data-index="' + index + '"' + (index === timedSchedule.length - 1 ? ' disabled' : '') + '>▼</button>' +
+      '<button type="button" class="btn btn-sm btn-danger" data-action="delete" data-id="' + escapeHTML(item.schedId) + '">Remove</button>' +
+      '</div></div>';
   }).join('');
+  updateLiveUI();
 }
 
 // Schedule Operations
 function addDrillToSchedule(bankId) {
-  const drill = state.drillBank.find(d => d.id === bankId);
+  const drill = state.drillBank.find(function(item) { return item.id === bankId; });
   if (!drill) return;
-  state.schedule.push({
-    ...JSON.parse(JSON.stringify(drill)),
-    schedId: 's_' + Math.random().toString(36).substr(2, 9)
-  });
+  const added = JSON.parse(JSON.stringify(drill));
+  added.schedId = makeId('scheduled');
+  state.schedule.push(added);
   saveData();
   renderSchedule();
 }
-
 function moveScheduledItem(index, direction) {
-  const newIndex = index + direction;
-  if (newIndex < 0 || newIndex >= state.schedule.length) return;
-  const temp = state.schedule[index];
-  state.schedule[index] = state.schedule[newIndex];
-  state.schedule[newIndex] = temp;
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= state.schedule.length) return;
+  const currentIndex = state.live.currentIndex;
+  const swap = state.schedule[index];
+  state.schedule[index] = state.schedule[nextIndex];
+  state.schedule[nextIndex] = swap;
+  if (state.live.active) {
+    if (currentIndex === index) state.live.currentIndex = nextIndex;
+    else if (currentIndex === nextIndex) state.live.currentIndex = index;
+    resetLiveDrillTimer();
+  }
   saveData();
   renderSchedule();
 }
-
 function deleteScheduledItem(schedId) {
-  state.schedule = state.schedule.filter(i => i.schedId !== schedId);
+  const removedIndex = state.schedule.findIndex(function(item) { return item.schedId === schedId; });
+  if (removedIndex < 0) return;
+  state.schedule.splice(removedIndex, 1);
+
+  if (state.live.active) {
+    if (!state.schedule.length) {
+      stopLivePractice();
+      saveData();
+      return;
+    }
+    if (removedIndex < state.live.currentIndex) state.live.currentIndex--;
+    else if (removedIndex === state.live.currentIndex) {
+      state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
+    }
+    resetLiveDrillTimer();
+  } else if (!state.schedule.length) {
+    state.live.completed = false;
+    state.live.currentIndex = 0;
+  } else if (state.live.completed) {
+    state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
+  }
+
   saveData();
   renderSchedule();
 }
 
 function fitToAllottedTime() {
-  const [startH, startM] = (document.getElementById('practice-start-time').value || "18:00").split(':').map(Number);
-  const [endH, endM] = (document.getElementById('practice-end-time').value || "19:30").split(':').map(Number);
-  const targetTotal = (endH * 60 + endM) - (startH * 60 + startM);
+  const target = getPracticeWindowMinutes();
+  if (!target || !state.schedule.length) {
+    alert('Set a valid practice window and add at least one activity first.');
+    return;
+  }
+  if (target < state.schedule.length) {
+    alert('There are more activities than available minutes. Remove activities or extend the practice window.');
+    return;
+  }
 
-  if (targetTotal <= 0 || !state.schedule.length) return;
+  const weights = state.schedule.map(function(item) { return Math.max(1, Number(item.duration) || 1); });
+  const totalWeight = weights.reduce(function(sum, value) { return sum + value; }, 0);
+  const quotas = weights.map(function(value) { return target * value / totalWeight; });
+  const durations = quotas.map(function(value) { return Math.max(1, Math.floor(value)); });
+  let difference = target - durations.reduce(function(sum, value) { return sum + value; }, 0);
 
-  const currentTotal = state.schedule.reduce((acc, i) => acc + i.duration, 0);
-  if (currentTotal <= 0) return;
-
-  let remaining = targetTotal;
-  state.schedule.forEach((item, idx) => {
-    if (idx === state.schedule.length - 1) {
-      item.duration = Math.max(1, remaining);
-    } else {
-      const scaled = Math.max(1, Math.round((item.duration / currentTotal) * targetTotal));
-      item.duration = scaled;
-      remaining -= scaled;
+  while (difference > 0) {
+    let best = 0;
+    for (let i = 1; i < quotas.length; i++) {
+      if (quotas[i] - Math.floor(quotas[i]) > quotas[best] - Math.floor(quotas[best])) best = i;
     }
-  });
+    durations[best]++;
+    quotas[best] = Math.floor(quotas[best]);
+    difference--;
+  }
+  while (difference < 0) {
+    let best = -1;
+    let overage = -Infinity;
+    for (let i = 0; i < durations.length; i++) {
+      if (durations[i] > 1 && durations[i] - quotas[i] > overage) {
+        best = i;
+        overage = durations[i] - quotas[i];
+      }
+    }
+    if (best < 0) break;
+    durations[best]--;
+    difference++;
+  }
 
+  state.schedule.forEach(function(item, index) { item.duration = durations[index]; });
+  if (state.live.active) resetLiveDrillTimer();
   saveData();
   renderSchedule();
 }
@@ -345,26 +509,34 @@ function openEditModal(schedId, isNewBank = false) {
 function saveEditModal(e) {
   e.preventDefault();
   const id = document.getElementById('edit-item-id').value;
-  const name = document.getElementById('edit-item-name').value;
-  const duration = parseInt(document.getElementById('edit-item-duration').value) || 5;
-  const equipment = document.getElementById('edit-item-equipment').value;
+  const name = document.getElementById('edit-item-name').value.trim();
+  const durationInput = parseInt(document.getElementById('edit-item-duration').value, 10);
+  const duration = Math.max(1, Math.min(120, Number.isFinite(durationInput) ? durationInput : 5));
+  const equipment = document.getElementById('edit-item-equipment').value.trim();
   const notes = document.getElementById('edit-item-notes').value;
-  const selectedTags = Array.from(document.querySelectorAll('.tag-check:checked')).map(cb => cb.value);
+  const selectedTags = Array.from(document.querySelectorAll('.tag-check:checked')).map(function(cb) { return cb.value; });
 
-  if (id === "NEW_BANK") {
-    const newDrill = {
-      id: 'd_' + Math.random().toString(36).substr(2, 9),
-      name, duration, equipment, notes, tags: selectedTags
-    };
-    state.drillBank.push(newDrill);
+  if (!name) {
+    alert('Enter a name for this activity.');
+    document.getElementById('edit-item-name').focus();
+    return;
+  }
+
+  if (id === 'NEW_BANK') {
+    state.drillBank.push({
+      id: makeId('drill'), name: name, duration: duration,
+      equipment: equipment, notes: notes, tags: selectedTags
+    });
   } else {
-    const item = state.schedule.find(i => i.schedId === id);
+    const itemIndex = state.schedule.findIndex(function(item) { return item.schedId === id; });
+    const item = state.schedule[itemIndex];
     if (item) {
       item.name = name;
       item.duration = duration;
       item.equipment = equipment;
       item.notes = notes;
       item.tags = selectedTags;
+      if (state.live.active && itemIndex === state.live.currentIndex) resetLiveDrillTimer();
     }
   }
 
@@ -412,61 +584,82 @@ function updateBankDefaultFromModal() {
 function toggleLivePractice() {
   if (state.live.active) {
     stopLivePractice();
-  } else {
-    if (!state.schedule.length) return;
-    state.live.active = true;
-    state.live.currentIndex = 0;
-    state.live.timeRemainingSec = state.schedule[0].duration * 60;
-
-    document.getElementById('live-indicator').classList.add('active');
-    document.getElementById('live-status-text').textContent = "Live Practice Running";
-    document.getElementById('btn-start-practice').style.display = "none";
-    document.getElementById('btn-stop-practice').style.display = "inline-block";
-    document.getElementById('btn-prev-drill').disabled = false;
-    document.getElementById('btn-next-drill').disabled = false;
-
-    state.live.intervalId = setInterval(tickLiveTimer, 1000);
-    renderSchedule();
+    return;
   }
+  if (!state.schedule.length) {
+    alert('Add at least one activity before starting practice.');
+    return;
+  }
+  state.live.active = true;
+  state.live.completed = false;
+  state.live.currentIndex = 0;
+  resetLiveDrillTimer();
+  state.live.intervalId = setInterval(tickLiveTimer, 250);
+  renderSchedule();
 }
-
+function resetLiveDrillTimer() {
+  const current = state.schedule[state.live.currentIndex];
+  if (!current) return;
+  state.live.endAt = Date.now() + current.duration * 60 * 1000;
+  state.live.timeRemainingSec = current.duration * 60;
+  updateTimerDisplay();
+}
 function tickLiveTimer() {
-  if (state.live.timeRemainingSec > 0) {
-    state.live.timeRemainingSec--;
-  } else {
+  if (!state.live.active) return;
+  state.live.timeRemainingSec = Math.max(0, Math.ceil((state.live.endAt - Date.now()) / 1000));
+  if (state.live.timeRemainingSec <= 0) {
     if (state.live.currentIndex < state.schedule.length - 1) {
       stepLiveDrill(1);
       return;
     }
+    state.live.active = false;
+    state.live.completed = true;
+    clearInterval(state.live.intervalId);
+    state.live.intervalId = null;
+    state.live.timeRemainingSec = 0;
+    renderSchedule();
+    return;
   }
   updateTimerDisplay();
 }
-
 function updateTimerDisplay() {
-  const m = Math.floor(state.live.timeRemainingSec / 60);
-  const s = state.live.timeRemainingSec % 60;
-  document.getElementById('live-timer-readout').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+  const seconds = Math.max(0, state.live.timeRemainingSec || 0);
+  document.getElementById('live-timer-readout').textContent =
+    Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 }
-
-function stepLiveDrill(dir) {
-  const newIdx = state.live.currentIndex + dir;
-  if (newIdx < 0 || newIdx >= state.schedule.length) return;
-  state.live.currentIndex = newIdx;
-  state.live.timeRemainingSec = state.schedule[newIdx].duration * 60;
-  updateTimerDisplay();
+function stepLiveDrill(direction) {
+  if (!state.live.active) return;
+  const nextIndex = state.live.currentIndex + direction;
+  if (nextIndex < 0 || nextIndex >= state.schedule.length) return;
+  state.live.currentIndex = nextIndex;
+  resetLiveDrillTimer();
   renderSchedule();
 }
-
+function updateLiveUI() {
+  const start = document.getElementById('btn-start-practice');
+  const stop = document.getElementById('btn-stop-practice');
+  const previous = document.getElementById('btn-prev-drill');
+  const next = document.getElementById('btn-next-drill');
+  document.getElementById('live-indicator').classList.toggle('active', state.live.active);
+  document.getElementById('live-status-text').textContent = state.live.active
+    ? 'Live Practice Running' : (state.live.completed ? 'Practice Complete' : 'Practice Offline');
+  start.style.display = state.live.active ? 'none' : 'inline-block';
+  start.textContent = state.live.completed ? 'Restart Practice' : 'Start Live Practice';
+  stop.style.display = state.live.active || state.live.completed ? 'inline-block' : 'none';
+  stop.textContent = state.live.completed ? 'Reset' : 'End Practice';
+  previous.disabled = !state.live.active || state.live.currentIndex <= 0;
+  next.disabled = !state.live.active || state.live.currentIndex >= state.schedule.length - 1;
+  if (state.live.active) updateTimerDisplay();
+  else document.getElementById('live-timer-readout').textContent = state.live.completed ? '0:00' : '--:--';
+}
 function stopLivePractice() {
   clearInterval(state.live.intervalId);
+  state.live.intervalId = null;
   state.live.active = false;
-  document.getElementById('live-indicator').classList.remove('active');
-  document.getElementById('live-status-text').textContent = "Practice Offline";
-  document.getElementById('live-timer-readout').textContent = "--:--";
-  document.getElementById('btn-start-practice').style.display = "inline-block";
-  document.getElementById('btn-stop-practice').style.display = "none";
-  document.getElementById('btn-prev-drill').disabled = true;
-  document.getElementById('btn-next-drill').disabled = true;
+  state.live.completed = false;
+  state.live.currentIndex = 0;
+  state.live.endAt = null;
+  state.live.timeRemainingSec = 0;
   renderSchedule();
 }
 
@@ -494,8 +687,8 @@ function openEquipmentModal() {
       html += `
         <div class="equip-item-row">
           <input type="checkbox">
-          <strong>${equip}</strong>
-          <span style="font-size:11px; color:#7f8c8d;">(Needed for: ${drills.join(', ')})</span>
+          <strong>${escapeHTML(equip)}</strong>
+          <span style="font-size:11px; color:#7f8c8d;">(Needed for: ${drills.map(escapeHTML).join(', ')})</span>
         </div>
       `;
     });
@@ -516,12 +709,20 @@ function openTeamsModal() {
 function addTeam() {
   const name = document.getElementById('new-team-name').value.trim();
   if (!name) return;
-  const newTeam = { id: 't_' + Date.now(), name, roster: [] };
+  if (state.live.active) stopLivePractice();
+  const newTeam = { id: makeId('team'), name: name, roster: [] };
   state.teams.push(newTeam);
+  state.schedulesByTeam[newTeam.id] = [];
   state.activeTeamId = newTeam.id;
+  state.schedule = [];
+  state.live.completed = false;
+  state.live.currentIndex = 0;
   document.getElementById('new-team-name').value = '';
+  document.getElementById('team-roster-input').value = '';
   saveData();
   renderTeamSelects();
+  renderSchedule();
+  updateCharts();
 }
 
 function saveRoster() {
@@ -549,7 +750,11 @@ function generateGroups() {
     return;
   }
 
-  const shuffled = [...team.roster].sort(() => 0.5 - Math.random());
+  const shuffled = [...team.roster];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   const groups = Array.from({ length: count }, () => []);
 
   shuffled.forEach((player, i) => {
@@ -559,15 +764,16 @@ function generateGroups() {
   container.innerHTML = groups.map((g, idx) => `
     <div class="group-card">
       <h4>Group ${idx + 1} (${g.length})</h4>
-      <ul>${g.map(p => `<li>${p}</li>`).join('')}</ul>
+      <ul>${g.map(p => `<li>${escapeHTML(p)}</li>`).join('')}</ul>
     </div>
   `).join('');
 }
 
 // JSON Export & Import (Standardized Filenames: TeamName_YYYY-MM-DD_HHMM.json)
 function buildStandardFilename(extension) {
-  const team = getActiveTeam().name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const date = document.getElementById('practice-date').value || new Date().toISOString().split('T')[0];
+  const activeTeam = getActiveTeam();
+  const team = (activeTeam ? activeTeam.name : 'Team').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const date = document.getElementById('practice-date').value || localDateValue();
   const time = (document.getElementById('practice-start-time').value || "18:00").replace(':', '');
   return `${team}_${date}_${time}.${extension}`;
 }
@@ -589,24 +795,55 @@ function exportJSON() {
   a.click();
 }
 
-function importJSON(e) {
-  const file = e.target.files[0];
+function importJSON(event) {
+  const file = event.target.files && event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = (evt) => {
+  reader.onload = function(loadEvent) {
     try {
-      const data = JSON.parse(evt.target.result);
-      if (data.schedule) state.schedule = data.schedule;
-      if (data.bank) state.drillBank = data.bank;
-      if (data.startTime) document.getElementById('practice-start-time').value = data.startTime;
-      if (data.endTime) document.getElementById('practice-end-time').value = data.endTime;
-      if (data.date) document.getElementById('practice-date').value = data.date;
+      const data = JSON.parse(loadEvent.target.result);
+      if (!data || typeof data !== 'object' || !Array.isArray(data.schedule)) {
+        throw new Error('This file is not a valid practice plan.');
+      }
+      state.schedule = data.schedule.map(function(item, index) {
+        if (!item || typeof item.name !== 'string' || !item.name.trim()) {
+          throw new Error('A scheduled activity is missing its name.');
+        }
+        return normalizeDrill(item, index, true);
+      });
+      if (Array.isArray(data.bank)) {
+        state.drillBank = data.bank.map(function(item, index) { return normalizeDrill(item, index, false); });
+      }
+      if (data.team && typeof data.team.name === 'string' && data.team.name.trim()) {
+        let team = state.teams.find(function(existing) {
+          return existing.name.toLowerCase() === data.team.name.trim().toLowerCase();
+        });
+        if (!team) {
+          team = {
+            id: makeId('team'), name: data.team.name.trim(),
+            roster: Array.isArray(data.team.roster) ? data.team.roster.map(String) : []
+          };
+          state.teams.push(team);
+        }
+        state.activeTeamId = team.id;
+      }
+      if (typeof data.startTime === 'string') document.getElementById('practice-start-time').value = data.startTime;
+      if (typeof data.endTime === 'string') document.getElementById('practice-end-time').value = data.endTime;
+      if (typeof data.date === 'string') document.getElementById('practice-date').value = data.date;
+      stopLivePractice();
       saveData();
       renderAll();
-      alert('Practice imported successfully!');
-    } catch (err) {
-      alert('Invalid practice JSON file.');
+      alert('Practice imported successfully.');
+    } catch (error) {
+      console.error('Practice import failed:', error);
+      alert('Could not import this file. Make sure it is a valid Basketball Practice Planner JSON export.');
+    } finally {
+      event.target.value = '';
     }
+  };
+  reader.onerror = function() {
+    alert('The selected file could not be read.');
+    event.target.value = '';
   };
   reader.readAsText(file);
 }
@@ -620,6 +857,10 @@ function exportPDF() {
   const timed = calculateTiming();
 
   const win = window.open('', '_blank');
+  if (!win) {
+    alert('Allow pop-ups for this page to print the practice plan.');
+    return;
+  }
   win.document.write(`
     <!DOCTYPE html>
     <html>
@@ -636,12 +877,12 @@ function exportPDF() {
       </style>
     </head>
     <body>
-      <h1>${team.name} - Practice Plan</h1>
-      <div class="meta">Date: ${date} | Time: ${startTime} - ${endTime}</div>
+      <h1>${escapeHTML(team ? team.name : 'Team')} - Practice Plan</h1>
+      <div class="meta">Date: ${escapeHTML(date)} | Time: ${escapeHTML(startTime)} - ${escapeHTML(endTime)}</div>
       
       <div class="equip-box">
         <strong>Master Equipment List:</strong> 
-        ${Array.from(new Set(state.schedule.map(i => i.equipment).filter(Boolean))).join(' · ') || 'None specified'}
+        ${Array.from(new Set(state.schedule.map(i => i.equipment).filter(Boolean))).map(escapeHTML).join(' · ') || 'None specified'}
       </div>
 
       <table>
@@ -660,10 +901,10 @@ function exportPDF() {
             <tr>
               <td><strong>${i.startFormatted}</strong></td>
               <td>${i.duration}m</td>
-              <td><strong>${i.name}</strong></td>
-              <td>${i.tags ? i.tags.join(', ') : ''}</td>
-              <td>${i.equipment || ''}</td>
-              <td>${i.notes ? i.notes.replace(/\n/g, '<br>') : ''}</td>
+              <td><strong>${escapeHTML(i.name)}</strong></td>
+              <td>${i.tags ? i.tags.map(escapeHTML).join(', ') : ''}</td>
+              <td>${escapeHTML(i.equipment || '')}</td>
+              <td>${i.notes ? escapeHTML(i.notes).replace(/\n/g, '<br>') : ''}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -680,6 +921,10 @@ function exportPDF() {
 let radarChart, barChart;
 
 function initCharts() {
+  if (typeof Chart === 'undefined') {
+    document.querySelector('.analytics-grid').innerHTML = '<div class="empty-state">Skill charts are unavailable while the chart library cannot be reached. The planner and practice timer still work.</div>';
+    return;
+  }
   const radarCtx = document.getElementById('skillRadarChart').getContext('2d');
   const barCtx = document.getElementById('drillBarChart').getContext('2d');
 
