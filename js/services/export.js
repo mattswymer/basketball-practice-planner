@@ -6,6 +6,11 @@ function colorHex(hex) {
 function pale(hex,amount=.88) {
   const c=colorHex(hex);return c.map(v=>Math.round(v+(255-v)*amount));
 }
+function colorForTags(tags=[]) {
+  const colors=[...new Set(tags)].map(skillColor).map(value=>value.replace("#","")).filter(value=>/^[0-9a-f]{6}$/i.test(value));
+  if(!colors.length)return "#52758a";
+  return "#"+[0,2,4].map(i=>Math.round(colors.reduce((sum,value)=>sum+parseInt(value.slice(i,i+2),16),0)/colors.length).toString(16).padStart(2,"0")).join("");
+}
 function collectEntries(plan) {
   const entries=[];
   for(const block of plan.blocks) {
@@ -82,7 +87,7 @@ export function exportPracticePDF() {
     doc.setFontSize(6);doc.text("Condensed to one page",width-margin,19,{align:"right"});
   }
   layout.layouts.forEach(item=>{
-    const c=colorHex(skillColor(item.drill.tags?.[0])),bg=pale(skillColor(item.drill.tags?.[0]),.88);
+    const combinedColor=colorForTags(item.drill.tags),c=colorHex(combinedColor),bg=pale(combinedColor,.88);
     doc.setFillColor(...bg);doc.roundedRect(item.x,item.y,item.w,item.h,2,2,"F");
     doc.setFillColor(...c);doc.roundedRect(item.x,item.y,1.5,item.h,.6,.6,"F");
     let y=item.y+2.8*scale;
