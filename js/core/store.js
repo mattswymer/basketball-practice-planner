@@ -3,6 +3,7 @@ const DEFAULT_SKILLS=DATA.DEFAULT_TAGS||["layups","dribbling","defense","shootin
 const DEFAULT_COLORS=DATA.TAG_COLORS||{};
 const PALETTE=["#2d7891","#bd7837","#ba5c56","#5678a5","#6c8a55","#8a65a7","#398b7c","#a36b83","#907c42","#647b88"];
 const APP_KEY="bbp_app_v2",LEGACY_APP_KEY="bbp_app_v1";
+let oldEquipmentCatalog=[];
 const OLD={teams:"cyb_teams_v1",active:"cyb_active_team_v1",bank:"cyb_drill_bank_v2",oldBank:"cyb_drill_bank_v1",schedules:"cyb_team_schedules_v2",oldSchedule:"cyb_active_schedule_v1",meta:"cyb_practice_meta_v2",equipment:"cyb_equipment_catalog_v1"};
 export const SKILLS=[...DEFAULT_SKILLS];
 export const state={teams:[],activeTeamId:null,drillBank:[],plansByTeam:{},activePlanIds:{},activePlanId:null,view:"plans",live:{active:false,currentBlockId:null,planId:null},planDetailOpen:false,selectedTeamId:null,statsTeamId:null,skills:SKILLS,skillColors:{...DEFAULT_COLORS},groupingDrillId:null};
@@ -26,10 +27,14 @@ function parseEquipment(text){
  add("Cones","cones?");add("Pinnies","pinnies|jerseys?");add("Whistles","whistles?");add("Stopwatches","stopwatches?");add("Clipboards","clipboards?");add("Floor tape","floor\s+tape");add("Hurdles","hurdles?");add("Resistance bands","resistance\s+bands?");add("First-aid kits","first[- ]aid\s+kits?");
  return out;
 }
-function equipmentOf(input,legacy=""){
+function equipmentOf(input,legacy="",catalog=oldEquipmentCatalog){
  const values=Array.isArray(input)?input:[];
  if(!values.length)return parseEquipment(typeof input==="string"?input:legacy);
- const result=values.filter(x=>x?.name).map(x=>({name:String(x.name).trim(),quantity:Math.max(1,Math.min(999,Math.round(Number(x.quantity)||1))),perPlayer:!!x.perPlayer}));
+ const result=values.map(x=>{
+  const option=catalog.find(item=>item.id===x?.optionId||item.id===x?.id);
+  const name=x?.name||option?.name;
+  return name?{name:String(name).trim(),quantity:Math.max(1,Math.min(999,Math.round(Number(x.quantity)||1))),perPlayer:!!x.perPlayer}:null;
+ }).filter(Boolean);
  for(const inferred of parseEquipment(legacy)){
   const existing=result.find(x=>x.name.toLowerCase()===inferred.name.toLowerCase());
   if(existing){if(inferred.perPlayer){existing.quantity=inferred.quantity;existing.perPlayer=true;}else if(values.every(x=>!x?.name)){existing.quantity=inferred.quantity;existing.perPlayer=false;}}
@@ -41,33 +46,33 @@ function groupingOf(input){
  const groups=Array.isArray(input?.groups)?input.groups:[];
  return {groups:groups.map((g,i)=>({id:String(g.id||uid("group")),name:String(g.name||"Group "+(i+1)),playerIds:[...new Set((g.playerIds||[]).map(String))]}))};
 }
-export function normalizeDrill(input={},legacyEquipment=""){
+export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentCatalog){
  return {kind:"drill",id:String(input.id||input.schedId||uid("drill")),bankId:input.bankId||input.drillId||null,
   name:String(input.name||"Untitled drill").trim()||"Untitled drill",minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
-  tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment)),
+  tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment),catalog),
   steps:stepsOf(input.steps??input.notes),grouping:groupingOf(input.grouping),source:input.source||"custom"};
 }
-function normalizeLane(input={},index=0){
+function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
  const raw=input.drill||input;
  const hasDrill=!!raw.name&&!/^(choose a drill|station \d+)$/i.test(raw.name);
- const drills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x)):hasDrill?[normalizeDrill({...raw,minutes:raw.minutes||raw.duration||10})]:[];
+ const drills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x,"",catalog)):hasDrill?[normalizeDrill({...raw,minutes:raw.minutes||raw.duration||10},"",catalog)]:[];
  return {id:String(input.id||uid("lane")),name:String(input.name||input.label||"Lane "+(index+1)),drills};
 }
-export function normalizeBlock(input={}) {
+export function normalizeBlock(input={},catalog=oldEquipmentCatalog) {
  if(input.kind==="station"||input.type==="station"){
   let lanes;
-  if(Array.isArray(input.lanes))lanes=input.lanes.map(normalizeLane);
+  if(Array.isArray(input.lanes))lanes=input.lanes.map((lane,index)=>normalizeLane(lane,index,catalog));
   else lanes=(input.stations||[]).map((s,i)=>{
    const empty=!s?.name||/^(choose a drill|station \d+)$/i.test(s.name);
-   return {id:String(s?.id||uid("lane")),name:String(s?.label||"Lane "+(i+1)),drills:empty?[]:[normalizeDrill({...s,minutes:s.minutes||s.duration||10})]};
+   return {id:String(s?.id||uid("lane")),name:String(s?.label||"Lane "+(i+1)),drills:empty?[]:[normalizeDrill({...s,minutes:s.minutes||s.duration||10},"",catalog)]};
   });
   const implicit=Math.max(0,...lanes.map(l=>l.drills.reduce((n,d)=>n+d.minutes,0)));
   return {kind:"station",id:String(input.id||input.schedId||uid("station")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),lanes};
  }
- return normalizeDrill(input);
+ return normalizeDrill(input,"",catalog);
 }
-export function normalizePlan(input={},teamId=""){
- const blocks=Array.isArray(input.blocks)?input.blocks.map(normalizeBlock):(input.schedule||[]).map(normalizeBlock);
+export function normalizePlan(input={},teamId="",catalog=oldEquipmentCatalog){
+ const blocks=Array.isArray(input.blocks)?input.blocks.map(block=>normalizeBlock(block,catalog)):(input.schedule||[]).map(block=>normalizeBlock(block,catalog));
  return {id:String(input.id||uid("plan")),teamId:String(input.teamId||teamId),name:String(input.name||"Practice plan"),
   date:String(input.date||localDate()),start:String(input.start||input.startTime||"18:00"),end:String(input.end||input.endTime||"19:30"),
   blocks,completedIds:[...new Set((input.completedIds||[]).map(String))],skippedIds:[...new Set((input.skippedIds||[]).map(String))],
@@ -79,30 +84,31 @@ function normalizePlayer(p,i=0){
  return {id:uid("player"),name:match?match[1].trim():raw||"Player "+(i+1)};
 }
 function normalizeTeam(t={},i=0){const roster=Array.isArray(t.players)?t.players:(t.roster||[]);return {id:String(t.id||uid("team")),name:String(t.name||"Team "+(i+1)),players:roster.map(normalizePlayer).filter(p=>p.name)};}
-function bankMerge(saved){
- const seeds=(DATA.PRESET_DRILLS||[]).map(normalizeDrill),old=Array.isArray(saved)?saved:[];
- const result=seeds.map(seed=>{const found=old.find(x=>x&&((x.id&&x.id===seed.id)||((x.name||"").toLowerCase()===seed.name.toLowerCase()&&x.source!=="custom")));return found?normalizeDrill({...seed,...found,id:seed.id,source:seed.source}):seed;});
+function bankMerge(saved,catalog=oldEquipmentCatalog){
+ const seeds=(DATA.PRESET_DRILLS||[]).map(drill=>normalizeDrill(drill,"",catalog)),old=Array.isArray(saved)?saved:[];
+ const result=seeds.map(seed=>{const found=old.find(x=>x&&((x.id&&x.id===seed.id)||((x.name||"").toLowerCase()===seed.name.toLowerCase()&&x.source!=="custom")));return found?normalizeDrill({...seed,...found,id:seed.id,source:seed.source},"",catalog):seed;});
  const names=new Set(seeds.map(x=>x.name.toLowerCase()));
- return result.concat(old.filter(x=>x&&x.source==="custom"&&!names.has(String(x.name||"").toLowerCase())).map(normalizeDrill));
+ return result.concat(old.filter(x=>x&&x.source==="custom"&&!names.has(String(x.name||"").toLowerCase())).map(drill=>normalizeDrill(drill,"",catalog)));
 }
 function emptyPlan(teamId,name="Practice plan"){return {id:uid("plan"),teamId,name,date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};}
-function migratePlans(teams,activeId){
+function migratePlans(teams,activeId,catalog=oldEquipmentCatalog){
  const plans=read(OLD.schedules,{}),meta=read(OLD.meta,{}),old=read(OLD.oldSchedule,[]),result={};
  for(const team of teams){
   const schedule=Array.isArray(plans?.[team.id])?plans[team.id]:Array.isArray(plans?.[team.id]?.schedule)?plans[team.id].schedule:team.id===activeId&&Array.isArray(old)?old:[];
-  result[team.id]=[normalizePlan({teamId:team.id,name:"Practice plan",date:meta.date||localDate(),start:meta.start||meta.startTime||"18:00",end:meta.end||meta.endTime||"19:30",blocks:schedule},team.id)];
+  result[team.id]=[normalizePlan({teamId:team.id,name:"Practice plan",date:meta.date||localDate(),start:meta.start||meta.startTime||"18:00",end:meta.end||meta.endTime||"19:30",blocks:schedule},team.id,catalog)];
  }
  return result;
 }
 export function loadApp(){
+ oldEquipmentCatalog=read(OLD.equipment,[]);
  const app=read(APP_KEY,read(LEGACY_APP_KEY,null));
  if(app&&Array.isArray(app.teams)){
   SKILLS.splice(0,SKILLS.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_SKILLS));
   state.skillColors={...DEFAULT_COLORS,...(app.skillColors||{})};
   state.teams=app.teams.map(normalizeTeam);
   state.activeTeamId=state.teams.some(t=>t.id===app.activeTeamId)?app.activeTeamId:state.teams[0]?.id;
-  state.drillBank=bankMerge(app.drillBank);
-  state.plansByTeam={};for(const team of state.teams)state.plansByTeam[team.id]=(app.plansByTeam?.[team.id]||[]).map(p=>normalizePlan(p,team.id));
+  state.drillBank=bankMerge(app.drillBank,oldEquipmentCatalog);
+  state.plansByTeam={};for(const team of state.teams)state.plansByTeam[team.id]=(app.plansByTeam?.[team.id]||[]).map(p=>normalizePlan(p,team.id,oldEquipmentCatalog));
   state.activePlanIds={...(app.activePlanIds||{})};
  }else{
   const teams=read(OLD.teams,[{id:"t1",name:"Team 1",roster:[]},{id:"t2",name:"Team 2",roster:[]}]);
@@ -110,8 +116,8 @@ export function loadApp(){
   if(!state.teams.length)state.teams=[normalizeTeam({name:"My Team"})];
   const active=localStorage.getItem(OLD.active);state.activeTeamId=state.teams.some(t=>t.id===active)?active:state.teams[0].id;
   SKILLS.splice(0,SKILLS.length,...DEFAULT_SKILLS);state.skillColors={...DEFAULT_COLORS};
-  state.drillBank=bankMerge(read(OLD.bank,read(OLD.oldBank,[])));
-  state.plansByTeam=migratePlans(state.teams,state.activeTeamId);state.activePlanIds={};
+  state.drillBank=bankMerge(read(OLD.bank,read(OLD.oldBank,[])),oldEquipmentCatalog);
+  state.plansByTeam=migratePlans(state.teams,state.activeTeamId,oldEquipmentCatalog);state.activePlanIds={};
  }
  for(const team of state.teams){
   state.plansByTeam[team.id]||=[];
