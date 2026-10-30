@@ -32,6 +32,9 @@ function loadData(){
  const meta=readJSON(K.meta,{});state.practice={date:meta.date||localDate(),start:meta.start||meta.startTime||"18:00",end:meta.end||meta.endTime||"19:30"};
  const savedEquipment=readJSON(K.equipment,null);
  state.equipmentCatalog=Array.isArray(savedEquipment)?savedEquipment.map(x=>({id:x.id||uid("equip"),name:String(x.name||"").trim()})).filter(x=>x.name):DEFAULT_EQUIPMENT.map(name=>({id:uid("equip"),name}));
+ const migrateEquipment=x=>{if(x&&!x.equipmentItems?.length&&x.equipment)x.equipmentItems=parseLegacyEquipment(x.equipment)};
+ state.drillBank.forEach(migrateEquipment);state.schedule.forEach(x=>x.type==="station"?x.stations.forEach(migrateEquipment):migrateEquipment(x));
+ Object.values(state.schedulesByTeam).forEach(list=>list.forEach(x=>x.type==="station"?x.stations.forEach(migrateEquipment):migrateEquipment(x)));
  $("practice-date").value=state.practice.date;$("practice-start-time").value=state.practice.start;$("practice-end-time").value=state.practice.end;saveData();
 }
 function saveData(){
@@ -49,6 +52,18 @@ function toast(s){$("toast").textContent=s;clearTimeout(toastTimer);toastTimer=s
 function colour(t){return TAG_COLORS[t]||"#788894"}
 function skillTags(tags){return (tags||[]).map(t=>`<span class="skill-tag">${esc(t)}</span>`).join("")}
 function equipmentOption(id){return state.equipmentCatalog.find(x=>x.id===id)||null}
+function parseLegacyEquipment(text){
+ const source=String(text||"").toLowerCase(),result=[];
+ const idFor=name=>state.equipmentCatalog.find(x=>x.name.toLowerCase()===name.toLowerCase())?.id;
+ const countFrom=word=>({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10}[String(word).toLowerCase()]||Number(word)||1);
+ const balls=source.match(/\\b(one|two|three|four|five|six|\\d+)\\s+balls?\\b/i);
+ if(/\\bballs?\\b/i.test(source)){const id=idFor("Basketballs");if(id)result.push({optionId:id,quantity:balls?countFrom(balls[1]):1})}
+ const coneMatches=[...source.matchAll(/\\b(one|two|three|four|five|six|\\d+)\\s+cones?\\b/gi)];
+ if(coneMatches.length){const id=idFor("Cones");if(id)result.push({optionId:id,quantity:coneMatches.reduce((sum,x)=>sum+countFrom(x[1]),0)})}
+ else if(/\\bcones?\\b/i.test(source)){const id=idFor("Cones");if(id)result.push({optionId:id,quantity:(source.match(/\\bcones?\\b/gi)||[]).length})}
+ if(/\\b(jerseys?|pinnies)\\b/i.test(source)){const id=idFor("Jerseys / pinnies");if(id)result.push({optionId:id,quantity:1})}
+ return result;
+}
 function equipmentText(item){const list=normalizeEquipmentItems(item.equipmentItems).map(x=>{const op=equipmentOption(x.optionId);return op?op.name+" × "+x.quantity:null}).filter(Boolean);return list.length?list.join(", "):(item.equipment||"")}
 function renderTeams(){
  $("active-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");$("active-team-select").value=state.activeTeamId;
