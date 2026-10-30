@@ -36,11 +36,11 @@ A lightweight, browser-based basketball practice planner and live coaching compa
 
 ## Drill library
 
-The initial library contains **60 activities**:
+The initial library contains **59 activities**:
 - 33 current activities supplied in the coach's updated activity list.
-- 27 additional activities retained from the 2025–2026 practice workbook because they were not in the updated list.
+- 26 additional activities retained from the 2025–2026 practice workbook because they were not in the updated list.
 
-Where a drill appears in both sources, the coach-supplied description, duration, and tags take precedence. Historical-only activities remain available as additional options. The supplied descriptions are treated as the source content, not as independently verified coaching guidance.
+Where a drill appears in both sources, the coach-supplied description, duration, and tags take precedence. The archived “V-CUT PIVOT FOOT DRILL” is represented by the updated “PIVOT FOOT DRILL” entry rather than duplicated. Other historical-only activities remain available as additional options. The supplied descriptions are treated as the source content, not as independently verified coaching guidance.
 
 ## Run locally
 
