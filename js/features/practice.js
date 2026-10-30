@@ -12,12 +12,24 @@ export function fitPractice(plan=activePlan()){
   const target=timeWindow(plan),blocks=plan.blocks;
   if(target<blocks.length)return {ok:false,reason:"too-many-blocks"};
   const weights=blocks.map(block=>Math.max(1,blockMinutes(block)));
-  const total=weights.reduce((a,b)=>a+b,0),available=target-blocks.length;
-  const raw=weights.map(weight=>available*weight/total);
-  const values=raw.map(value=>1+Math.floor(value));
-  let extra=target-values.reduce((a,b)=>a+b,0);
-  const order=raw.map((value,index)=>({index,remainder:value-Math.floor(value)})).sort((a,b)=>b.remainder-a.remainder);
-  for(let i=0;extra>0;i++,extra--)values[order[i%order.length].index]++;
+  const total=weights.reduce((a,b)=>a+b,0);
+  const raw=weights.map(weight=>target*weight/total);
+  const values=raw.map(value=>Math.max(1,Math.floor(value)));
+  let difference=target-values.reduce((a,b)=>a+b,0);
+  const fractions=raw.map((value,index)=>({index,fraction:value-Math.floor(value)}));
+  if(difference>0){
+    fractions.sort((a,b)=>b.fraction-a.fraction);
+    for(let i=0;difference>0;i++,difference--)values[fractions[i%fractions.length].index]++;
+  }else if(difference<0){
+    fractions.sort((a,b)=>a.fraction-b.fraction);
+    while(difference<0){
+      let changed=false;
+      for(const item of fractions){
+        if(values[item.index]>1){values[item.index]--;difference++;changed=true;if(difference===0)break;}
+      }
+      if(!changed)break;
+    }
+  }
   remember();
   blocks.forEach((block,index)=>block.minutes=values[index]);
   save();return {ok:true,total:values.reduce((a,b)=>a+b,0),target};
