@@ -490,7 +490,7 @@ function wireEvents() {
     remember();team.groups={};saveApp();renderOneTeam();toast("Groups cleared.",true);
   });
   $("roster-list").addEventListener("pointerdown",startSwipe);
-  $("roster-list").addEventListener("pointerup",endSwipe);
+  document.addEventListener("pointerup",endSwipe);
   $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
   $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Undone.");}});
   $("plan-blocks").addEventListener("click",()=>{});
