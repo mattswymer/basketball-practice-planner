@@ -45,7 +45,7 @@ export function assignPlayer(drillId,playerId,groupId,targetPlayerId=null) {
   const source=groups.find(group=>group.playerIds.includes(playerId));
   const target=groups.find(group=>group.id===groupId);
   const previousTarget=targetPlayerId?groups.find(group=>group.playerIds.includes(targetPlayerId)):null;
-  if(targetPlayerId&&previousTarget&&previousTarget.id!==(source?.id||"")) {
+  if(source&&targetPlayerId&&previousTarget&&previousTarget.id!==source.id) {
     remember();
     groups.forEach(group=>{group.playerIds=group.playerIds.filter(id=>id!==playerId&&id!==targetPlayerId);});
     if(previousTarget)previousTarget.playerIds.push(playerId);
