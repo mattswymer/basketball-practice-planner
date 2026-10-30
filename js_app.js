@@ -189,8 +189,9 @@ function bindEvents(){
   if(a>=0&&b>=0&&a!==b){remember();const [item]=state.schedule.splice(a,1);state.schedule.splice(b,0,item);saveData();renderSchedule()}
   dragging=null
  });
- $("bank-panel").addEventListener("dragover",e=>{if(!dragging)return;e.preventDefault()});
- $("bank-panel").addEventListener("drop",e=>{if(!dragging)return;e.preventDefault();const id=dragging;dragging=null;deleteItem(id);toast("Removed from this practice. The bank copy remains.")});
+ $("bank-panel").addEventListener("dragover",e=>{if(!dragging)return;e.preventDefault();$("bank-panel").classList.add("drag-over")});
+ $("bank-panel").addEventListener("dragleave",e=>{if(!e.relatedTarget||!$("bank-panel").contains(e.relatedTarget))$("bank-panel").classList.remove("drag-over")});
+ $("bank-panel").addEventListener("drop",e=>{if(!dragging)return;e.preventDefault();$("bank-panel").classList.remove("drag-over");const id=dragging;dragging=null;deleteItem(id);toast("Removed from this practice. The bank copy remains.")});
  $("btn-fit-practice").addEventListener("click",fitPractice);$("btn-add-station-block").addEventListener("click",()=>openStation(null));$("btn-clear-schedule").addEventListener("click",()=>{if(!state.schedule.length||!confirm("Clear this team's practice schedule?"))return;remember();state.schedule=[];resetLive();saveData();renderSchedule()});
  $("practice-date").addEventListener("change",()=>{state.practice.date=$("practice-date").value;saveData()});$("practice-start-time").addEventListener("change",()=>{state.practice.start=$("practice-start-time").value;saveData();renderSchedule()});$("practice-end-time").addEventListener("change",()=>{state.practice.end=$("practice-end-time").value;saveData();renderSchedule()});
  $("form-station").addEventListener("submit",saveStation);$("btn-add-station-row").addEventListener("click",()=>{const x=[...$("station-rows").querySelectorAll("[data-station-select]")].map(y=>({drillId:y.value}));x.push({drillId:""});drawStationRows(x)});
