@@ -18,6 +18,7 @@ export function deleteTeam(id) {
   remember();state.teams=state.teams.filter(item=>item.id!==id);
   delete state.plansByTeam[id];delete state.activePlanIds[id];
   if(state.activeTeamId===id) {
+    state.live={active:false,currentBlockId:null,planId:null};
     state.activeTeamId=state.teams[0].id;
     const plans=state.plansByTeam[state.activeTeamId]||[];
     state.activePlanId=state.activePlanIds[state.activeTeamId]||plans[0]?.id||null;
