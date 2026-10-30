@@ -29,10 +29,11 @@ function parseEquipment(text){
 function equipmentOf(input,legacy=""){
  const values=Array.isArray(input)?input:[];
  if(!values.length)return parseEquipment(typeof input==="string"?input:legacy);
- const result=values.map(x=>({name:String(x.name||"Equipment").trim(),quantity:Math.max(1,Math.min(999,Math.round(Number(x.quantity)||1))),perPlayer:!!x.perPlayer})).filter(x=>x.name);
- for(const x of parseEquipment(legacy).filter(x=>x.perPlayer)){
-  const existing=result.find(y=>y.name.toLowerCase()===x.name.toLowerCase());
-  if(existing){existing.quantity=1;existing.perPlayer=true;}else result.push(x);
+ const result=values.filter(x=>x?.name).map(x=>({name:String(x.name).trim(),quantity:Math.max(1,Math.min(999,Math.round(Number(x.quantity)||1))),perPlayer:!!x.perPlayer}));
+ for(const inferred of parseEquipment(legacy)){
+  const existing=result.find(x=>x.name.toLowerCase()===inferred.name.toLowerCase());
+  if(existing){if(inferred.perPlayer){existing.quantity=inferred.quantity;existing.perPlayer=true;}else if(values.every(x=>!x?.name)){existing.quantity=inferred.quantity;existing.perPlayer=false;}}
+  else result.push(inferred);
  }
  return result;
 }
