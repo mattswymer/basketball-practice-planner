@@ -1,4 +1,4 @@
-import {state,SKILLS,esc,activeTeam,activePlan,plansForTeam,flattenDrills,blockMinutes,totalPracticeMinutes,durationLabel,clockLabel,skillColor,equipmentTotals} from "../store.js";
+import {state,SKILLS,esc,activeTeam,activePlan,plansForTeam,flattenDrills,blockMinutes,totalPracticeMinutes,durationLabel,clockLabel,skillColor,equipmentTotals} from "../core/store.js";
 const $=id=>document.getElementById(id);
 const hidden=(id,value)=>{if($(id))$(id).hidden=value;};
 const grip='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1.2"/><circle cx="16" cy="6" r="1.2"/><circle cx="8" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/><circle cx="8" cy="18" r="1.2"/><circle cx="16" cy="18" r="1.2"/></svg>';
