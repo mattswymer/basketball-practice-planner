@@ -1,6 +1,6 @@
 const CACHE_NAME="basketball-planner-v2";
 const CORE_ASSETS=[
- "./","./index.html","./css_style.css","./js_drills_db.js","./manifest.webmanifest",
+ "./","./index.html","./css/app.css","./js/data/drills.js","./manifest.webmanifest",
  "./icons/basketball.svg","./js/app.js","./js/core/store.js","./js/ui/render.js",
  "./js/features/practice.js","./js/features/groups.js","./js/features/teams.js","./js/features/skills.js",
  "./js/services/export.js","./vendor/jspdf.umd.min.js"
