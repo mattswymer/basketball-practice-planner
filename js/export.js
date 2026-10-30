@@ -24,7 +24,7 @@ export function exportPracticePDF() {
   let doc=new PDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
   let width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
   const margin=8,gap=5;
-  let colWidth=(width-margin*2-gap)/2,bodyTop=31,bodyBottom=height-9,available=bodyBottom-bodyTop,format="a4";
+  let colWidth=(width-margin*2-gap)/2,bodyTop=35,bodyBottom=height-9,available=bodyBottom-bodyTop,format="a4";
   const entries=collectEntries(plan);
   const rosterCount=Math.max(1,team?.players?.length||0);
   const equipment=equipmentTotals(plan).map(x=>x.name+" × "+x.quantity).join("   ·   ");
@@ -33,7 +33,7 @@ export function exportPracticePDF() {
     const layouts=[];
     for(const item of entries) {
       const drill=item.drill,col=ys[0]<=ys[1]?0:1,x=margin+col*(colWidth+gap),pad=3*scale;
-      const title=(item.lane?item.lane+" · ":"")+drill.name;
+      const title=(item.station?item.station+" / "+item.lane+" · ":item.lane?item.lane+" · ":"")+drill.name;
       const titleSize=9*scale,bodySize=7.1*scale,smallSize=6.2*scale;
       doc.setFont("helvetica","bold");doc.setFontSize(titleSize);
       const titleLines=doc.splitTextToSize(title,colWidth-pad*2-21);
@@ -67,7 +67,7 @@ export function exportPracticePDF() {
     while(layout.max>available && scale>.08){scale*=.92;layout=measure(scale);}
   }
   const compact=scale<.55,overflow=layout.max>available;
-  doc.setFillColor(16,43,63);doc.roundedRect(0,0,width,25,0,0,"F");
+  doc.setFillColor(16,43,63);doc.roundedRect(0,0,width,31,0,0,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
   doc.text(team?.name||"Basketball",margin,9.4);
   doc.setFontSize(10);doc.setFont("helvetica","normal");
@@ -84,7 +84,7 @@ export function exportPracticePDF() {
     doc.setFillColor(...c);doc.roundedRect(item.x,item.y,1.5,item.h,.6,.6,"F");
     let y=item.y+2.8*scale;
     doc.setTextColor(...c);doc.setFont("helvetica","bold");doc.setFontSize(6.1*scale);
-    doc.text(String(item.drill.primarySkill||"").toUpperCase(),item.x+4,y);y+=3.1*scale;
+    doc.text(String(item.drill.primarySkill||"").toUpperCase()+"  ·  "+item.drill.minutes+" MIN",item.x+4,y);y+=3.1*scale;
     doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(item.titleSize);
     doc.text(item.titleLines,item.x+4,y);y+=item.titleLines.length*(item.titleSize*.42)+.8*scale;
     doc.setFont("helvetica","normal");doc.setFontSize(item.smallSize);doc.setTextColor(80,99,110);
