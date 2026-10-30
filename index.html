@@ -2,269 +2,210 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#183b57">
-  <meta name="description" content="Plan basketball practices, organize drills and station rotations, and run a live coaching timer.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#173b55">
+  <meta name="description" content="Plan basketball practices and run drills.">
   <title>Basketball Practice Planner</title>
   <link rel="stylesheet" href="css_style.css">
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <div class="brand-row">
-        <div>
-          <div class="eyebrow">COACH'S TOOLKIT</div>
-          <h1>Basketball Practice Planner</h1>
-          <p class="subtitle">Build the practice. Run the practice.</p>
-        </div>
+      <div class="topbar">
+        <h1>Basketball Practice Planner</h1>
         <div class="header-actions">
           <span class="save-status" id="save-status" role="status">Loading…</span>
-          <button class="btn btn-quiet" id="btn-undo" disabled title="Undo last change">Undo</button>
-          <button class="btn btn-quiet" id="btn-export-json">Export</button>
-          <button class="btn btn-quiet" id="btn-import-json">Import</button>
-          <button class="btn btn-quiet" id="btn-export-pdf">Print / PDF</button>
-          <button class="btn btn-quiet" id="btn-help" aria-label="Help">Help</button>
+          <button class="btn btn-small" id="btn-undo" disabled>Undo</button>
+          <button class="btn btn-small" id="btn-export-pdf">PDF</button>
+          <button class="btn btn-small" id="btn-export-json">Backup</button>
+          <button class="btn btn-small" id="btn-import-json">Import</button>
+          <button class="btn btn-small" id="btn-help">Help</button>
         </div>
       </div>
 
       <div class="practice-toolbar">
-        <div class="control-group team-group">
+        <div class="team-control">
           <label for="active-team-select">Team</label>
           <select id="active-team-select"></select>
-          <button class="btn btn-small" id="btn-manage-teams">Teams & roster</button>
+          <button class="btn btn-small" id="btn-manage-teams">Manage</button>
         </div>
-        <div class="control-group">
-          <label for="practice-date">Practice date</label>
+        <label class="control">
+          <span>Date</span>
           <input type="date" id="practice-date">
-        </div>
-        <div class="control-group">
-          <label for="practice-start-time">Start</label>
+        </label>
+        <label class="control">
+          <span>Start</span>
           <input type="time" id="practice-start-time" value="18:00">
-        </div>
-        <div class="control-group">
-          <label for="practice-end-time">End</label>
+        </label>
+        <label class="control">
+          <span>End</span>
           <input type="time" id="practice-end-time" value="19:30">
-        </div>
-        <div class="toolbar-actions">
-          <button class="btn btn-primary" id="btn-fit-practice">Fit to allotted time</button>
-          <button class="btn" id="btn-equipment">Equipment list</button>
-          <button class="btn" id="btn-grouping">Player groups</button>
-        </div>
+        </label>
+        <button class="btn btn-primary" id="btn-fit-practice">Fit to allotted time</button>
+      </div>
+      <div class="allotted-strip" id="allotted-summary">
+        <strong id="allotted-window">Allotted time: 90 minutes</strong>
+        <span id="allotted-planned">Planned: 0 minutes</span>
+        <span id="allotted-remaining">Add activities</span>
       </div>
     </header>
 
     <main class="main-layout">
-      <aside id="bank-panel" class="bank-panel">
-        <div class="panel-heading">
-          <div>
-            <div class="eyebrow">LIBRARY</div>
-            <h2>Activity bank</h2>
-          </div>
-          <button class="btn btn-small btn-primary" id="btn-new-bank-drill">+ New drill</button>
-        </div>
-        <div class="bank-filters">
-          <input type="search" id="bank-search" placeholder="Search drills, notes, equipment…" aria-label="Search activity bank">
-          <select id="bank-tag-filter" aria-label="Filter drills by skill">
-            <option value="">All skills</option>
-          </select>
-          <select id="bank-sort" aria-label="Sort activity bank">
-            <option value="az">Sort: A–Z</option>
-            <option value="time">Sort: shortest first</option>
-            <option value="time-desc">Sort: longest first</option>
-          </select>
-        </div>
-        <div class="bank-count" id="bank-count"></div>
-        <div class="bank-list" id="bank-list"></div>
-        <div class="bank-footnote">Select <strong>+</strong> to add a drill. Select its name to edit the library copy.</div>
-      </aside>
-
       <section class="planner-panel">
         <div class="planner-heading">
-          <div>
-            <div class="eyebrow">PRACTICE PLAN</div>
-            <h2 id="planner-team-name">Your practice</h2>
-          </div>
+          <h2 id="planner-team-name">Practice schedule</h2>
           <div class="schedule-actions">
-            <button class="btn" id="btn-add-station-block">+ Station rotation</button>
-            <button class="btn" id="btn-clear-schedule">Clear practice</button>
+            <button class="btn btn-small" id="btn-add-station-block">+ Station rotation</button>
+            <button class="btn btn-small" id="btn-grouping">Player groups</button>
+            <button class="btn btn-small" id="btn-equipment">Equipment</button>
+            <button class="btn btn-small btn-subtle-danger" id="btn-clear-schedule">Clear</button>
           </div>
         </div>
 
-        <div class="summary-strip" id="schedule-summary">
-          <span id="summary-planned">0 minutes planned</span>
-          <span id="summary-window">90-minute window</span>
-          <span id="summary-difference">Add drills to begin</span>
-        </div>
-
-        <section class="live-panel" id="live-panel" aria-live="polite">
-          <div class="live-topline">
-            <div class="live-label"><span class="live-dot" id="live-indicator"></span><strong id="live-status-text">Practice offline</strong></div>
-            <div class="live-timer" id="live-timer-readout">--:--</div>
+        <section class="live-controls" id="live-panel" aria-live="polite">
+          <div class="live-status">
+            <span class="live-indicator" id="live-indicator"></span>
+            <strong id="live-status-text">Ready</strong>
+            <span class="live-timer" id="live-timer-readout">--:--</span>
           </div>
-          <div id="live-current" class="live-current"></div>
-          <div class="live-controls">
-            <button class="btn" id="btn-prev-drill" disabled>Previous</button>
-            <button class="btn" id="btn-pause-practice" disabled>Pause</button>
-            <button class="btn" id="btn-next-drill" disabled>Next</button>
-            <button class="btn btn-danger" id="btn-stop-practice" hidden>End practice</button>
-            <button class="btn btn-primary" id="btn-start-practice">Start live practice</button>
+          <div class="live-current-label" id="live-current-label">Start live practice to highlight the current activity.</div>
+          <div class="live-buttons">
+            <button class="btn btn-small" id="btn-prev-drill" disabled>Previous</button>
+            <button class="btn btn-small" id="btn-pause-practice" disabled>Pause</button>
+            <button class="btn btn-small" id="btn-next-drill" disabled>Next</button>
+            <button class="btn btn-small btn-danger" id="btn-stop-practice" hidden>End</button>
+            <button class="btn btn-small btn-primary" id="btn-start-practice">Start live practice</button>
           </div>
         </section>
 
-        <div class="schedule-subheading">
-          <span>Run of show</span>
-          <span class="schedule-instructions">Add from the bank, reorder, then take it to the court.</span>
+        <div class="schedule-caption">
+          <span>Practice schedule</span>
+          <span>Times include each activity's allotted minutes.</span>
         </div>
         <div class="schedule-list" id="schedule-list">
-          <div class="empty-state">Your practice is empty. Add activities from the bank to get started.</div>
+          <div class="empty-state">Add activities from the drill bank.</div>
         </div>
-        <div class="schedule-end" id="schedule-finish">No activities scheduled</div>
+        <div class="schedule-finish" id="schedule-finish"></div>
       </section>
-    </main>
 
-    <footer class="app-footer">
-      <span>Saved in this browser · Export a backup to move between devices.</span>
-      <span id="toast" role="status" aria-live="polite"></span>
-    </footer>
+      <aside class="bank-panel" id="bank-panel">
+        <div class="bank-heading">
+          <h2>Drill bank</h2>
+          <button class="btn btn-small btn-primary" id="btn-new-bank-drill">+ New drill</button>
+        </div>
+        <div class="bank-content" id="bank-content">
+          <input type="search" id="bank-search" placeholder="Search drills, skills, equipment…" aria-label="Search drill bank">
+          <div class="bank-filters">
+            <select id="bank-tag-filter" aria-label="Filter by skill"><option value="">All skills</option></select>
+            <select id="bank-sort" aria-label="Sort drills">
+              <option value="az">A–Z</option>
+              <option value="time">Shortest first</option>
+              <option value="time-desc">Longest first</option>
+            </select>
+          </div>
+          <div class="bank-count" id="bank-count"></div>
+          <div class="bank-list" id="bank-list"></div>
+          <p class="bank-hint">Tap + to add. Drag a drill into the schedule or a station.</p>
+        </div>
+      </aside>
+    </main>
+    <footer class="app-footer"><span>Changes save in this browser. Use Backup to move to another device.</span><span id="toast" role="status" aria-live="polite"></span></footer>
   </div>
 
   <input type="file" id="input-import-file" accept=".json,application/json" hidden>
 
   <dialog id="dialog-edit-item" class="app-dialog">
     <form id="form-edit-item" class="dialog-content">
-      <div class="dialog-heading">
-        <div>
-          <div class="eyebrow">ACTIVITY LIBRARY</div>
-          <h3 id="edit-dialog-title">Edit drill</h3>
-        </div>
-        <button type="button" class="icon-button" id="btn-cancel-edit" aria-label="Close">×</button>
-      </div>
+      <div class="dialog-heading"><h3 id="edit-dialog-title">Edit drill</h3><button type="button" class="icon-button" id="btn-cancel-edit" aria-label="Close">×</button></div>
       <input type="hidden" id="edit-item-id">
       <input type="hidden" id="edit-item-mode">
-      <label class="field">Drill name
-        <input type="text" id="edit-item-name" maxlength="160" required>
-      </label>
+      <label class="field">Drill name<input type="text" id="edit-item-name" maxlength="160" required></label>
       <div class="field-row">
-        <label class="field">Estimated minutes
-          <input type="number" id="edit-item-duration" min="1" max="240" step="1" required>
-        </label>
-        <label class="field field-wide">Equipment
-          <input type="text" id="edit-item-equipment" placeholder="e.g. 2 balls, 4 cones">
-        </label>
+        <label class="field">Minutes<input type="number" id="edit-item-duration" min="1" max="240" required></label>
+        <div class="field field-equipment">
+          <span>Equipment</span>
+          <button type="button" class="btn equipment-open" id="btn-edit-equipment">Choose equipment & quantities</button>
+          <div id="edit-equipment-summary" class="equipment-summary"></div>
+          <div id="legacy-equipment-note" class="legacy-note" hidden></div>
+        </div>
       </div>
       <div class="field">
-        <span class="field-label">Skill tags</span>
-        <div id="edit-item-tags" class="tag-checkbox-grid"></div>
+        <span>Skills</span>
+        <div id="edit-item-tags" class="tag-grid"></div>
       </div>
-      <label class="field">Instructions & coaching cues
-        <textarea id="edit-item-notes" rows="7" maxlength="6000" placeholder="Describe the setup, sequence, and emphasis…"></textarea>
-      </label>
+      <label class="field">Instructions & coaching cues<textarea id="edit-item-notes" rows="7" maxlength="6000"></textarea></label>
       <div class="dialog-actions">
-        <button type="button" class="btn btn-danger" id="btn-remove-bank" hidden>Delete from bank</button>
+        <button type="button" class="btn btn-danger" id="btn-remove-bank" hidden>Delete drill</button>
         <button type="button" class="btn btn-danger" id="btn-remove-scheduled" hidden>Remove from practice</button>
         <button type="button" class="btn" id="btn-update-bank-default" hidden>Update bank default</button>
         <span class="action-spacer"></span>
         <button type="button" class="btn" data-close-edit>Cancel</button>
-        <button type="submit" class="btn btn-primary">Save changes</button>
+        <button type="submit" class="btn btn-primary">Save drill</button>
       </div>
     </form>
   </dialog>
 
+  <dialog id="dialog-equipment-picker" class="app-dialog">
+    <div class="dialog-content">
+      <div class="dialog-heading"><h3>Choose equipment</h3><button type="button" class="icon-button" id="btn-close-equipment-picker" aria-label="Close">×</button></div>
+      <p class="inline-help">Select the equipment this drill needs and set a quantity.</p>
+      <div id="equipment-picker-list" class="equipment-picker-list"></div>
+      <button type="button" class="btn" id="btn-manage-equipment-options">Add or manage equipment options</button>
+      <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="btn" id="btn-cancel-equipment-picker">Cancel</button><button type="button" class="btn btn-primary" id="btn-save-equipment-picker">Use selected equipment</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="dialog-equipment-catalog" class="app-dialog">
+    <div class="dialog-content">
+      <div class="dialog-heading"><h3>Equipment options</h3><button type="button" class="icon-button" id="btn-close-equipment-catalog" aria-label="Close">×</button></div>
+      <p class="inline-help">Add, rename, or remove items from the equipment picker.</p>
+      <div id="equipment-catalog-list" class="equipment-catalog-list"></div>
+      <div class="add-equipment-row"><input type="text" id="new-equipment-name" placeholder="New equipment item" maxlength="80"><button type="button" class="btn btn-primary" id="btn-add-equipment-option">Add</button></div>
+      <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="btn btn-primary" id="btn-done-equipment-catalog">Done</button></div>
+    </div>
+  </dialog>
+
   <dialog id="dialog-station" class="app-dialog">
     <form id="form-station" class="dialog-content">
-      <div class="dialog-heading">
-        <div>
-          <div class="eyebrow">CONCURRENT WORK</div>
-          <h3 id="station-dialog-title">Create station rotation</h3>
-        </div>
-        <button type="button" class="icon-button" id="btn-cancel-station-x" aria-label="Close">×</button>
-      </div>
+      <div class="dialog-heading"><h3 id="station-dialog-title">Station rotation</h3><button type="button" class="icon-button" id="btn-cancel-station-x" aria-label="Close">×</button></div>
       <input type="hidden" id="station-id">
-      <label class="field">Block name
-        <input type="text" id="station-name" maxlength="120" value="Station rotation" required>
-      </label>
-      <div class="field-row">
-        <label class="field">Total block time (minutes)
-          <input type="number" id="station-duration" min="1" max="240" value="15" required>
-        </label>
-        <div class="field field-wide">
-          <span class="field-label">How it is timed</span>
-          <p class="inline-help">All stations run at the same time. The block counts once in the practice schedule.</p>
-        </div>
-      </div>
-      <div class="station-editor-heading">
-        <span>Station activities</span>
-        <button type="button" class="btn btn-small" id="btn-add-station-row">+ Add station</button>
-      </div>
+      <label class="field">Block name<input type="text" id="station-name" maxlength="120" required></label>
+      <label class="field">Total time in schedule (minutes)<input type="number" id="station-duration" min="1" max="240" value="15" required></label>
+      <p class="inline-help">Stations run at the same time. Add at least two activities. You can also drag drills from the bank onto a station card in the schedule.</p>
+      <div class="station-editor-heading"><strong>Stations</strong><button type="button" class="btn btn-small" id="btn-add-station-row">+ Add station</button></div>
       <div id="station-rows" class="station-rows"></div>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="btn-delete-station" hidden>Remove block</button>
-        <span class="action-spacer"></span>
-        <button type="button" class="btn" id="btn-cancel-station">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save station block</button>
+        <span class="action-spacer"></span><button type="button" class="btn" id="btn-cancel-station">Cancel</button><button type="submit" class="btn btn-primary">Save rotation</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dialog-teams" class="app-dialog">
     <div class="dialog-content">
-      <div class="dialog-heading">
-        <div><div class="eyebrow">TEAM MANAGEMENT</div><h3>Teams & rosters</h3></div>
-        <button type="button" class="icon-button" id="btn-close-teams" aria-label="Close">×</button>
-      </div>
-      <div class="field-row">
-        <label class="field field-wide">New team name
-          <input type="text" id="new-team-name" maxlength="100" placeholder="Team name">
-        </label>
-        <button type="button" class="btn btn-primary add-team-button" id="btn-add-team">Add team</button>
-      </div>
-      <label class="field">Roster to edit
-        <select id="roster-team-select"></select>
-      </label>
-      <label class="field">Players (one per line; jersey number optional)
-        <textarea id="team-roster-input" rows="10" placeholder="10 Jordan Smith&#10;12 Alex Johnson&#10;15 Sam Lee"></textarea>
-      </label>
-      <div class="dialog-actions">
-        <span class="action-spacer"></span>
-        <button type="button" class="btn btn-primary" id="btn-save-roster">Save roster</button>
-      </div>
+      <div class="dialog-heading"><h3>Teams & rosters</h3><button type="button" class="icon-button" id="btn-close-teams" aria-label="Close">×</button></div>
+      <div class="field-row"><label class="field">New team<input type="text" id="new-team-name" maxlength="100" placeholder="Team name"></label><button type="button" class="btn btn-primary add-team-button" id="btn-add-team">Add team</button></div>
+      <label class="field">Roster to edit<select id="roster-team-select"></select></label>
+      <div class="team-manage-actions"><button type="button" class="btn btn-danger" id="btn-delete-team">Delete selected team</button><span id="team-count-label"></span></div>
+      <label class="field">Players (one per line; jersey number optional)<textarea id="team-roster-input" rows="9" placeholder="10 Jordan Smith&#10;12 Alex Johnson&#10;15 Sam Lee"></textarea></label>
+      <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="btn" id="btn-cancel-roster">Cancel</button><button type="button" class="btn btn-primary" id="btn-save-roster">Save roster</button></div>
     </div>
   </dialog>
 
   <dialog id="dialog-grouping" class="app-dialog">
     <div class="dialog-content">
-      <div class="dialog-heading">
-        <div><div class="eyebrow">PLAYER MANAGEMENT</div><h3>On-court groups</h3></div>
-        <button type="button" class="icon-button" id="btn-close-grouping" aria-label="Close">×</button>
-      </div>
-      <p class="inline-help">Check the players who are present, then split them into balanced random groups.</p>
-      <div class="group-toolbar">
-        <label class="field">Number of groups
-          <select id="group-count-select">
-            <option value="2">2 groups</option>
-            <option value="3">3 groups</option>
-            <option value="4">4 groups</option>
-            <option value="5">5 groups</option>
-          </select>
-        </label>
-        <button type="button" class="btn btn-primary" id="btn-generate-groups">Randomize groups</button>
-      </div>
-      <div class="presence-actions">
-        <button type="button" class="text-button" id="btn-select-all-players">Select all</button>
-        <button type="button" class="text-button" id="btn-clear-players">Clear</button>
-      </div>
-      <div id="grouping-roster" class="grouping-roster"></div>
-      <div id="groups-output-container" class="groups-grid"></div>
+      <div class="dialog-heading"><h3>Player groups</h3><button type="button" class="icon-button" id="btn-close-grouping" aria-label="Close">×</button></div>
+      <p class="inline-help">Generate random groups, or move players yourself. Drag players between groups on a desktop, or use the Move to control on a phone.</p>
+      <div class="group-toolbar"><label class="field">Number of groups<select id="group-count-select"><option value="2">2 groups</option><option value="3">3 groups</option><option value="4">4 groups</option><option value="5">5 groups</option></select></label><button type="button" class="btn btn-primary" id="btn-generate-groups">Random groups</button><button type="button" class="btn" id="btn-reset-groups">Reset groups</button></div>
+      <div id="grouping-board" class="grouping-board"></div>
+      <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="btn btn-primary" id="btn-done-groups">Done</button></div>
     </div>
   </dialog>
 
   <dialog id="dialog-equipment" class="app-dialog">
     <div class="dialog-content">
-      <div class="dialog-heading">
-        <div><div class="eyebrow">PRACTICE PREP</div><h3>Master equipment list</h3></div>
-        <button type="button" class="icon-button" id="btn-close-equipment" aria-label="Close">×</button>
-      </div>
-      <p class="inline-help">Equipment consolidated from the scheduled drills and station activities.</p>
+      <div class="dialog-heading"><h3>Practice equipment</h3><button type="button" class="icon-button" id="btn-close-equipment" aria-label="Close">×</button></div>
+      <p class="inline-help">Combined quantities for all scheduled drills and station activities.</p>
       <div id="equipment-master-list" class="equipment-list"></div>
       <div class="dialog-actions"><span class="action-spacer"></span><button type="button" class="btn btn-primary" id="btn-done-equipment">Done</button></div>
     </div>
@@ -272,16 +213,12 @@
 
   <dialog id="dialog-help" class="app-dialog">
     <div class="dialog-content">
-      <div class="dialog-heading">
-        <div><div class="eyebrow">QUICK GUIDE</div><h3>Using the planner</h3></div>
-        <button type="button" class="icon-button" id="btn-close-help" aria-label="Close">×</button>
-      </div>
+      <div class="dialog-heading"><h3>Help</h3><button type="button" class="icon-button" id="btn-close-help" aria-label="Close">×</button></div>
       <div class="help-content">
-        <section><h4>Build a practice</h4><p>Search or filter the activity bank. Use + or drag a bank drill into the schedule to add it. Select a scheduled activity to edit its details. Use the arrows or drag to reorder it. Drag a scheduled block back to the bank to remove it from this practice; its bank copy stays.</p></section>
-        <section><h4>Run stations concurrently</h4><p>A station rotation is one timed block containing several activities that run at the same time. It counts once toward the practice duration, not once per station.</p></section>
-        <section><h4>Fit the gym window</h4><p>Set the start and end times, then select Fit to allotted time. The planner distributes whole minutes proportionally and makes the total match the available window.</p></section>
-        <section><h4>Run live practice</h4><p>Start live practice to show the current activity, coaching cues, equipment, and countdown. Pause, move forward or backward, or end the session.</p></section>
-        <section><h4>Save and move between computers</h4><p>The app saves automatically in this browser. Export a JSON backup to move a practice or activity bank to another device. Printing opens a clean practice handout.</p></section>
+        <section><h4>Build the schedule</h4><p>Add drills from the bank, or drag them into the schedule. Times show the allotted duration for every activity. Use Fit to allotted time to distribute the available gym time proportionally.</p></section>
+        <section><h4>Station rotations</h4><p>Activities inside a station block happen at the same time. Add two or more drills and set the total time for the block.</p></section>
+        <section><h4>Live practice</h4><p>Start the timer. The current activity is highlighted in the schedule with its instructions and equipment visible. Pause, resume, or move to another activity.</p></section>
+        <section><h4>Save and print</h4><p>Data is saved in this browser. Backup exports teams, drills, equipment, and practices as JSON. PDF downloads a PDF file directly.</p></section>
       </div>
     </div>
   </dialog>
