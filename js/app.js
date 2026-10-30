@@ -1,518 +1,389 @@
 import {
-  state, SKILLS, clone, uid, esc, localDate, loadApp, save, remember, undo, canUndo,
-  normalizeDrill, activeTeam, activePlan, plansForTeam, setActiveTeam, setActivePlan,
-  getBankDrill, findPlanDrill, locatePlanDrill, flattenDrills, blockMinutes,
-  totalPracticeMinutes, copyDrill
+ state,SKILLS,uid,clone,esc,localDate,loadApp,save,remember,undo,activeTeam,activePlan,plansForTeam,
+ setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill
 } from "./store.js";
 import {
-  renderApp, renderBankPicker, renderOnePlan, renderOneTeam, renderEquipment,
-  renderEditorTags, renderEditorEquipment, renderEditorSteps, renderStationEditor
-} from "./render.js";
-import { exportPracticePDF, exportBackup, importBackup } from "./export.js";
+ renderApp,renderBankPicker,renderOnePlan,renderOneTeam,renderEquipment,renderEditorTags,
+ renderEditorEquipment,renderEditorSteps,renderStationEditor,renderGroupBoard,renderSkillManager
+} from "./ui/render.js";
+import {exportPracticePDF,exportBackup,importBackup} from "./services/export.js";
+import * as practice from "./features/practice.js";
+import * as teams from "./features/teams.js";
+import * as grouping from "./features/groups.js";
+import {skills} from "./features/skills.js";
 const $=id=>document.getElementById(id);
-const show=(id)=>{const el=$(id);if(el&&!el.open)el.showModal();};
-const close=(id)=>{const el=$(id);if(el?.open)el.close();};
-let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,toastTimer=null,toastUndoTimer=null,wakeLock=null;
-let dragState=null,swipeState=null;
-state.planDetailOpen=false;state.selectedTeamId=state.activeTeamId;state.statsTeamId=state.activeTeamId;
-function toast(message,undoAction=false) {
-  $("toast-message").textContent=message;
-  $("toast-undo").hidden=!undoAction;
-  $("toast").classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>$("toast").classList.remove("show"),4200);
+const show=id=>{const dialog=$(id);if(dialog&&!dialog.open)dialog.showModal();};
+const close=id=>{const dialog=$(id);if(dialog?.open)dialog.close();};
+let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null;
+function toast(message,undoable=false){
+ $("toast-message").textContent=message;$("toast-undo").hidden=!undoable;$("toast").classList.add("show");
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),4200);
 }
-function saveApp() { save(); }
-function afterChange() { saveApp(); renderApp(); }
-function activePlanOrWarn() { const p=activePlan();if(!p)toast("Create a practice plan first.");return p; }
-function openPlan(id) { setActivePlan(id);state.planDetailOpen=true;state.view="plans";renderApp(); }
-function newPlan() {
-  const team=activeTeam();if(!team)return;
-  const today=localDate();
-  const plan={id:uid("plan"),teamId:team.id,name:"Practice · "+today,date:today,start:"18:00",end:"19:30",blocks:[],completedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};
-  if(!state.plansByTeam[team.id])state.plansByTeam[team.id]=[];
-  state.plansByTeam[team.id].unshift(plan);setActivePlan(plan.id);
-  state.planDetailOpen=true;state.view="plans";saveApp();renderApp();
-  $("plan-name").focus();$("plan-name").select();
+function persist(){save();}
+function openPlan(id){setActivePlan(id);state.planDetailOpen=true;state.view="plans";renderApp();}
+function createPlan(){
+ const team=activeTeam();if(!team)return;
+ const plan=practicePlanObject(team.id);
+ state.plansByTeam[team.id].unshift(plan);setActivePlan(plan.id);
+ state.planDetailOpen=true;state.view="plans";persist();renderApp();
+ $("plan-name").focus();$("plan-name").select();
 }
-function deletePlan(id) {
-  const teamId=state.activeTeamId,list=plansForTeam(teamId),index=list.findIndex(p=>p.id===id);
-  if(index<0)return;
-  remember();const [removed]=list.splice(index,1);
-  if(!list.length)list.push({id:uid("plan"),teamId,name:"Practice plan",date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()});
-  if(state.activePlanId===id){
-    setActivePlan(list[Math.min(index,list.length-1)].id);
-    state.planDetailOpen=false;
-    if(state.live.planId===id){state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
-  }
-  saveApp();renderApp();toast("Plan deleted: "+removed.name, true);
+function practicePlanObject(teamId){
+ return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};
 }
-function switchTeam(teamId) {
-  if(state.live.active)releaseWakeLock();
-  setActiveTeam(teamId);state.selectedTeamId=teamId;state.statsTeamId=teamId;
-  state.planDetailOpen=false;renderApp();
+function deletePlan(id){
+ const list=plansForTeam(),index=list.findIndex(p=>p.id===id);if(index<0)return;
+ remember();const [removed]=list.splice(index,1);
+ if(!list.length)list.push(practicePlanObject(state.activeTeamId));
+ if(state.activePlanId===id){setActivePlan(list[Math.min(index,list.length-1)].id);state.planDetailOpen=false;}
+ if(state.live.planId===id)endLive(false);
+ persist();renderApp();toast(removed.name+" deleted.",true);
 }
-function changeView(view) {
-  state.view=view;
-  if(view==="teams")state.selectedTeamId=state.activeTeamId;
-  if(view==="stats"&&!state.statsTeamId)state.statsTeamId=state.activeTeamId;
-  renderApp();
+function switchTeam(id){
+ if(state.live.active)endLive(false);
+ setActiveTeam(id);state.selectedTeamId=id;state.statsTeamId=id;state.planDetailOpen=false;renderApp();
 }
-function openBankSheet(laneId=null) {
-  if(!activePlanOrWarn())return;
-  pendingLaneId=laneId;
-  $("bank-search").value="";
-  $("bank-skill-filter").value="";
-  renderBankPicker();show("bank-sheet");
+function changeView(view){state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
+function openBank(laneId=null){
+ if(!activePlan())return toast("Create a practice plan first.");
+ pendingLaneId=laneId;$("bank-search").value="";$("bank-skill-filter").value="";renderBankPicker();show("bank-sheet");
 }
-function openEditor(type,id=null) {
-  const plan=activePlan();let item;
-  if(type==="new") item={id:uid("drill"),name:"",minutes:10,primarySkill:"dribbling",tags:[],equipment:[],steps:[],source:"custom"};
-  else if(type==="bank") item=getBankDrill(id);
-  else item=findPlanDrill(plan,id);
-  if(!item)return;
-  editing={type,id:item.id};
-  $("drill-sheet-title").textContent=type==="new"?"New drill":type==="bank"?"Edit bank drill":"Edit drill";
-  $("drill-sheet-eyebrow").textContent=type==="bank"?"DRILL BANK":type==="plan"?"PRACTICE DRILL":"NEW DRILL";
-  $("edit-name").value=item.name||"";
-  $("edit-minutes").value=item.minutes||10;
-  renderEditorTags(item.tags||[]);
-  $("edit-skill").value=item.primarySkill||"dribbling";
-  renderEditorEquipment(clone(item.equipment||[]));
-  renderEditorSteps(clone(item.steps||[]));
-  $("delete-drill").hidden=type==="new";
-  $("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
-  show("drill-sheet");
+function openDrillEditor(type,id=null){
+ const plan=activePlan();
+ const item=type==="new"?{id:uid("drill"),name:"",minutes:10,tags:[],equipment:[],steps:[],source:"custom",grouping:{groups:[]}}:
+  type==="bank"?getBankDrill(id):findPlanDrill(plan,id);
+ if(!item)return;
+ editing={type,id:item.id};
+ $("drill-sheet-title").textContent=type==="new"?"New drill":type==="bank"?"Edit bank drill":"Edit drill";
+ $("drill-sheet-eyebrow").textContent=type==="bank"?"DRILL BANK":type==="plan"?"PRACTICE DRILL":"NEW DRILL";
+ $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;
+ renderEditorTags(item.tags||[]);renderEditorEquipment(clone(item.equipment||[]));renderEditorSteps(clone(item.steps||[]));
+ $("delete-drill").hidden=type==="new";$("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
+ show("drill-sheet");
 }
-function collectEditorEquipment(includeBlank=false) {
-  const items=[...$("edit-equipment-rows").querySelectorAll(".edit-equipment-row")].map(row=>{
-    const name=row.querySelector('[data-eq-field="name"]').value.trim();
-    const quantity=Math.max(1,Math.min(999,Math.round(Number(row.querySelector('[data-eq-field="quantity"]').value)||1)));
-    const perPlayer=row.querySelector('[data-eq-field="perPlayer"]').checked;
-    return {name,quantity,perPlayer};
-  });
-  return includeBlank?items:items.filter(x=>x.name);
+function editorEquipment(includeBlank=false){
+ const rows=[...$("edit-equipment-rows").querySelectorAll(".edit-equipment-row")];
+ const result=rows.map(row=>({
+  name:row.querySelector('[data-eq-field="name"]').value.trim(),
+  quantity:Math.max(1,Math.min(999,Math.round(Number(row.querySelector('[data-eq-field="quantity"]').value)||1))),
+  perPlayer:row.querySelector('[data-eq-field="perPlayer"]').checked
+ }));
+ return includeBlank?result:result.filter(x=>x.name);
 }
-function collectEditorSteps(includeBlank=false) {
-  const steps=[...$("edit-steps").querySelectorAll("[data-step-index]")].map(x=>x.value.trim());
-  return includeBlank?steps:steps.filter(Boolean);
+function editorSteps(includeBlank=false){
+ const result=[...$("edit-steps").querySelectorAll("[data-step-index]")].map(el=>el.value.trim());
+ return includeBlank?result:result.filter(Boolean);
 }
-function saveDrill(event) {
-  event.preventDefault();if(!editing)return;
-  const name=$("edit-name").value.trim();if(!name){$("edit-name").focus();return;}
-  const primarySkill=$("edit-skill").value||"dribbling";
-  const tags=[...$("edit-tags").querySelectorAll("input:checked")].map(x=>x.value).filter(x=>x!==primarySkill);
-  const data={
-    name,minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),
-    primarySkill,tags,equipment:collectEditorEquipment(),steps:collectEditorSteps()
-  };
-  remember();
-  if(editing.type==="new")state.drillBank.unshift({...data,id:editing.id,kind:"drill",source:"custom",bankId:null});
-  else if(editing.type==="bank") {
-    const item=getBankDrill(editing.id);if(item)Object.assign(item,data);
-  } else {
-    const item=findPlanDrill(activePlan(),editing.id);if(item)Object.assign(item,data);
-  }
-  saveApp();close("drill-sheet");editing=null;renderApp();toast("Saved.");
+function saveDrill(event){
+ event.preventDefault();if(!editing)return;
+ const name=$("edit-name").value.trim();if(!name){$("edit-name").focus();return;}
+ const data={name,minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),
+  tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps()};
+ remember();
+ if(editing.type==="new")state.drillBank.unshift({...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}});
+ else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
+ else {const item=findPlanDrill(activePlan(),editing.id);if(item)Object.assign(item,data);}
+ persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
 }
-function removeDrill(id) {
-  const plan=activePlan(),found=locatePlanDrill(plan,id);if(!found)return;
-  remember();found.list.splice(found.list.findIndex(x=>x.id===id),1);
-  plan.completedIds=plan.completedIds.filter(x=>x!==id);
-  if(state.live.currentDrillId===id) {
-    state.live.currentDrillId=flattenDrills(plan)[0]?.id||null;
-    if(!state.live.currentDrillId){state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
-  }
-  saveApp();renderApp();toast("Drill removed.",true);
+function deleteEditorDrill(){
+ if(!editing)return;
+ if(editing.type==="bank"){
+  const item=getBankDrill(editing.id);if(!item)return;remember();state.drillBank=state.drillBank.filter(d=>d.id!==item.id);
+  persist();close("drill-sheet");editing=null;renderApp();toast("Drill deleted.",true);
+ }else if(editing.type==="plan"){
+  const id=editing.id;close("drill-sheet");editing=null;removePlanDrill(id);
+ }
 }
-function deleteEditorDrill() {
-  if(!editing)return;
-  if(editing.type==="bank") {
-    const item=getBankDrill(editing.id);if(!item)return;
-    remember();state.drillBank=state.drillBank.filter(x=>x.id!==item.id);
-    saveApp();close("drill-sheet");editing=null;renderApp();toast("Drill deleted from bank.",true);
-  } else if(editing.type==="plan") {
-    const id=editing.id;close("drill-sheet");editing=null;removeDrill(id);
-  }
+function removePlanDrill(id){
+ const found=locatePlanDrill(activePlan(),id);if(!found)return;
+ practice.removeScheduledDrill(id);
+ const plan=activePlan();
+ if(found.laneId){
+  const station=plan.blocks.find(block=>block.kind==="station"&&block.lanes.some(l=>l.id===found.laneId));
+  if(station&&station.lanes.every(l=>!l.drills.length))plan.blocks=plan.blocks.filter(block=>block.id!==station.id);
+ }
+ if(state.live.active&&!plan.blocks.some(block=>block.id===state.live.currentBlockId))practice.stopLive();
+ persist();renderApp();toast("Drill removed.",true);
 }
-function openStation(id=null) {
-  const plan=activePlanOrWarn();if(!plan)return;
-  const existing=id?plan.blocks.find(x=>x.id===id&&x.kind==="station"):null;
-  stationEditingId=existing?.id||null;
-  stationDraft=existing?clone(existing):{
-    kind:"station",id:uid("station-block"),name:"Station rotation",
-    lanes:[{id:uid("lane"),name:"Lane 1",drills:[]},{id:uid("lane"),name:"Lane 2",drills:[]}]
-  };
-  $("delete-station").hidden=!existing;
-  renderStationEditor(stationDraft);show("station-sheet");
+function addBankDrill(id){
+ const bank=getBankDrill(id);if(!bank)return;
+ practice.addScheduledDrill(copyDrill(bank),activePlan(),pendingLaneId);
+ pendingLaneId=null;close("bank-sheet");renderApp();toast("Added "+bank.name+".");
 }
-function captureLaneNames() {
-  if(!stationDraft)return;
-  stationDraft.lanes.forEach(lane=>{
-    const input=$("station-lanes-editor").querySelector('[data-lane-name="'+lane.id+'"]');
-    if(input)lane.name=input.value.trim()||lane.name;
-  });
+function openStation(id=null){
+ const plan=activePlan();if(!plan)return toast("Create a practice plan first.");
+ const existing=id?plan.blocks.find(b=>b.id===id&&b.kind==="station"):null;
+ stationEditingId=existing?.id||null;
+ stationDraft=existing?clone(existing):practice.createStation();
+ $("delete-station").hidden=!existing;renderStationEditor(stationDraft);show("station-sheet");
 }
-function addLane() {
-  if(!stationDraft)return;
-  captureLaneNames();
-  stationDraft.lanes.push({id:uid("lane"),name:"Lane "+(stationDraft.lanes.length+1),drills:[]});
-  renderStationEditor(stationDraft);
+function captureLaneNames(){
+ if(!stationDraft)return;
+ stationDraft.lanes.forEach(lane=>{const el=$("station-lanes-editor").querySelector('[data-lane-name="'+lane.id+'"]');if(el)lane.name=el.value.trim()||lane.name;});
 }
-function removeLane(id) {
-  if(!stationDraft||stationDraft.lanes.length<=1){toast("A station needs at least one lane.");return;}
-  captureLaneNames();
-  const lane=stationDraft.lanes.find(x=>x.id===id);
-  if(lane?.drills.length){toast("Move drills out of this lane first.");return;}
-  stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
+function addLane(){
+ if(!stationDraft)return;captureLaneNames();
+ stationDraft.lanes.push({id:uid("lane"),name:"Lane "+(stationDraft.lanes.length+1),drills:[]});renderStationEditor(stationDraft);
 }
-function saveStation(event) {
-  event.preventDefault();if(!stationDraft)return;
-  stationDraft.name=$("station-name").value.trim()||"Station rotation";
-  stationDraft.lanes.forEach(lane=>{const input=$("station-lanes-editor").querySelector('[data-lane-name="'+lane.id+'"]');if(input)lane.name=input.value.trim()||"Lane";});
-  const plan=activePlan();if(!plan)return;
-  remember();
-  const index=plan.blocks.findIndex(x=>x.id===stationEditingId);
-  if(index>=0)plan.blocks[index]=stationDraft;else plan.blocks.push(stationDraft);
-  saveApp();close("station-sheet");stationDraft=null;stationEditingId=null;renderApp();toast("Station saved.");
+function removeLane(id){
+ if(!stationDraft||stationDraft.lanes.length<=1)return toast("A station needs at least one lane.");
+ captureLaneNames();const lane=stationDraft.lanes.find(x=>x.id===id);
+ if(lane?.drills.length)return toast("Move the drills out of this lane first.");
+ stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
 }
-function deleteStation() {
-  if(!stationEditingId)return;
-  const id=stationEditingId;
-  close("station-sheet");stationDraft=null;stationEditingId=null;
-  removeBlock(id);
+function saveStation(event){
+ event.preventDefault();if(!stationDraft)return;
+ captureLaneNames();stationDraft.name=$("station-name").value.trim()||"Station rotation";
+ stationDraft.minutes=Math.max(1,Math.min(240,Math.round(Number($("station-minutes").value)||15)));
+ const plan=activePlan();if(!plan)return;remember();
+ const index=plan.blocks.findIndex(b=>b.id===stationEditingId);
+ if(index>=0)plan.blocks[index]=stationDraft;else plan.blocks.push(stationDraft);
+ persist();close("station-sheet");stationDraft=null;stationEditingId=null;renderApp();toast("Station saved.");
 }
-function addBankDrill(id) {
-  const plan=activePlan(),bank=getBankDrill(id);if(!plan||!bank)return;
-  const drill=copyDrill(bank);remember();
-  if(pendingLaneId) {
-    const lane=plan.blocks.flatMap(b=>b.kind==="station"?b.lanes:[]).find(l=>l.id===pendingLaneId);
-    if(lane)lane.drills.push(drill);else plan.blocks.push(drill);
-  } else plan.blocks.push(drill);
-  const target=pendingLaneId;pendingLaneId=null;
-  saveApp();close("bank-sheet");renderApp();toast("Added "+drill.name+".");
-  if(target){const card=document.querySelector('[data-drill-card="'+drill.id+'"]');card?.scrollIntoView({block:"center",behavior:"smooth"});}
+function deleteStation(){
+ if(!stationEditingId)return;
+ const id=stationEditingId;close("station-sheet");stationDraft=null;stationEditingId=null;
+ practice.removeScheduledBlock(id);renderApp();toast("Station removed.",true);
 }
-function removeBlock(id) {
-  const plan=activePlan();if(!plan)return;
-  const block=plan.blocks.find(x=>x.id===id);if(!block)return;
-  const ids=block.kind==="station"?block.lanes.flatMap(l=>l.drills.map(d=>d.id)):[block.id];
-  remember();plan.blocks=plan.blocks.filter(x=>x.id!==id);plan.completedIds=plan.completedIds.filter(x=>!ids.includes(x));
-  if(state.live.active&&ids.includes(state.live.currentDrillId)) {
-    const remaining=flattenDrills(plan);
-    if(remaining.length)state.live.currentDrillId=remaining[0].id;
-    else {state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
-  }
-  saveApp();renderApp();toast("Removed from practice.",true);
+function removeBlock(id){practice.removeScheduledBlock(id);renderApp();toast("Removed from practice.",true);}
+function moveDrill(id,laneId,beforeId){if(practice.moveScheduledDrill(id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
+function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.laneId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
+function fitCurrentPlan(){
+ const result=practice.fitPractice();
+ if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"There are more schedule blocks than available minutes.");
+ renderApp();toast("Schedule adjusted to exactly "+result.target+" minutes.");
 }
-function moveToPlan(id) {
-  const plan=activePlan(),found=locatePlanDrill(plan,id);if(!found||!found.laneId)return;
-  remember();found.list.splice(found.list.findIndex(x=>x.id===id),1);plan.blocks.push(found.drill);
-  saveApp();renderApp();toast("Moved to main plan.");
+function startLive(){
+ const result=practice.startLive();if(!result.ok)return toast("Add a drill or station first.");
+ state.planDetailOpen=true;state.view="plans";renderApp();requestWakeLock();
+ const block=activePlan().blocks[result.index];
+ setTimeout(()=>document.querySelector('[data-block-id="'+block.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),40);
+ toast("Practice is live.");
 }
-function moveDrill(id,laneId=null,beforeId=null) {
-  const plan=activePlan(),found=locatePlanDrill(plan,id);if(!plan||!found)return;
-  const targetList=laneId?plan.blocks.flatMap(b=>b.kind==="station"?b.lanes:[]).find(l=>l.id===laneId)?.drills:plan.blocks;
-  if(!targetList)return;
-  const before=beforeId?targetList.findIndex(x=>x.id===beforeId):-1;
-  if(found.list===targetList && (before===found.list.indexOf(found.drill)||before===found.list.indexOf(found.drill)+1))return;
-  remember();found.list.splice(found.list.findIndex(x=>x.id===id),1);
-  const index=beforeId?targetList.findIndex(x=>x.id===beforeId):-1;
-  targetList.splice(index<0?targetList.length:index,0,found.drill);
-  saveApp();renderApp();toast(laneId?"Drill moved to station.":"Drill moved.");
+function requestWakeLock(){
+ if(!("wakeLock" in navigator))return;
+ navigator.wakeLock.request("screen").then(lock=>{wakeLock=lock;lock.addEventListener("release",()=>wakeLock=null);}).catch(()=>{});
 }
-function reorderBlock(id,beforeId=null) {
-  const plan=activePlan();if(!plan||beforeId===id)return;
-  const from=plan.blocks.findIndex(x=>x.id===id);if(from<0)return;
-  const [block]=plan.blocks.splice(from,1);
-  const to=beforeId?plan.blocks.findIndex(x=>x.id===beforeId):-1;
-  if(to===from) { plan.blocks.splice(from,0,block); return; }
-  plan.blocks.splice(to<0?plan.blocks.length:to,0,block);
-  saveApp();renderApp();
+async function releaseWakeLock(){try{await wakeLock?.release();}catch{}wakeLock=null;}
+function endLive(showToast=true){practice.stopLive();releaseWakeLock();renderApp();if(showToast)toast("Practice ended.");}
+function advanceLive(result){
+ const outcome=practice.advanceLive(result);
+ if(!outcome.ok)return;
+ if(outcome.finished){releaseWakeLock();renderApp();toast(result==="skip"?"Practice finished.":"Practice finished.");return;}
+ renderOnePlan();
+ document.querySelector('[data-block-id="'+outcome.next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
 }
-function completeDrill(id) {
-  const plan=activePlan();if(!plan)return;
-  const exists=plan.completedIds.includes(id);
-  plan.completedIds=exists?plan.completedIds.filter(x=>x!==id):[...plan.completedIds,id];
-  saveApp();renderOnePlan();if(state.view==="stats")renderApp();
+function previousLive(){if(practice.moveLive(-1)){renderOnePlan();const block=activePlan().blocks.find(b=>b.id===state.live.currentBlockId);document.querySelector('[data-block-id="'+block.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});}}
+function openGroups(drillId){
+ if(!grouping.openDrillGroups(drillId))return;
+ renderGroupBoard();show("group-sheet");
 }
-async function acquireWakeLock() {
-  try { if("wakeLock" in navigator) { wakeLock=await navigator.wakeLock.request("screen");wakeLock.addEventListener("release",()=>{wakeLock=null;}); } }
-  catch(error) { console.info("Wake lock unavailable",error); }
+function updateGroups(){renderGroupBoard();persist();}
+function groupPointerDown(event){
+ const handle=event.target.closest("[data-group-player]");if(!handle)return;
+ const drillId=state.groupingDrillId,playerId=handle.dataset.groupPlayer;
+ groupDrag={drillId,playerId,startX:event.clientX,startY:event.clientY,active:false,timer:setTimeout(()=>{
+  if(!groupDrag)return;groupDrag.active=true;handle.classList.add("dragging");navigator.vibrate?.(12);
+ },230)};
 }
-async function releaseWakeLock() {
-  try { if(wakeLock) await wakeLock.release(); } catch {}
-  wakeLock=null;
+function groupPointerMove(event){
+ if(!groupDrag)return;
+ if(!groupDrag.active){
+  if(Math.abs(event.clientX-groupDrag.startX)>12||Math.abs(event.clientY-groupDrag.startY)>12){clearTimeout(groupDrag.timer);groupDrag=null;}
+  return;
+ }
+ event.preventDefault();document.querySelectorAll(".drill-group.drop-target").forEach(el=>el.classList.remove("drop-target"));
+ const target=document.elementFromPoint(event.clientX,event.clientY)?.closest("[data-group-target]");
+ if(target){target.classList.add("drop-target");groupDrag.target=target;}else groupDrag.target=null;
 }
-function startLive() {
-  const plan=activePlan();if(!plan)return;
-  const drills=flattenDrills(plan);if(!drills.length){toast("Add a drill first.");return;}
-  const next=drills.find(d=>!plan.completedIds.includes(d.id))||drills[0];
-  state.live={active:true,planId:plan.id,currentDrillId:next.id};
-  state.planDetailOpen=true;state.view="plans";renderApp();acquireWakeLock();
-  setTimeout(()=>document.querySelector('[data-drill-card="'+next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),50);
-  toast("Practice is live. Advance manually.");
+function groupPointerUp(event){
+ if(!groupDrag)return;
+ const drag=groupDrag;clearTimeout(drag.timer);groupDrag=null;
+ document.querySelectorAll(".group-player.dragging,.drill-group.drop-target").forEach(el=>el.classList.remove("dragging","drop-target"));
+ if(!drag.active||!drag.target)return;
+ const row=drag.target.matches("[data-group-player]")?drag.target:drag.target.closest("[data-group-player]");
+ const targetRow=event.target.closest?.("[data-group-player]")||row;
+ const targetGroup=targetRow?.closest("[data-group-target]")||drag.target.closest("[data-group-target]");
+ if(!targetGroup)return;
+ const groupId=targetGroup.dataset.groupTarget||null;
+ const targetPlayer=targetRow?.dataset.groupPlayer&&targetRow.dataset.groupPlayer!==drag.playerId?targetRow.dataset.groupPlayer:null;
+ remember();grouping.assignPlayer(drag.drillId,drag.playerId,groupId,targetPlayer);renderGroupBoard();persist();
 }
-function moveLive(step) {
-  const plan=activePlan();if(!plan||!state.live.active)return;
-  const drills=flattenDrills(plan),index=drills.findIndex(d=>d.id===state.live.currentDrillId);
-  const next=drills[index+step];if(!next)return;
-  state.live.currentDrillId=next.id;renderOnePlan();
-  document.querySelector('[data-drill-card="'+next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
+function addGroup(){
+ remember();grouping.addDrillGroup();renderGroupBoard();persist();
 }
-async function liveNext() {
-  const plan=activePlan();if(!plan||!state.live.active)return;
-  const drills=flattenDrills(plan),index=drills.findIndex(d=>d.id===state.live.currentDrillId);
-  if(index>=0&&!plan.completedIds.includes(state.live.currentDrillId))plan.completedIds.push(state.live.currentDrillId);
-  const next=drills[index+1];
-  if(next) {
-    state.live.currentDrillId=next.id;saveApp();renderOnePlan();
-    document.querySelector('[data-drill-card="'+next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
-  } else {
-    state.live.active=false;state.live.currentDrillId=null;state.live.planId=null;
-    saveApp();await releaseWakeLock();renderOnePlan();toast("Practice complete.");
-  }
+function randomizeGroups(){
+ remember();if(!grouping.randomizeDrillGroups())return toast("Add a group and players first.");
+ renderGroupBoard();persist();toast("Players randomized.");
 }
-async function stopLive() {
-  state.live={active:false,currentDrillId:null,planId:null};await releaseWakeLock();renderOnePlan();toast("Live practice ended.");
+function renameGroup(id,name){grouping.renameDrillGroup(id,name);persist();}
+function deleteGroup(id){remember();grouping.deleteDrillGroup(id);renderGroupBoard();persist();}
+function openSkills(){renderSkillManager();show("skill-sheet");}
+function addSkillFromInput(){
+ const name=$("new-skill-name").value.trim();if(!name)return;
+ remember();if(!skills.add(name))return toast("That skill already exists.");
+ $("new-skill-name").value="";renderSkillManager();renderApp();persist();
 }
-function updatePlanField(field,value) {
-  const plan=activePlan();if(!plan)return;plan[field]=value;saveApp();
+function saveSkill(oldName){
+ const name=$("skill-list").querySelector('[data-skill-name="'+CSS.escape(oldName)+'"]').value.trim();
+ const color=$("skill-list").querySelector('[data-skill-color="'+CSS.escape(oldName)+'"]').value;
+ remember();if(!skills.rename(oldName,name,color))return toast("That skill name is unavailable.");
+ renderSkillManager();renderApp();persist();toast("Skill updated.");
 }
-function openEquipment() {renderEquipment();show("equipment-sheet");}
-function checkEquipment(key,checked) {
-  const plan=activePlan();if(!plan)return;
-  plan.equipmentChecked[key]=checked;saveApp();
-  const row=document.querySelector('[data-equipment-checked="'+CSS.escape(key)+'"]')?.closest(".equipment-check-row");
-  row?.classList.toggle("is-checked",checked);
+function removeSkill(name){
+ remember();if(!skills.remove(name))return;
+ renderSkillManager();renderApp();persist();toast("Skill deleted.",true);
 }
-function addTeam(event) {
-  event.preventDefault();const name=$("new-team-name").value.trim();if(!name)return;
-  const editingId=state.editingTeamId||null;
-  if(state.teams.some(t=>t.id!==editingId&&t.name.toLowerCase()===name.toLowerCase())){toast("Team already exists.");return;}
-  remember();
-  if(editingId) {
-    const team=state.teams.find(t=>t.id===editingId);if(!team)return;
-    team.name=name;state.selectedTeamId=team.id;
-    close("team-sheet");state.editingTeamId=null;saveApp();renderApp();toast("Team renamed.");
-    return;
-  }
-  const team={id:uid("team"),name,players:[],groups:{},groupCount:2};
-  state.teams.push(team);state.plansByTeam[team.id]=[];state.activePlanIds[team.id]=null;
-  setActiveTeam(team.id);state.selectedTeamId=team.id;$("new-team-name").value="";
-  close("team-sheet");state.view="teams";saveApp();renderApp();toast("Team created.");
+function addTeamDialog(){
+ state.editingTeamId=null;$("new-team-name").value="";$("team-sheet-title").textContent="New team";
+ $("team-form-submit").textContent="Create";show("team-sheet");
 }
-function deleteTeam() {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-  if(state.teams.length<=1){toast("Keep at least one team.");return;}
-  remember();state.teams=state.teams.filter(t=>t.id!==team.id);delete state.plansByTeam[team.id];delete state.activePlanIds[team.id];
-  if(state.activeTeamId===team.id){
-    if(state.live.active)releaseWakeLock();
-    state.live={active:false,currentDrillId:null,planId:null};
-    state.activeTeamId=state.teams[0].id;state.activePlanId=state.activePlanIds[state.activeTeamId]||state.plansByTeam[state.activeTeamId]?.[0]?.id||null;
-  }
-  state.selectedTeamId=state.activeTeamId;saveApp();renderApp();toast(team.name+" deleted.",true);
+function renameTeamDialog(){
+ const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
+ state.editingTeamId=team.id;$("new-team-name").value=team.name;
+ $("team-sheet-title").textContent="Rename team";$("team-form-submit").textContent="Save";show("team-sheet");
 }
-function addPlayer() {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-  const name=$("new-player-name").value.trim();if(!name){$("new-player-name").focus();return;}
-  remember();const player={id:uid("player"),number:$("new-player-number").value.trim(),name};
-  team.players.push(player);$("new-player-name").value="";$("new-player-number").value="";saveApp();renderOneTeam();$("new-player-name").focus();
+function submitTeam(event){
+ event.preventDefault();const name=$("new-team-name").value.trim(),edit=state.editingTeamId;
+ if(edit){if(!teams.renameTeam(edit,name))return toast("Team name is unavailable.");state.editingTeamId=null;close("team-sheet");renderApp();toast("Team renamed.");}
+ else{if(!teams.addTeam(name))return toast("Enter a unique team name.");state.selectedTeamId=state.activeTeamId;close("team-sheet");renderApp();toast("Team created.");}
 }
-function deletePlayer(id) {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId),player=team?.players.find(p=>p.id===id);if(!team||!player)return;
-  remember();team.players=team.players.filter(p=>p.id!==id);delete team.groups[id];saveApp();renderOneTeam();toast(player.name+" removed.",true);
+function deleteTeam(id=state.selectedTeamId){
+ if(state.teams.length<=1)return toast("At least one team must remain.");
+ const team=state.teams.find(t=>t.id===id);if(!team)return;
+ remember();const wasActive=team.id===state.activeTeamId;
+ if(!teams.deleteTeam(id))return;
+ if(wasActive)releaseWakeLock();
+ state.selectedTeamId=state.activeTeamId;state.statsTeamId=state.activeTeamId;
+ persist();renderApp();toast(team.name+" deleted.",true);
 }
-function updatePlayer(id,field,value) {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId),player=team?.players.find(p=>p.id===id);if(!player)return;
-  player[field]=value;saveApp();
-  if(field==="name") {
-    const count=team.groupCount||2,spans=$("group-list").querySelectorAll(".group-summary span");
-    for(let i=0;i<count;i++) {
-      const names=team.players.filter(p=>Number(team.groups?.[p.id]||0)===i+1).map(p=>p.name);
-      if(spans[i])spans[i].textContent=names.length?names.join(" · "):"—";
-    }
-  }
+function addPlayer(){
+ const name=$("new-player-name").value.trim();if(!name)return $("new-player-name").focus();
+ const player=teams.addPlayer(state.selectedTeamId,name);if(!player)return toast("Enter a unique player name.");
+ $("new-player-name").value="";renderOneTeam();$("new-player-name").focus();
 }
-function updateGroup(id,value) {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-  team.groups[id]=Number(value)||0;saveApp();renderOneTeam();
+function renamePlayer(id,name){
+ if(!teams.renamePlayer(state.selectedTeamId,id,name))return;
+ persist();
 }
-function randomizeGroups() {
-  const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team||!team.players.length)return;
-  remember();const count=team.groupCount||2,players=team.players.slice();
-  for(let i=players.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[players[i],players[j]]=[players[j],players[i]];}
-  team.players.forEach(p=>team.groups[p.id]=0);
-  players.forEach((p,i)=>team.groups[p.id]=(i%count)+1);
-  saveApp();renderOneTeam();toast("Groups randomized.");
+function deletePlayer(id){
+ const player=state.teams.find(t=>t.id===state.selectedTeamId)?.players.find(p=>p.id===id);
+ if(!player)return;remember();teams.deletePlayer(state.selectedTeamId,id);renderOneTeam();toast(player.name+" removed.",true);
 }
-function beginDrag(event) {
-  const handle=event.target.closest("[data-drag-kind]");if(!handle)return;
-  const kind=handle.dataset.dragKind,id=handle.dataset.dragId;
-  dragState={kind,id,startX:event.clientX,startY:event.clientY,active:false,target:null,timer:null};
-  dragState.timer=setTimeout(()=>{
-    if(!dragState)return;dragState.active=true;document.body.classList.add("dragging-active");
-    const card=kind==="drill"?document.querySelector('[data-drill-card="'+CSS.escape(id)+'"]'):document.querySelector('[data-block-id="'+CSS.escape(id)+'"]');
-    card?.classList.add("dragging");navigator.vibrate?.(12);
-  },240);
+function openEquipment(){renderEquipment();show("equipment-sheet");}
+function checkEquipment(key,value){
+ const plan=activePlan();if(!plan)return;
+ plan.equipmentChecked[key]=value;persist();
+ document.querySelector('[data-equipment-checked="'+CSS.escape(key)+'"]')?.closest(".equipment-check-row")?.classList.toggle("is-checked",value);
 }
-function duringDrag(event) {
-  if(!dragState)return;
-  if(!dragState.active) {
-    if(Math.abs(event.clientX-dragState.startX)>12||Math.abs(event.clientY-dragState.startY)>12){clearTimeout(dragState.timer);dragState=null;}
-    return;
-  }
-  event.preventDefault();
-  document.querySelectorAll(".drop-target").forEach(x=>x.classList.remove("drop-target"));
-  const target=document.elementFromPoint(event.clientX,event.clientY);
-  const lane=target?.closest("[data-drop-lane]"),card=target?.closest("[data-drill-card]"),block=target?.closest("[data-drop-block]"),root=target?.closest("[data-drop-root]");
-  const dest=card||lane||block||root;
-  if(dest){dest.classList.add("drop-target");dragState.target=dest;}else dragState.target=null;
+function updatePlan(field,value){const plan=activePlan();if(!plan)return;plan[field]=value;persist();renderOnePlan();}
+function backupRestore(event){
+ const file=event.target.files?.[0];if(!file)return;
+ importBackup(file).then(()=>{toast("Backup restored. Reloading…");setTimeout(()=>location.reload(),300);}).catch(error=>toast(error.message||"Could not restore backup.")).finally(()=>event.target.value="");
 }
-function finishDrag() {
-  if(!dragState)return;
-  const drag=dragState;clearTimeout(drag.timer);dragState=null;document.body.classList.remove("dragging-active");
-  document.querySelectorAll(".dragging,.drop-target").forEach(x=>x.classList.remove("dragging","drop-target"));
-  if(!drag.active||!drag.target)return;
-  const plan=activePlan();if(!plan)return;
-  if(drag.kind==="drill") {
-    const target=drag.target;
-    const targetCard=target.matches?.("[data-drill-card]")?target:target.closest?.("[data-drill-card]");
-    const lane=target.closest?.("[data-drop-lane]");
-    const station=target.closest?.(".station-block");
-    let laneId=lane?.dataset.dropLane||targetCard?.dataset.parentLane||null;
-    if(!laneId&&station) laneId=station.querySelector("[data-drop-lane]")?.dataset.dropLane||null;
-    const beforeId=targetCard?.dataset.drillCard||null;
-    if(drag.id!==beforeId)moveDrill(drag.id,laneId,beforeId);
-  } else {
-    const block=drag.target.closest?.("[data-block-id]");
-    if(block&&block.dataset.blockId!==drag.id){remember();reorderBlock(drag.id,block.dataset.blockId);}
-    else if(drag.target.matches?.("[data-drop-root]")){remember();reorderBlock(drag.id,null);}
-  }
+function handleClick(event){
+ const target=event.target;
+ const closeButton=target.closest("[data-close]");if(closeButton){close(closeButton.dataset.close);return;}
+ const nav=target.closest("[data-view]");if(nav){changeView(nav.dataset.view);return;}
+ const planCard=target.closest("[data-open-plan]");if(planCard&&!target.closest("[data-delete-plan]")){openPlan(planCard.dataset.openPlan);return;}
+ const deletePlanButton=target.closest("[data-delete-plan]");if(deletePlanButton){deletePlan(deletePlanButton.dataset.deletePlan);return;}
+ const teamChip=target.closest("[data-select-team]");if(teamChip){state.selectedTeamId=teamChip.dataset.selectTeam;renderOneTeam();return;}
+ const deleteTeamButton=target.closest("[data-delete-team-id]");if(deleteTeamButton){deleteTeam(deleteTeamButton.dataset.deleteTeamId);return;}
+ const playerDelete=target.closest("[data-delete-player]");if(playerDelete){deletePlayer(playerDelete.dataset.deletePlayer);return;}
+ const editPlan=target.closest("[data-edit-plan-drill]");if(editPlan){openDrillEditor("plan",editPlan.dataset.editPlanDrill);return;}
+ const editBank=target.closest("[data-edit-bank-drill]");if(editBank){openDrillEditor("bank",editBank.dataset.editBankDrill);return;}
+ const addBank=target.closest("[data-add-bank-drill]");if(addBank){addBankDrill(addBank.dataset.addBankDrill);return;}
+ const addLaneDrill=target.closest("[data-add-to-lane]");if(addLaneDrill){openBank(addLaneDrill.dataset.addToLane);return;}
+ const editStation=target.closest("[data-edit-station]");if(editStation){openStation(editStation.dataset.editStation);return;}
+ const addLaneInline=target.closest("[data-add-lane-inline]");if(addLaneInline){openStation(addLaneInline.dataset.addLaneInline);return;}
+ const deleteLane=target.closest("[data-remove-lane]");if(deleteLane){removeLane(deleteLane.dataset.removeLane);return;}
+ const removeDrill=target.closest("[data-remove-drill]");if(removeDrill){removePlanDrill(removeDrill.dataset.removeDrill);return;}
+ const moveToRoot=target.closest("[data-move-to-plan]");if(moveToRoot){moveToMainPlan(moveToRoot.dataset.moveToPlan);return;}
+ const deleteBlock=target.closest("[data-delete-block]");if(deleteBlock){removeBlock(deleteBlock.dataset.deleteBlock);return;}
+ const openGroup=target.closest("[data-open-drill-groups]");if(openGroup){openGroups(openGroup.dataset.openDrillGroups);return;}
+ const addGroupButton=target.closest("#add-drill-group");if(addGroupButton){addGroup();return;}
+ const randomizeButton=target.closest("#randomize-drill-groups");if(randomizeButton){randomizeGroups();return;}
+ const deleteGroupButton=target.closest("[data-delete-drill-group]");if(deleteGroupButton){deleteGroup(deleteGroupButton.dataset.deleteDrillGroup);return;}
+ const saveSkillButton=target.closest("[data-save-skill]");if(saveSkillButton){saveSkill(saveSkillButton.dataset.saveSkill);return;}
+ const deleteSkillButton=target.closest("[data-delete-skill]");if(deleteSkillButton){removeSkill(deleteSkillButton.dataset.deleteSkill);return;}
 }
-function startSwipe(event) {
-  const row=event.target.closest("[data-player-row]");if(!row)return;
-  if(event.target.closest("button,select"))return;
-  if(event.target.closest("input")&&event.pointerType!=="touch")return;
-  swipeState={id:row.dataset.playerRow,x:event.clientX,y:event.clientY};
+function beginPlanDrag(event){
+ const handle=event.target.closest("[data-drag-kind]");if(!handle)return;
+ drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,startX:event.clientX,startY:event.clientY,active:false,target:null,
+  timer:setTimeout(()=>{if(!drag)return;drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);},230)};
 }
-function endSwipe(event) {
-  if(!swipeState)return;
-  const dx=event.clientX-swipeState.x,dy=event.clientY-swipeState.y,id=swipeState.id;swipeState=null;
-  if(dx<-75&&Math.abs(dy)<45)deletePlayer(id);
+function movePlanDrag(event){
+ if(!drag)return;
+ if(!drag.active){if(Math.abs(event.clientX-drag.startX)>12||Math.abs(event.clientY-drag.startY)>12){clearTimeout(drag.timer);drag=null;}return;}
+ event.preventDefault();document.querySelectorAll(".drop-target").forEach(el=>el.classList.remove("drop-target"));
+ const target=document.elementFromPoint(event.clientX,event.clientY);
+ const dest=target?.closest("[data-drill-card],[data-drop-lane],[data-block-id],[data-drop-root]");
+ drag.target=dest||null;dest?.classList.add("drop-target");
 }
-function handleClick(event) {
-  const target=event.target;
-  const closeButton=target.closest("[data-close]");
-  if(closeButton){close(closeButton.dataset.close);return;}
-  const nav=target.closest("[data-view]");
-  if(nav){changeView(nav.dataset.view);return;}
-  const open=target.closest("[data-open-plan]");
-  if(open&&!target.closest("[data-delete-plan]")){openPlan(open.dataset.openPlan);return;}
-  const delPlan=target.closest("[data-delete-plan]");if(delPlan){deletePlan(delPlan.dataset.deletePlan);return;}
-  const selectTeam=target.closest("[data-select-team]");if(selectTeam){switchTeam(selectTeam.dataset.selectTeam);state.view="teams";renderApp();return;}
-  const editPlanDrill=target.closest("[data-edit-plan-drill]");if(editPlanDrill){openEditor("plan",editPlanDrill.dataset.editPlanDrill);return;}
-  const editBank=target.closest("[data-edit-bank-drill]");if(editBank){openEditor("bank",editBank.dataset.editBankDrill);return;}
-  const addBank=target.closest("[data-add-bank-drill]");if(addBank){addBankDrill(addBank.dataset.addBankDrill);return;}
-  const addLane=target.closest("[data-add-to-lane]");if(addLane){openBankSheet(addLane.dataset.addToLane);return;}
-  const editStation=target.closest("[data-edit-station]");if(editStation){openStation(editStation.dataset.editStation);return;}
-  const addLaneInline=target.closest("[data-add-lane-inline]");if(addLaneInline){openStation(addLaneInline.dataset.addLaneInline);return;}
-  const removeLane=target.closest("[data-remove-lane]");if(removeLane){removeLaneFromSheet(removeLane.dataset.removeLane);return;}
-  const toggle=target.closest("[data-toggle-complete]");if(toggle){completeDrill(toggle.dataset.toggleComplete);return;}
-  const remove=target.closest("[data-remove-drill]");if(remove){removeDrill(remove.dataset.removeDrill);return;}
-  const moveRoot=target.closest("[data-move-to-plan]");if(moveRoot){moveToPlan(moveRoot.dataset.moveToPlan);return;}
-  const deleteBlock=target.closest("[data-delete-block]");if(deleteBlock){removeBlock(deleteBlock.dataset.deleteBlock);return;}
-  const deletePlayerButton=target.closest("[data-delete-player]");if(deletePlayerButton){deletePlayer(deletePlayerButton.dataset.deletePlayer);return;}
+function endPlanDrag(){
+ if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");
+ document.querySelectorAll(".dragging,.drop-target").forEach(el=>el.classList.remove("dragging","drop-target"));
+ if(!item.active||!item.target)return;
+ const target=item.target;
+ if(item.kind==="block"){
+  const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){remember();practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;
+ }
+ const card=target.closest("[data-drill-card]"),lane=target.closest("[data-drop-lane]");
+ const laneId=lane?.dataset.dropLane||card?.dataset.parentLane||null;
+ const beforeId=card?.dataset.drillCard||null;
+ if(item.id!==beforeId){remember();if(practice.moveScheduledDrill(item.id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
 }
-function removeLaneFromSheet(id){removeLane(id);}
-function wireEvents() {
-  document.addEventListener("click",handleClick);
-  $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
-  $("create-plan").addEventListener("click",newPlan);
-  $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
-  $("back-to-plans").addEventListener("click",()=>{state.planDetailOpen=false;state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();renderApp();});
-  $("plan-name").addEventListener("change",e=>updatePlanField("name",e.target.value.trim()||"Practice plan"));
-  $("plan-date").addEventListener("change",e=>updatePlanField("date",e.target.value));
-  $("plan-start").addEventListener("change",e=>updatePlanField("start",e.target.value));
-  $("plan-end").addEventListener("change",e=>updatePlanField("end",e.target.value));
-  $("add-drill-to-plan").addEventListener("click",()=>openBankSheet(null));
-  $("floating-add").addEventListener("click",()=>openBankSheet(null));
-  $("add-station").addEventListener("click",()=>openStation());
-  $("live-start").addEventListener("click",startLive);
-  $("live-next").addEventListener("click",liveNext);
-  $("live-previous").addEventListener("click",()=>moveLive(-1));
-  $("live-exit").addEventListener("click",stopLive);
-  $("plan-equipment").addEventListener("click",openEquipment);
-  $("plan-pdf").addEventListener("click",()=>{const r=exportPracticePDF();if(r.ok)toast(r.format==="a3"?"One-page A3 PDF downloaded.":"One-page PDF downloaded.");else toast(r.message);});
-  $("header-pdf").addEventListener("click",()=>{const r=exportPracticePDF();if(r.ok)toast(r.format==="a3"?"One-page A3 PDF downloaded.":"One-page PDF downloaded.");else toast(r.message);});
-  $("header-menu").addEventListener("click",()=>show("backup-sheet"));
-  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
-  $("import-backup").addEventListener("click",()=>$("backup-file").click());
-  $("backup-file").addEventListener("change",async e=>{try{await importBackup(e.target.files?.[0]);toast("Backup restored. Reloading…");setTimeout(()=>location.reload(),300);}catch(err){toast(err.message||"Could not restore backup.");}finally{e.target.value="";}});
-  $("drill-search").addEventListener("input",renderApp);
-  $("drill-skill-filter").addEventListener("change",renderApp);
-  $("bank-search").addEventListener("input",renderBankPicker);
-  $("bank-skill-filter").addEventListener("change",renderBankPicker);
-  $("new-bank-drill").addEventListener("click",()=>openEditor("new"));
-  $("drill-form").addEventListener("submit",saveDrill);
-  $("delete-drill").addEventListener("click",deleteEditorDrill);
-  $("add-equipment-row").addEventListener("click",()=>{
-    const items=collectEditorEquipment(true);items.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(items);
-  });
-  $("add-step").addEventListener("click",()=>{const steps=collectEditorSteps(true);steps.push("");renderEditorSteps(steps);document.querySelector('#edit-steps textarea:last-of-type')?.focus();});
-  $("edit-equipment-rows").addEventListener("click",e=>{
-    const button=e.target.closest("[data-remove-eq-row]");if(!button)return;
-    const items=collectEditorEquipment(true);items.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(items);
-  });
-  $("edit-steps").addEventListener("click",e=>{
-    const button=e.target.closest("[data-remove-step]");if(!button)return;
-    const steps=collectEditorSteps(true);steps.splice(Number(button.dataset.removeStep),1);renderEditorSteps(steps);
-  });
-  $("add-lane").addEventListener("click",addLane);
-  $("station-form").addEventListener("submit",saveStation);
-  $("delete-station").addEventListener("click",deleteStation);
-  $("equipment-checklist").addEventListener("change",e=>{
-    const input=e.target.closest("[data-equipment-checked]");if(input)checkEquipment(input.dataset.equipmentChecked,input.checked);
-  });
-  $("plan-blocks").addEventListener("pointerdown",beginDrag);
-  document.addEventListener("pointermove",duringDrag,{passive:false});
-  document.addEventListener("pointerup",finishDrag);
-  document.addEventListener("pointercancel",finishDrag);
-  $("new-team").addEventListener("click",()=>{
-    state.editingTeamId=null;$("new-team-name").value="";
-    $("team-sheet-title").textContent="New team";$("team-form-submit").textContent="Create";show("team-sheet");
-  });
-  $("edit-team-name").addEventListener("click",()=>{
-    const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-    state.editingTeamId=team.id;$("new-team-name").value=team.name;
-    $("team-sheet-title").textContent="Rename team";$("team-form-submit").textContent="Save";show("team-sheet");
-  });
-  $("team-form").addEventListener("submit",addTeam);
-  $("delete-team").addEventListener("click",deleteTeam);
-  $("add-player").addEventListener("click",addPlayer);
-  $("new-player-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPlayer();}});
-  $("roster-list").addEventListener("change",e=>{
-    const field=e.target.closest("[data-player-field]");if(field)updatePlayer(field.dataset.playerId,field.dataset.playerField,field.value);
-    const group=e.target.closest("[data-player-group]");if(group)updateGroup(group.dataset.playerGroup,group.value);
-  });
-  $("group-count").addEventListener("change",e=>{
-    const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-    team.groupCount=Math.max(2,Math.min(5,Number(e.target.value)||2));
-    Object.keys(team.groups||{}).forEach(id=>{if(team.groups[id]>team.groupCount)team.groups[id]=0;});
-    saveApp();renderOneTeam();
-  });
-  $("random-groups").addEventListener("click",randomizeGroups);
-  $("clear-groups").addEventListener("click",()=>{
-    const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
-    remember();team.groups={};saveApp();renderOneTeam();toast("Groups cleared.",true);
-  });
-  $("roster-list").addEventListener("pointerdown",startSwipe);
-  document.addEventListener("pointerup",endSwipe);
-  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
-  $("toast-undo").addEventListener("click",()=>{releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
-  $("plan-blocks").addEventListener("click",()=>{});
-  document.querySelectorAll("dialog").forEach(dialog=>dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close();}));
-  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.live.active&&!wakeLock)acquireWakeLock();});
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("./service-worker.js").catch(error=>console.warn("Offline cache unavailable",error));
+function registerEvents(){
+ document.addEventListener("click",handleClick);
+ $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
+ $("create-plan").addEventListener("click",createPlan);
+ $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
+ $("back-to-plans").addEventListener("click",()=>{state.planDetailOpen=false;if(state.live.active)endLive(false);renderApp();});
+ $("plan-name").addEventListener("change",e=>updatePlan("name",e.target.value.trim()||"Practice plan"));
+ $("plan-date").addEventListener("change",e=>updatePlan("date",e.target.value));
+ $("plan-start").addEventListener("change",e=>updatePlan("start",e.target.value));
+ $("plan-end").addEventListener("change",e=>updatePlan("end",e.target.value));
+ $("add-drill-to-plan").addEventListener("click",()=>openBank(null));
+ $("floating-add").addEventListener("click",()=>openBank(null));
+ $("add-station").addEventListener("click",()=>openStation());
+ $("fit-practice").addEventListener("click",fitCurrentPlan);
+ $("live-start").addEventListener("click",startLive);
+ $("live-next").addEventListener("click",()=>advanceLive("complete"));
+ $("live-skip").addEventListener("click",()=>advanceLive("skip"));
+ $("live-previous").addEventListener("click",previousLive);
+ $("live-exit").addEventListener("click",()=>endLive());
+ $("plan-equipment").addEventListener("click",openEquipment);
+ const pdf=()=>{const result=exportPracticePDF();if(result.ok)toast("PDF saved.");else toast(result.message);};
+ $("plan-pdf").addEventListener("click",pdf);$("header-pdf").addEventListener("click",pdf);
+ $("header-menu").addEventListener("click",()=>show("backup-sheet"));
+ $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
+ $("import-backup").addEventListener("click",()=>$("backup-file").click());
+ $("backup-file").addEventListener("change",backupRestore);
+ $("drill-search").addEventListener("input",renderApp);$("drill-skill-filter").addEventListener("change",renderApp);
+ $("bank-search").addEventListener("input",renderBankPicker);$("bank-skill-filter").addEventListener("change",renderBankPicker);
+ $("new-bank-drill").addEventListener("click",()=>openDrillEditor("new"));
+ $("drill-form").addEventListener("submit",saveDrill);$("delete-drill").addEventListener("click",deleteEditorDrill);
+ $("add-equipment-row").addEventListener("click",()=>{const values=editorEquipment(true);values.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(values);});
+ $("add-step").addEventListener("click",()=>{const values=editorSteps(true);values.push("");renderEditorSteps(values);});
+ $("edit-equipment-rows").addEventListener("click",event=>{const button=event.target.closest("[data-remove-eq-row]");if(!button)return;const values=editorEquipment(true);values.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(values);});
+ $("edit-steps").addEventListener("click",event=>{const button=event.target.closest("[data-remove-step]");if(!button)return;const values=editorSteps(true);values.splice(Number(button.dataset.removeStep),1);renderEditorSteps(values);});
+ $("add-lane").addEventListener("click",addLane);$("station-form").addEventListener("submit",saveStation);$("delete-station").addEventListener("click",deleteStation);
+ $("equipment-checklist").addEventListener("change",event=>{const input=event.target.closest("[data-equipment-checked]");if(input)checkEquipment(input.dataset.equipmentChecked,input.checked);});
+ $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
+ document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
+ $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
+ $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
+ $("add-player").addEventListener("click",addPlayer);$("new-player-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPlayer();}});
+ $("roster-list").addEventListener("change",e=>{const input=e.target.closest("[data-player-id]");if(input)renamePlayer(input.dataset.playerId,input.value);});
+ $("manage-skills").addEventListener("click",openSkills);$("add-skill").addEventListener("click",addSkillFromInput);
+ $("new-skill-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addSkillFromInput();}});
+ $("group-sheet").addEventListener("pointerdown",groupPointerDown);document.addEventListener("pointermove",groupPointerMove,{passive:false});
+ document.addEventListener("pointerup",groupPointerUp);document.addEventListener("pointercancel",groupPointerUp);
+ $("drill-group-board").addEventListener("change",e=>{const input=e.target.closest("[data-group-name]");if(input)renameGroup(input.dataset.groupName,input.value);});
+ $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
+ $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
+ document.querySelectorAll("dialog").forEach(dialog=>dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close();}));
+ document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.live.active&&!wakeLock)requestWakeLock();});
+ if("serviceWorker"in navigator)navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
 }
-loadApp();wireEvents();renderApp();
+loadApp();registerEvents();renderApp();
