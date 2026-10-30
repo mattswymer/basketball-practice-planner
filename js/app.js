@@ -213,7 +213,7 @@ function addGroup(){
  remember();grouping.addDrillGroup();renderGroupBoard();persist();
 }
 function randomizeGroups(){
- remember();if(!grouping.randomizeDrillGroups())return toast("Add a group and players first.");
+ remember();if(!grouping.randomizeDrillGroups())return toast("Add players to the team first.");
  renderGroupBoard();persist();toast("Players randomized.");
 }
 function renameGroup(id,name){grouping.renameDrillGroup(id,name);persist();}
