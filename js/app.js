@@ -509,7 +509,7 @@ function wireEvents() {
   $("roster-list").addEventListener("pointerdown",startSwipe);
   document.addEventListener("pointerup",endSwipe);
   $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
-  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Undone.");}});
+  $("toast-undo").addEventListener("click",()=>{releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
   $("plan-blocks").addEventListener("click",()=>{});
   document.querySelectorAll("dialog").forEach(dialog=>dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close();}));
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.live.active&&!wakeLock)acquireWakeLock();});
