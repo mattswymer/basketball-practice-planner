@@ -56,12 +56,12 @@ function parseLegacyEquipment(text){
  const source=String(text||"").toLowerCase(),result=[];
  const idFor=name=>state.equipmentCatalog.find(x=>x.name.toLowerCase()===name.toLowerCase())?.id;
  const countFrom=word=>({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10}[String(word).toLowerCase()]||Number(word)||1);
- const balls=source.match(/\\b(one|two|three|four|five|six|\\d+)\\s+balls?\\b/i);
- if(/\\bballs?\\b/i.test(source)){const id=idFor("Basketballs");if(id)result.push({optionId:id,quantity:balls?countFrom(balls[1]):1})}
- const coneMatches=[...source.matchAll(/\\b(one|two|three|four|five|six|\\d+)\\s+cones?\\b/gi)];
+ const balls=source.match(/\b(one|two|three|four|five|six|\d+)\s+balls?\b/i);
+ if(/\bballs?\b/i.test(source)){const id=idFor("Basketballs");if(id)result.push({optionId:id,quantity:balls?countFrom(balls[1]):1})}
+ const coneMatches=[...source.matchAll(/\b(one|two|three|four|five|six|\d+)\s+cones?\b/gi)];
  if(coneMatches.length){const id=idFor("Cones");if(id)result.push({optionId:id,quantity:coneMatches.reduce((sum,x)=>sum+countFrom(x[1]),0)})}
- else if(/\\bcones?\\b/i.test(source)){const id=idFor("Cones");if(id)result.push({optionId:id,quantity:(source.match(/\\bcones?\\b/gi)||[]).length})}
- if(/\\b(jerseys?|pinnies)\\b/i.test(source)){const id=idFor("Jerseys / pinnies");if(id)result.push({optionId:id,quantity:1})}
+ else if(/\bcones?\b/i.test(source)){const id=idFor("Cones");if(id)result.push({optionId:id,quantity:(source.match(/\bcones?\b/gi)||[]).length})}
+ if(/\b(jerseys?|pinnies)\b/i.test(source)){const id=idFor("Jerseys / pinnies");if(id)result.push({optionId:id,quantity:1})}
  return result;
 }
 function equipmentText(item){const list=normalizeEquipmentItems(item.equipmentItems).map(x=>{const op=equipmentOption(x.optionId);return op?op.name+" × "+x.quantity:null}).filter(Boolean);return list.length?list.join(", "):(item.equipment||"")}
