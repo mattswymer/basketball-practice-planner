@@ -216,7 +216,7 @@ function moveDrill(id,laneId=null,beforeId=null) {
   saveApp();renderApp();toast(laneId?"Drill moved to station.":"Drill moved.");
 }
 function reorderBlock(id,beforeId=null) {
-  const plan=activePlan();if(!plan)return;
+  const plan=activePlan();if(!plan||beforeId===id)return;
   const from=plan.blocks.findIndex(x=>x.id===id);if(from<0)return;
   const [block]=plan.blocks.splice(from,1);
   const to=beforeId?plan.blocks.findIndex(x=>x.id===beforeId):-1;
@@ -282,8 +282,16 @@ function checkEquipment(key,checked) {
 }
 function addTeam(event) {
   event.preventDefault();const name=$("new-team-name").value.trim();if(!name)return;
-  if(state.teams.some(t=>t.name.toLowerCase()===name.toLowerCase())){toast("Team already exists.");return;}
-  remember();const team={id:uid("team"),name,players:[],groups:{},groupCount:2};
+  const editingId=state.editingTeamId||null;
+  if(state.teams.some(t=>t.id!==editingId&&t.name.toLowerCase()===name.toLowerCase())){toast("Team already exists.");return;}
+  remember();
+  if(editingId) {
+    const team=state.teams.find(t=>t.id===editingId);if(!team)return;
+    team.name=name;state.selectedTeamId=team.id;
+    close("team-sheet");state.editingTeamId=null;saveApp();renderApp();toast("Team renamed.");
+    return;
+  }
+  const team={id:uid("team"),name,players:[],groups:{},groupCount:2};
   state.teams.push(team);state.plansByTeam[team.id]=[];state.activePlanIds[team.id]=null;
   setActiveTeam(team.id);state.selectedTeamId=team.id;$("new-team-name").value="";
   close("team-sheet");state.view="teams";saveApp();renderApp();toast("Team created.");
@@ -366,8 +374,9 @@ function finishDrag() {
   }
 }
 function startSwipe(event) {
-  if(event.target.closest("input,select,button"))return;
   const row=event.target.closest("[data-player-row]");if(!row)return;
+  if(event.target.closest("button,select"))return;
+  if(event.target.closest("input")&&event.pointerType!=="touch")return;
   swipeState={id:row.dataset.playerRow,x:event.clientX,y:event.clientY};
 }
 function endSwipe(event) {
@@ -452,7 +461,15 @@ function wireEvents() {
   document.addEventListener("pointermove",duringDrag,{passive:false});
   document.addEventListener("pointerup",finishDrag);
   document.addEventListener("pointercancel",finishDrag);
-  $("new-team").addEventListener("click",()=>{ $("new-team-name").value="";show("team-sheet");});
+  $("new-team").addEventListener("click",()=>{
+    state.editingTeamId=null;$("new-team-name").value="";
+    $("team-sheet-title").textContent="New team";$("team-form-submit").textContent="Create";show("team-sheet");
+  });
+  $("edit-team-name").addEventListener("click",()=>{
+    const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
+    state.editingTeamId=team.id;$("new-team-name").value=team.name;
+    $("team-sheet-title").textContent="Rename team";$("team-form-submit").textContent="Save";show("team-sheet");
+  });
   $("team-form").addEventListener("submit",addTeam);
   $("delete-team").addEventListener("click",deleteTeam);
   $("add-player").addEventListener("click",addPlayer);
