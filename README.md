@@ -12,7 +12,7 @@ A phone-first basketball practice planner and live coaching tool. Open `index.ht
 
 ## Live practice
 - Start a countdown for the first scheduled item.
-- The active item is highlighted in the schedule. Instructions and equipment appear with each scheduled activity.
+- The active item is highlighted and expands to show its instructions and equipment. Other schedule items stay compact while the timer runs.
 - Pause, resume, move backward/forward, and end the live session.
 
 ## Drill library
