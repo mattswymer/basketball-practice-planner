@@ -1,17 +1,31 @@
 # Basketball Practice Planner & Live Companion
 
-A web application designed for youth basketball coaches to plan, auto-calculate, and run practices. Optimized for half-court practices with automated minute scaling, skill tag analytics, roster grouping, and live session tracking.
+A lightweight, browser-based practice planner for basketball coaches. It runs directly from GitHub Pages with no build tools or installation required.
 
-## Features
-- **Auto-Math Practice Timing:** Configurable practice window with automated start/end timestamps per drill.
-- **"Fit to Allotted Time":** Rescales scheduled drills proportionally in whole minutes to fill gym slots.
-- **Unified Planner & Live View:** Keeps your active schedule persistent during practice with live clock highlights and next-drill previews.
-- **Prepopulated Activity Bank:** Includes 61 drills pre-loaded with skill tags, half-court layout notes, and equipment lists.
-- **Standardized Export Filenames:** Automatic file naming formatting (`TeamName_YYYY-MM-DD_HHMM.json` and `.pdf`).
-- **Master Equipment Checklist & Player Grouping:** Generates aggregated packing lists and divides rostered players into balanced on-court groups.
+## What it does
+- **Practice planning:** Build a practice from the activity bank, edit activities, reorder them, and see start/end times.
+- **Practice timing:** Fit activities proportionally to the available gym time, with whole-minute durations that add up to the practice window.
+- **Live practice companion:** Run a countdown for each activity, move between activities, and keep the current activity's coaching notes visible.
+- **Drill bank:** Search and filter drills, add custom activities, and keep equipment, skill tags, and coaching notes with each drill.
+- **Teams and rosters:** Maintain team rosters, split players into balanced random groups, and retain the selected team.
+- **Equipment checklist:** Combine equipment across the planned activities.
+- **Import/export:** Save and restore practice plans as JSON or print a practice sheet to PDF.
+- **Skill analytics:** View planned minutes by skill and activity when the Chart.js library is available.
 
-## Deployment
-Host directly on **GitHub Pages**:
-1. Commit these repository files to your GitHub repository.
-2. Go to **Settings** > **Pages**.
-3. Select the `main` branch as the source and click **Save**.
+## Run it
+Open the app in a modern browser, or publish the repository with GitHub Pages:
+
+1. Open **Settings → Pages** in the repository.
+2. Select the **main** branch and the root folder.
+3. Save. GitHub Pages will publish the app.
+
+The app uses browser localStorage for its working data. Use **Export JSON** regularly to keep a portable backup. Data is stored in the browser and does not automatically sync between devices.
+
+## Files
+- index.html — app structure
+- css_style.css — styles and responsive layout
+- js_app.js — app behavior and local persistence
+- js_drills_db.js — default activity bank and skill tags
+
+## Notes
+The default drill bank currently includes 10 starter activities. Add your own drills from the app's **New Drill** button.
