@@ -1,7 +1,7 @@
 import {
  state,SKILLS,uid,clone,esc,localDate,loadApp,save,remember,undo,activeTeam,activePlan,plansForTeam,
  setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill
-} from "./store.js";
+} from "./core/store.js";
 import {
  renderApp,renderBankPicker,renderOnePlan,renderOneTeam,renderEquipment,renderEditorTags,
  renderEditorEquipment,renderEditorSteps,renderStationEditor,renderGroupBoard,renderSkillManager
