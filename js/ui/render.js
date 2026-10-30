@@ -65,7 +65,7 @@ function renderStation(block,start,end,plan,offset) {
     const laneTime=lane.drills.reduce((n,d)=>n+d.minutes,0);
     return `<section class="station-lane" data-drop-lane="${esc(lane.id)}">
       <div class="lane-heading"><span>${esc(lane.name||"Lane "+(i+1))}</span><small>${durationLabel(laneTime)}</small></div>
-      <div class="lane-drills">${lane.drills.map(d=>renderDrillCard(d,{laneId:lane.id,stationLive:live})).join("")||'<div class="lane-empty">Drop a drill here</div>'}</div>
+      <div class="lane-drills">${lane.drills.map((drill,index)=>{const offsetBefore=lane.drills.slice(0,index).reduce((n,item)=>n+item.minutes,0);const drillStart=clockLabel(plan.start,offset+offsetBefore),drillEnd=clockLabel(plan.start,offset+offsetBefore+drill.minutes);return renderDrillCard(drill,{laneId:lane.id,stationLive:live,timeRange:drillStart+"–"+drillEnd});}).join("")||'<div class="lane-empty">Drop a drill here</div>'}</div>
       <button class="lane-add" data-add-to-lane="${esc(lane.id)}">+ Add drill</button>
     </section>`;
   }).join("");
