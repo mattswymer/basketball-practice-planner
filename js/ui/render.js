@@ -168,16 +168,21 @@ function renderStats() {
   const team=state.teams.find(t=>t.id===state.statsTeamId)||activeTeam();
   $("stats-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?"selected":""}>${esc(t.name)}</option>`).join("");
   const plans=plansForTeam(team?.id),skills=new Map();let planned=0,completed=0;
-  for(const plan of plans)for(const drill of flattenDrills(plan)){
-    for(const skill of drill.tags){
-      const row=skills.get(skill)||{planned:0,completed:0,skipped:0};
-      row.planned+=drill.minutes;
-      if(plan.completedIds.includes(drill.id))row.completed+=drill.minutes;
-      if(plan.skippedIds.includes(drill.id))row.skipped+=drill.minutes;
-      skills.set(skill,row);
+  for(const plan of plans){
+    planned+=totalPracticeMinutes(plan);
+    for(const block of plan.blocks){
+      const drills=block.kind==="station"?block.lanes.flatMap(lane=>lane.drills):[block];
+      if(drills.length&&drills.every(drill=>plan.completedIds.includes(drill.id)))completed+=blockMinutes(block);
     }
-    planned+=drill.minutes;
-    if(plan.completedIds.includes(drill.id))completed+=drill.minutes;
+    for(const drill of flattenDrills(plan)){
+      for(const skill of drill.tags){
+        const row=skills.get(skill)||{planned:0,completed:0,skipped:0};
+        row.planned+=drill.minutes;
+        if(plan.completedIds.includes(drill.id))row.completed+=drill.minutes;
+        if(plan.skippedIds.includes(drill.id))row.skipped+=drill.minutes;
+        skills.set(skill,row);
+      }
+    }
   }
   $("stats-plan-count").textContent=plans.length;
   $("stats-planned-total").textContent=durationLabel(planned);
