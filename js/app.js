@@ -83,16 +83,18 @@ function openEditor(type,id=null) {
   $("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
   show("drill-sheet");
 }
-function collectEditorEquipment() {
-  return [...$("edit-equipment-rows").querySelectorAll(".edit-equipment-row")].map(row=>{
+function collectEditorEquipment(includeBlank=false) {
+  const items=[...$("edit-equipment-rows").querySelectorAll(".edit-equipment-row")].map(row=>{
     const name=row.querySelector('[data-eq-field="name"]').value.trim();
     const quantity=Math.max(1,Math.min(999,Math.round(Number(row.querySelector('[data-eq-field="quantity"]').value)||1)));
     const perPlayer=row.querySelector('[data-eq-field="perPlayer"]').checked;
-    return name?{name,quantity,perPlayer}:null;
-  }).filter(Boolean);
+    return {name,quantity,perPlayer};
+  });
+  return includeBlank?items:items.filter(x=>x.name);
 }
-function collectEditorSteps() {
-  return [...$("edit-steps").querySelectorAll("[data-step-index]")].map(x=>x.value.trim()).filter(Boolean);
+function collectEditorSteps(includeBlank=false) {
+  const steps=[...$("edit-steps").querySelectorAll("[data-step-index]")].map(x=>x.value.trim());
+  return includeBlank?steps:steps.filter(Boolean);
 }
 function saveDrill(event) {
   event.preventDefault();if(!editing)return;
@@ -440,16 +442,16 @@ function wireEvents() {
   $("drill-form").addEventListener("submit",saveDrill);
   $("delete-drill").addEventListener("click",deleteEditorDrill);
   $("add-equipment-row").addEventListener("click",()=>{
-    const items=collectEditorEquipment();items.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(items);
+    const items=collectEditorEquipment(true);items.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(items);
   });
-  $("add-step").addEventListener("click",()=>{const steps=collectEditorSteps();steps.push("");renderEditorSteps(steps);document.querySelector('#edit-steps textarea:last-of-type')?.focus();});
+  $("add-step").addEventListener("click",()=>{const steps=collectEditorSteps(true);steps.push("");renderEditorSteps(steps);document.querySelector('#edit-steps textarea:last-of-type')?.focus();});
   $("edit-equipment-rows").addEventListener("click",e=>{
     const button=e.target.closest("[data-remove-eq-row]");if(!button)return;
-    const items=collectEditorEquipment();items.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(items);
+    const items=collectEditorEquipment(true);items.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(items);
   });
   $("edit-steps").addEventListener("click",e=>{
     const button=e.target.closest("[data-remove-step]");if(!button)return;
-    const steps=collectEditorSteps();steps.splice(Number(button.dataset.removeStep),1);renderEditorSteps(steps);
+    const steps=collectEditorSteps(true);steps.splice(Number(button.dataset.removeStep),1);renderEditorSteps(steps);
   });
   $("add-lane").addEventListener("click",addLane);
   $("station-form").addEventListener("submit",saveStation);
