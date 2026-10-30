@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id), clone=x=>JSON.parse(JSON.stringify(x));
 const K={teams:"cyb_teams_v1",active:"cyb_active_team_v1",oldBank:"cyb_drill_bank_v1",bank:"cyb_drill_bank_v2",oldSchedule:"cyb_active_schedule_v1",schedules:"cyb_team_schedules_v2",meta:"cyb_practice_meta_v2"};
 let state={teams:[],activeTeamId:null,drillBank:[],schedulesByTeam:{},schedule:[],practice:{date:"",start:"18:00",end:"19:30"},live:{active:false,paused:false,completed:false,currentId:null,endAt:null,remainingSec:0,intervalId:null}};
-let undoStack=[],editing=null,stationId=null,toastTimer=null,dragging=null;
+let undoStack=[],editing=null,stationId=null,toastTimer=null,dragging=null,draggingBankId=null;
 function readJSON(k,f){try{const x=localStorage.getItem(k);return x===null?f:JSON.parse(x)}catch(e){return f}}
 function uid(p){return (p||"id")+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -37,7 +37,7 @@ function renderBank(){
  const list=state.drillBank.filter(x=>(x.name+" "+x.equipment+" "+x.notes).toLowerCase().includes(q)&&(!tag||x.tags.includes(tag)));
  list.sort((a,b)=>sort==="time"?a.duration-b.duration||a.name.localeCompare(b.name):sort==="time-desc"?b.duration-a.duration||a.name.localeCompare(b.name):a.name.localeCompare(b.name));
  $("bank-count").textContent=list.length+" of "+state.drillBank.length+" activities";
- $("bank-list").innerHTML=list.length?list.map(x=>`<article class="bank-item" style="--tag:${colour(x.tags[0])}"><button class="bank-title" data-bank-edit="${esc(x.id)}" type="button">${esc(x.name)}</button><span class="bank-duration">${x.duration} min</span><div class="bank-meta">${tagBadges(x.tags)}</div><button type="button" class="bank-plus" data-add-drill="${esc(x.id)}" aria-label="Add ${esc(x.name)}">+</button></article>`).join(""):'<div class="empty-state">No activities match those filters.</div>';
+ $("bank-list").innerHTML=list.length?list.map(x=>`<article class="bank-item" data-bank-item="${esc(x.id)}" draggable="true" style="--tag:${colour(x.tags[0])}"><button class="bank-title" data-bank-edit="${esc(x.id)}" type="button">${esc(x.name)}</button><span class="bank-duration">${x.duration} min</span><div class="bank-meta">${tagBadges(x.tags)}</div><button type="button" class="bank-plus" data-add-drill="${esc(x.id)}" aria-label="Add ${esc(x.name)}">+</button></article>`).join(""):'<div class="empty-state">No activities match those filters.</div>';
 }
 function renderTagFilter(){const v=$("bank-tag-filter").value;$("bank-tag-filter").innerHTML='<option value="">All skills</option>'+DEFAULT_TAGS.map(t=>`<option value="${esc(t)}">${esc(t.toUpperCase())}</option>`).join("");if(DEFAULT_TAGS.includes(v))$("bank-tag-filter").value=v}
 function windowMinutes(){const a=($("practice-start-time").value||"18:00").split(":").map(Number),b=($("practice-end-time").value||"19:30").split(":").map(Number);let n=b[0]*60+b[1]-(a[0]*60+a[1]);if(n<=0)n+=1440;return n}
@@ -159,13 +159,38 @@ function bindEvents(){
  $("btn-manage-teams").addEventListener("click",openTeams);$("btn-add-team").addEventListener("click",addTeam);$("roster-team-select").addEventListener("change",updateRosterEditor);$("btn-save-roster").addEventListener("click",saveRoster);$("btn-close-teams").addEventListener("click",()=>$("dialog-teams").close());
  $("bank-search").addEventListener("input",renderBank);$("bank-tag-filter").addEventListener("change",renderBank);$("bank-sort").addEventListener("change",renderBank);$("btn-new-bank-drill").addEventListener("click",()=>openActivity(null,"new"));
  $("bank-list").addEventListener("click",e=>{const a=e.target.closest("[data-add-drill]"),b=e.target.closest("[data-bank-edit]");if(a)addDrill(a.dataset.addDrill);else if(b)openActivity(b.dataset.bankEdit,"bank")});
+ $("bank-list").addEventListener("dragstart",e=>{const card=e.target.closest("[data-bank-item]");if(!card)return;draggingBankId=card.dataset.bankItem;e.dataTransfer.effectAllowed="copy";e.dataTransfer.setData("text/plain",draggingBankId)});
+ $("bank-list").addEventListener("dragend",()=>{draggingBankId=null});
  $("form-edit-item").addEventListener("submit",saveActivity);$("btn-cancel-edit").addEventListener("click",closeEdit);$("form-edit-item").querySelector("[data-close-edit]").addEventListener("click",closeEdit);$("btn-remove-bank").addEventListener("click",deleteBankDrill);
  $("btn-remove-scheduled").addEventListener("click",()=>{if(editing){const id=editing.id;$("dialog-edit-item").close();editing=null;deleteItem(id)}});$("btn-update-bank-default").addEventListener("click",updateBankDefault);
  $("schedule-list").addEventListener("click",e=>{const a=e.target.closest("[data-edit-activity]"),b=e.target.closest("[data-edit-station]"),m=e.target.closest("[data-move-index]"),d=e.target.closest("[data-delete-schedule]");if(a)openActivity(a.dataset.editActivity,"schedule");else if(b)openStation(b.dataset.editStation);else if(m)moveItem(+m.dataset.moveIndex,+m.dataset.direction);else if(d)deleteItem(d.dataset.deleteSchedule)});
  $("schedule-list").addEventListener("dragstart",e=>{const x=e.target.closest("[data-schedule-id]");if(!x)return;dragging=x.dataset.scheduleId;x.classList.add("dragging");e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragging)});
  $("schedule-list").addEventListener("dragend",()=>{dragging=null;document.querySelectorAll(".dragging,.drop-target").forEach(x=>x.classList.remove("dragging","drop-target"))});
- $("schedule-list").addEventListener("dragover",e=>{if(!dragging)return;const x=e.target.closest("[data-schedule-id]");if(!x||x.dataset.scheduleId===dragging)return;e.preventDefault();document.querySelectorAll(".drop-target").forEach(y=>y.classList.remove("drop-target"));x.classList.add("drop-target")});
- $("schedule-list").addEventListener("drop",e=>{if(!dragging)return;const x=e.target.closest("[data-schedule-id]");if(!x)return;e.preventDefault();const a=state.schedule.findIndex(y=>y.schedId===dragging),b=state.schedule.findIndex(y=>y.schedId===x.dataset.scheduleId);if(a>=0&&b>=0&&a!==b){remember();const [item]=state.schedule.splice(a,1);state.schedule.splice(b,0,item);saveData();renderSchedule()}dragging=null});
+ $("schedule-list").addEventListener("dragover",e=>{
+  if(!dragging&&!draggingBankId)return;
+  const x=e.target.closest("[data-schedule-id]");
+  if(draggingBankId){e.preventDefault();document.querySelectorAll(".drop-target").forEach(y=>y.classList.remove("drop-target"));if(x)x.classList.add("drop-target");return}
+  if(!x||x.dataset.scheduleId===dragging)return;
+  e.preventDefault();document.querySelectorAll(".drop-target").forEach(y=>y.classList.remove("drop-target"));x.classList.add("drop-target")
+ });
+ $("schedule-list").addEventListener("drop",e=>{
+  if(draggingBankId){
+    e.preventDefault();
+    const target=e.target.closest("[data-schedule-id]");
+    const index=target?state.schedule.findIndex(y=>y.schedId===target.dataset.scheduleId):state.schedule.length;
+    addDrill(draggingBankId,index<0?state.schedule.length:index);
+    draggingBankId=null;dragging=null;
+    document.querySelectorAll(".drop-target").forEach(y=>y.classList.remove("drop-target"));
+    return;
+  }
+  if(!dragging)return;
+  const x=e.target.closest("[data-schedule-id]");if(!x)return;e.preventDefault();
+  const a=state.schedule.findIndex(y=>y.schedId===dragging),b=state.schedule.findIndex(y=>y.schedId===x.dataset.scheduleId);
+  if(a>=0&&b>=0&&a!==b){remember();const [item]=state.schedule.splice(a,1);state.schedule.splice(b,0,item);saveData();renderSchedule()}
+  dragging=null
+ });
+ $("bank-panel").addEventListener("dragover",e=>{if(!dragging)return;e.preventDefault()});
+ $("bank-panel").addEventListener("drop",e=>{if(!dragging)return;e.preventDefault();const id=dragging;dragging=null;deleteItem(id);toast("Removed from this practice. The bank copy remains.")});
  $("btn-fit-practice").addEventListener("click",fitPractice);$("btn-add-station-block").addEventListener("click",()=>openStation(null));$("btn-clear-schedule").addEventListener("click",()=>{if(!state.schedule.length||!confirm("Clear this team's practice schedule?"))return;remember();state.schedule=[];resetLive();saveData();renderSchedule()});
  $("practice-date").addEventListener("change",()=>{state.practice.date=$("practice-date").value;saveData()});$("practice-start-time").addEventListener("change",()=>{state.practice.start=$("practice-start-time").value;saveData();renderSchedule()});$("practice-end-time").addEventListener("change",()=>{state.practice.end=$("practice-end-time").value;saveData();renderSchedule()});
  $("form-station").addEventListener("submit",saveStation);$("btn-add-station-row").addEventListener("click",()=>{const x=[...$("station-rows").querySelectorAll("[data-station-select]")].map(y=>({drillId:y.value}));x.push({drillId:""});drawStationRows(x)});
