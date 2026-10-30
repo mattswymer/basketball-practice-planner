@@ -3,7 +3,10 @@ const $=id=>document.getElementById(id);
 const hidden=(id,value)=>{if($(id))$(id).hidden=value;};
 const grip='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1.2"/><circle cx="16" cy="6" r="1.2"/><circle cx="8" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/><circle cx="8" cy="18" r="1.2"/><circle cx="16" cy="18" r="1.2"/></svg>';
 function skillStyle(tags=[]) {
-  const first=tags[0],color=skillColor(first);
+  const colors=[...new Set(tags)].map(skillColor).map(color=>color.replace("#","")).filter(color=>/^[0-9a-f]{6}$/i.test(color));
+  if(!colors.length)colors.push("78909c");
+  const blend=[0,2,4].map(i=>Math.round(colors.reduce((sum,color)=>sum+parseInt(color.slice(i,i+2),16),0)/colors.length).toString(16).padStart(2,"0")).join("");
+  const color="#"+blend;
   return `--skill:${color};--skill-soft:${color}18;--skill-mid:${color}34`;
 }
 function skillLabels(tags=[]) {
@@ -51,7 +54,7 @@ function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) 
       <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
     </button>
     <div class="drill-card-actions">
-      <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups">G</button>
+      <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
       ${status? `<button class="status-pill ${status}">${status==="complete"?"Done":"Skipped"}</button>`:""}
       ${laneId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
       <button class="mini-icon danger-text" data-remove-drill="${esc(drill.id)}" aria-label="Remove drill">×</button>
