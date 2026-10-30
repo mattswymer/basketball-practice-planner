@@ -1,4 +1,4 @@
-import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals } from "../store.js";
+import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals } from "../core/store.js";
 function colorHex(hex) {
   const value=String(hex||"#52758a").replace("#","");
   return [0,2,4].map(i=>parseInt(value.slice(i,i+2),16)||80);
