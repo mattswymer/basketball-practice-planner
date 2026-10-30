@@ -1,7 +1,8 @@
 const DATA = window.PLANNER_DATA || {};
 export const SKILLS = DATA.DEFAULT_TAGS || ["layups","dribbling","defense","shooting","rebounding","passing","free throws","team building","plays","sprints","post","warm up","stretch","rest"];
 export const TAG_COLORS = DATA.TAG_COLORS || {};
-const APP_KEY = "bbp_app_v1";
+const APP_KEY = "bbp_app_v2";
+const LEGACY_KEY = "bbp_app_v1";
 const OLD = {
   teams:"cyb_teams_v1", active:"cyb_active_team_v1", oldBank:"cyb_drill_bank_v1",
   bank:"cyb_drill_bank_v2", oldSchedule:"cyb_active_schedule_v1",
@@ -80,7 +81,7 @@ export function normalizeDrill(input={}, oldCatalog=[]) {
     bankId:input.bankId||input.drillId||null,
     name:String(input.name||"Untitled drill").trim()||"Untitled drill",
     minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
-    primarySkill, tags:tags.filter(x=>x!==primarySkill),
+    tags, grouping:{groups:Array.isArray(grouping.groups)?grouping.groups.map((g,i)=>({id:g.id||uid("group"),name:g.name||"Group "+(i+1),playerIds:Array.isArray(g.playerIds)?g.playerIds.map(String):[]})):[]},
     equipment:normalizeEquipment(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:""),oldCatalog),
     steps, source:input.source||"custom"
   };
@@ -103,7 +104,9 @@ export function normalizeBlock(input={}, oldCatalog=[]) {
         steps:s.steps||s.notes
       },oldCatalog)]};
     });
-    return {kind:"station",id:String(input.id||input.schedId||uid("station-block")),name:String(input.name||"Station rotation"),lanes};
+    const laneMinutes=Math.max(0,...lanes.map(l=>l.drills.reduce((n,d)=>n+d.minutes,0)));
+    return {kind:"station",id:String(input.id||input.schedId||uid("station-block")),name:String(input.name||"Station rotation"),
+      minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||laneMinutes||15))),lanes};
   }
   return normalizeDrill(input,oldCatalog);
 }
@@ -113,7 +116,7 @@ export function normalizePlan(input={}, teamId="", oldCatalog=[]) {
     id:String(input.id||uid("plan")),teamId:String(input.teamId||teamId),
     name:String(input.name||"Practice plan"),date:String(input.date||localDate()),
     start:String(input.start||input.startTime||"18:00"),end:String(input.end||input.endTime||"19:30"),
-    blocks,completedIds:Array.isArray(input.completedIds)?input.completedIds.map(String):[],
+    blocks,completedIds:Array.isArray(input.completedIds)?input.completedIds.map(String):[],skippedIds:Array.isArray(input.skippedIds)?input.skippedIds.map(String):[],
     equipmentChecked:input.equipmentChecked&&typeof input.equipmentChecked==="object"?{...input.equipmentChecked}:{},
     createdAt:input.createdAt||new Date().toISOString()
   };
@@ -158,9 +161,9 @@ function oldPlans(teams,activeTeamId,oldCatalog) {
   return result;
 }
 export function loadApp() {
-  const app=read(APP_KEY,null);
+  const app=read(APP_KEY,read(LEGACY_KEY,null));
   if(app && Array.isArray(app.teams)) {
-    state.teams=app.teams.map(normalizeTeam);
+    state.skills.splice(0,state.skills.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_TAGS));\n    state.skillColors={...TAG_COLORS,...(app.skillColors||{})};\n    state.teams=app.teams.map(normalizeTeam);
     if(!state.teams.length) state.teams=defaultTeamData().map(normalizeTeam);
     state.activeTeamId=state.teams.some(t=>t.id===app.activeTeamId)?app.activeTeamId:state.teams[0].id;
     const catalog=Array.isArray(app.equipmentCatalog)?app.equipmentCatalog:[];
@@ -258,7 +261,7 @@ export function flattenDrills(plan) {
 export function blockMinutes(block) {
   if(!block) return 0;
   if(block.kind==="drill") return block.minutes;
-  return Math.max(0,...(block.lanes||[]).map(lane=>lane.drills.reduce((sum,d)=>sum+d.minutes,0)));
+  return Math.max(1,Math.round(Number(block.minutes)||Math.max(0,...(block.lanes||[]).map(lane=>lane.drills.reduce((sum,d)=>sum+d.minutes,0)))));
 }
 export function totalPracticeMinutes(plan) { return (plan?.blocks||[]).reduce((sum,b)=>sum+blockMinutes(b),0); }
 export function totalDrillMinutes(plan) { return flattenDrills(plan).reduce((sum,d)=>sum+d.minutes,0); }
@@ -269,7 +272,7 @@ export function clockLabel(start,offset) {
   const [h,m]=(start||"18:00").split(":").map(Number),total=h*60+m+(offset||0),day=Math.floor(total/1440),hour=Math.floor(total/60)%24,minute=((total%60)+60)%60;
   return (hour%12||12)+":"+String(minute).padStart(2,"0")+(hour>=12?"p":"a")+(day?" +"+day+"d":"");
 }
-export function skillColor(skill) { return TAG_COLORS[skill]||PALETTE[Math.max(0,SKILLS.indexOf(skill))%PALETTE.length]||"#55758a"; }
+export function skillColor(skill) { return state.skillColors?.[skill]||TAG_COLORS[skill]||PALETTE[Math.max(0,SKILLS.indexOf(skill))%PALETTE.length]||"#55758a"; }
 export function copyDrill(drill) {
   return {...clone(drill),kind:"drill",id:uid("drill"),bankId:drill.id,source:"scheduled"};
 }
