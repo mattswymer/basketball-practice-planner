@@ -274,13 +274,47 @@ export function copyDrill(drill) {
   return {...clone(drill),kind:"drill",id:uid("drill"),bankId:drill.id,source:"scheduled"};
 }
 export function equipmentTotals(plan) {
-  const team=state.teams.find(t=>t.id===plan?.teamId)||activeTeam(),players=Math.max(1,team?.players?.length||0),map=new Map();
-  for(const drill of flattenDrills(plan)) for(const item of drill.equipment||[]) {
-    const name=String(item.name||"Equipment").trim(),key=name.toLowerCase(),count=(Math.max(1,Number(item.quantity)||1))*(item.perPlayer?players:1);
-    if(!map.has(key)) map.set(key,{name,quantity:0,uses:[]});
-    const entry=map.get(key); entry.quantity+=count; entry.uses.push(drill.name);
+  const team=state.teams.find(t=>t.id===plan?.teamId)||activeTeam();
+  const players=Math.max(1,team?.players?.length||0);
+  const drillDemand=drill=>{
+    const map=new Map();
+    for(const item of drill.equipment||[]) {
+      const name=String(item.name||"Equipment").trim(),key=name.toLowerCase();
+      const quantity=Math.max(1,Number(item.quantity)||1)*(item.perPlayer?players:1);
+      if(!map.has(key))map.set(key,{name,quantity:0,uses:new Set()});
+      const entry=map.get(key);entry.quantity+=quantity;entry.uses.add(drill.name);
+    }
+    return map;
+  };
+  const mergeMax=(target,source)=>{
+    for(const [key,value] of source) {
+      if(!target.has(key))target.set(key,{name:value.name,quantity:value.quantity,uses:new Set(value.uses)});
+      else {
+        const entry=target.get(key);entry.quantity=Math.max(entry.quantity,value.quantity);
+        value.uses.forEach(name=>entry.uses.add(name));
+      }
+    }
+  };
+  const mergeSum=(target,source)=>{
+    for(const [key,value] of source) {
+      if(!target.has(key))target.set(key,{name:value.name,quantity:0,uses:new Set()});
+      const entry=target.get(key);entry.quantity+=value.quantity;value.uses.forEach(name=>entry.uses.add(name));
+    }
+  };
+  const required=new Map();
+  for(const block of plan?.blocks||[]) {
+    const blockDemand=new Map();
+    if(block.kind==="drill") mergeMax(blockDemand,drillDemand(block));
+    else if(block.kind==="station") {
+      for(const lane of block.lanes||[]) {
+        const laneDemand=new Map();
+        for(const drill of lane.drills||[]) mergeMax(laneDemand,drillDemand(drill));
+        mergeSum(blockDemand,laneDemand);
+      }
+    }
+    mergeMax(required,blockDemand);
   }
-  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  return [...required.values()].map(x=>({name:x.name,quantity:x.quantity,uses:[...x.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export function remember() {
   undoStack.push(clone({
