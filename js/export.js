@@ -57,7 +57,7 @@ export function exportPracticePDF() {
   }
   let scale=1,layout=measure(scale);
   while(layout.max>available && scale>.12){scale*=.92;layout=measure(scale);}
-  if(layout.max>available) {
+  if(layout.max>available || scale<.45) {
     // A3 is still a single printable sheet, with more room for plans containing many detailed drills.
     format="a3";
     doc=new PDF({orientation:"landscape",unit:"mm",format:"a3",compress:true});
