@@ -246,7 +246,7 @@ function renameTeamDialog(){
 function submitTeam(event){
  event.preventDefault();const name=$("new-team-name").value.trim(),edit=state.editingTeamId;
  if(edit){if(!teams.renameTeam(edit,name))return toast("Team name is unavailable.");state.editingTeamId=null;close("team-sheet");renderApp();toast("Team renamed.");}
- else{if(!teams.addTeam(name))return toast("Enter a unique team name.");state.selectedTeamId=state.activeTeamId;close("team-sheet");renderApp();toast("Team created.");}
+ else{const wasLive=state.live.active;if(!teams.addTeam(name))return toast("Enter a unique team name.");if(wasLive)releaseWakeLock();state.selectedTeamId=state.activeTeamId;close("team-sheet");renderApp();toast("Team created.");}
 }
 function deleteTeam(id=state.selectedTeamId){
  if(state.teams.length<=1)return toast("At least one team must remain.");
