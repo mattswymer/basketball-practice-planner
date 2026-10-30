@@ -41,14 +41,14 @@ function drillStatus(plan,drill) {
   if(plan.skippedIds.includes(drill.id))return "skipped";
   return "";
 }
-function renderDrillCard(drill,{laneId=null,stationLive=false}={}) {
+function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) {
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&!stationLive&&state.live.currentBlockId===drill.id;
   const status=drillStatus(plan,drill),expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""} ${status==="complete"?"is-complete":""} ${status==="skipped"?"is-skipped":""}" data-drill-card="${esc(drill.id)}" data-parent-lane="${esc(laneId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
-      <span class="drill-subline"><b>${drill.minutes} min</b> ${skillLabels(drill.tags)}</span>
+      <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
     </button>
     <div class="drill-card-actions">
       <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups">G</button>
@@ -59,7 +59,7 @@ function renderDrillCard(drill,{laneId=null,stationLive=false}={}) {
     ${expanded?details(drill):""}
   </article>`;
 }
-function renderStation(block,start,end) {
+function renderStation(block,start,end,plan,offset) {
   const live=state.live.active&&state.live.planId===activePlan()?.id&&state.live.currentBlockId===block.id;
   const lanes=(block.lanes||[]).map((lane,i)=>{
     const laneTime=lane.drills.reduce((n,d)=>n+d.minutes,0);
@@ -83,8 +83,8 @@ function renderStation(block,start,end) {
 function renderPlanBlocks(plan) {
   let elapsed=0;
   return plan.blocks.map(block=>{
-    const start=clockLabel(plan.start,elapsed),mins=blockMinutes(block),end=clockLabel(plan.start,elapsed+mins);elapsed+=mins;
-    if(block.kind==="station")return renderStation(block,start,end);
+    const offset=elapsed,start=clockLabel(plan.start,offset),mins=blockMinutes(block),end=clockLabel(plan.start,offset+mins);elapsed+=mins;
+    if(block.kind==="station")return renderStation(block,start,end,plan,offset);
     const status=drillStatus(plan,block);
     return `<div class="plan-block-wrap" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}">
       <div class="plan-time"><strong>${start}</strong><span>to ${end}</span><small>${mins}m</small></div>
