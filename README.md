@@ -28,7 +28,7 @@ A phone-first basketball practice planning app. It is a static site with no buil
 ## Equipment
 
 - Add any equipment item with a quantity and optionally mark it **per player**.
-- The plan's equipment sheet aggregates quantities across all drills, including station lanes, and saves checklist checks on that plan.
+- The plan's equipment sheet calculates peak demand: sequential drills can reuse gear, while concurrent station lanes are combined. It saves checklist checks on that plan.
 - Known legacy text such as “one ball for each player” is migrated as a per-player quantity. Review migrated equipment quantities once after upgrading, especially vague notes such as “all cones”.
 
 ## Export and storage
