@@ -55,7 +55,7 @@ export function exportPracticePDF() {
     return {layouts,ys,max:Math.max(...ys)-bodyTop};
   }
   let scale=1,layout=measure(scale);
-  while(layout.max>available && scale>.34){scale*=.92;layout=measure(scale);}
+  while(layout.max>available && scale>.12){scale*=.92;layout=measure(scale);}
   const compact=scale<.55;
   doc.setFillColor(16,43,63);doc.roundedRect(0,0,width,25,0,0,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
@@ -87,7 +87,7 @@ export function exportPracticePDF() {
   });
   const safeName=(plan.name||"Basketball-Practice").replace(/[^a-z0-9_-]+/gi,"_");
   doc.save(safeName+"_"+(plan.date||"practice")+".pdf");
-  return {ok:true,scale,compact};
+  return {ok:true,scale,compact,overflow:layout.max>available};
 }
 export function exportBackup() {
   const data={app:"basketball-practice-planner",version:1,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds};
