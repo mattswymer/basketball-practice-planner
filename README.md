@@ -33,7 +33,7 @@ A phone-first basketball practice planning app. It is a static site with no buil
 
 ## Export and storage
 
-- The PDF export uses the bundled jsPDF library and creates a one-page, color-coded landscape handout with numbered steps. Very long plans are condensed to fit; review readability before sharing.
+- The PDF export uses bundled jsPDF and creates a one-page, color-coded landscape handout with numbered steps. A4 is used by default; dense plans switch to one-page A3 rather than silently spilling onto a second page. Review condensed plans for readability before sharing.
 - JSON backup/restore includes teams, players, groups, drills, plans, and saved equipment checks.
 - Data is stored locally in this browser. It does not automatically sync between devices. Use Backup to move data.
 - The service worker caches the app shell and PDF library after the first successful online visit.
