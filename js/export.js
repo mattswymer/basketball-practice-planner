@@ -97,6 +97,24 @@ export function exportBackup() {
 export async function importBackup(file) {
   if(!file||file.size>8000000) throw new Error("Backup file is too large or missing.");
   const data=JSON.parse(await file.text());
-  if(data.app!=="basketball-practice-planner"||!Array.isArray(data.teams)||!data.plansByTeam) throw new Error("That file is not a planner backup.");
-  localStorage.setItem("bbp_app_v1",JSON.stringify(data));
+  if(data.app==="basketball-practice-planner"&&Array.isArray(data.teams)&&data.plansByTeam) {
+    localStorage.setItem("bbp_app_v1",JSON.stringify(data));
+    return;
+  }
+  // Accept backups produced by the previous planner format and pass them through its migration path.
+  if(Array.isArray(data.schedule) || data.schedulesByTeam) {
+    const teams=Array.isArray(data.teams)&&data.teams.length?data.teams:(data.team?[data.team]:[]);
+    if(!teams.length) throw new Error("Legacy backup is missing its team.");
+    localStorage.removeItem("bbp_app_v1");
+    localStorage.setItem("cyb_teams_v1",JSON.stringify(teams));
+    localStorage.setItem("cyb_active_team_v1",data.activeTeamId||teams[0].id||"");
+    if(Array.isArray(data.drillBank)) localStorage.setItem("cyb_drill_bank_v2",JSON.stringify(data.drillBank));
+    if(Array.isArray(data.equipmentCatalog)) localStorage.setItem("cyb_equipment_catalog_v1",JSON.stringify(data.equipmentCatalog));
+    if(data.schedulesByTeam) localStorage.setItem("cyb_team_schedules_v2",JSON.stringify(data.schedulesByTeam));
+    else if(Array.isArray(data.schedule)) localStorage.setItem("cyb_active_schedule_v1",JSON.stringify(data.schedule));
+    const meta=data.practice||{};
+    localStorage.setItem("cyb_practice_meta_v2",JSON.stringify({date:meta.date||data.date,start:meta.start||data.startTime,end:meta.end||data.endTime}));
+    return;
+  }
+  throw new Error("That file is not a planner backup.");
 }
