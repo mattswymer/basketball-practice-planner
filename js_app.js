@@ -63,7 +63,7 @@ function fitPractice(){
  remember();const w=items.map(x=>Math.max(1,x.duration)),sum=w.reduce((a,b)=>a+b,0),q=w.map(x=>target*x/sum),v=q.map(x=>Math.max(1,Math.floor(x)));let d=target-v.reduce((a,b)=>a+b,0);
  if(d>0){const order=q.map((x,i)=>({i,r:x-Math.floor(x)})).sort((a,b)=>b.r-a.r);let n=0;while(d>0){v[order[n++%order.length].i]++;d--}}
  else while(d<0){let best=-1,over=-Infinity;v.forEach((x,i)=>{if(x>1&&x-q[i]>over){best=i;over=x-q[i]}});if(best<0)break;v[best]--;d++}
- items.forEach((x,i)=>x.duration=v[i]);if(state.live.active||state.live.paused)liveSet(liveIndex());saveData();renderSchedule();toast("Practice now fits the allotted "+target+" minutes.");
+ items.forEach((x,i)=>x.duration=v[i]);if(state.live.active||state.live.paused)refreshLiveCurrent();saveData();renderSchedule();toast("Practice now fits the allotted "+target+" minutes.");
 }
 function openActivity(id,mode){
  const fresh=mode==="new",x=fresh?{id:uid("drill"),name:"",duration:10,equipment:"",notes:"",tags:[],source:"custom"}:mode==="bank"?bankItem(id):state.schedule.find(v=>v.schedId===id);
@@ -77,7 +77,7 @@ function saveActivity(e){
  const data={name,duration:Math.max(1,Math.min(240,Math.round(+$("edit-item-duration").value||10))),equipment:$("edit-item-equipment").value.trim(),notes:$("edit-item-notes").value,tags:[...$("edit-item-tags").querySelectorAll("input:checked")].map(x=>x.value)};remember();
  if(editing.mode==="new")state.drillBank.push({id:editing.id,...data,source:"custom"});
  else if(editing.mode==="bank"){const x=bankItem(editing.id);if(x)Object.assign(x,data)}
- else{const x=state.schedule.find(v=>v.schedId===editing.id);if(x&&x.type==="activity"){Object.assign(x,data);if(state.live.currentId===x.schedId&&(state.live.active||state.live.paused))liveSet(liveIndex())}}
+ else{const x=state.schedule.find(v=>v.schedId===editing.id);if(x&&x.type==="activity"){Object.assign(x,data);if(state.live.currentId===x.schedId&&(state.live.active||state.live.paused))refreshLiveCurrent()}}
  saveData();renderAll();$("dialog-edit-item").close();editing=null;toast("Activity saved.");
 }
 function deleteBankDrill(){if(!editing||editing.mode!=="bank")return;const x=bankItem(editing.id);if(!x||!confirm("Delete "+x.name+" from the bank? Scheduled copies remain."))return;remember();state.drillBank=state.drillBank.filter(y=>y.id!==x.id);saveData();renderAll();$("dialog-edit-item").close();editing=null}
@@ -102,6 +102,7 @@ function saveStation(e){
  const stations=ids.map((id,i)=>{const x=bankItem(id);return {id:uid("station"),label:"Station "+(i+1),drillId:id,name:x.name,equipment:x.equipment,notes:x.notes,tags:clone(x.tags)}});
  remember();const x={type:"station",schedId:stationId||uid("scheduled"),name:$("station-name").value.trim()||"Station rotation",duration:Math.max(1,Math.min(240,Math.round(+$("station-duration").value||15))),stations};
  if(stationId){const i=state.schedule.findIndex(y=>y.schedId===stationId);if(i>=0)state.schedule[i]=x;else state.schedule.push(x)}else state.schedule.push(x);
+ if((state.live.active||state.live.paused)&&state.live.currentId===x.schedId)refreshLiveCurrent();
  saveData();renderSchedule();$("dialog-station").close();stationId=null;toast("Station rotation saved. All stations run concurrently.");
 }
 function deleteStation(){if(!stationId||!confirm("Remove this station block?"))return;const id=stationId;stationId=null;$("dialog-station").close();deleteItem(id)}
@@ -123,6 +124,7 @@ function openEquipment(){const items=equipmentItems();$("equipment-master-list")
 
 function liveIndex(){return state.schedule.findIndex(x=>x.schedId===state.live.currentId)}
 function liveSet(i){const x=state.schedule[i];if(!x){resetLive();return}state.live.currentId=x.schedId;state.live.remainingSec=x.duration*60;state.live.endAt=Date.now()+state.live.remainingSec*1000;state.live.active=true;state.live.paused=false;state.live.completed=false;if(!state.live.intervalId)state.live.intervalId=setInterval(tickLive,250);renderLive()}
+function refreshLiveCurrent(){const x=state.schedule[liveIndex()];if(!x)return;state.live.remainingSec=x.duration*60;state.live.endAt=Date.now()+state.live.remainingSec*1000;state.live.completed=false;renderLive()}
 function startLive(){if(!state.schedule.length){toast("Add at least one activity before starting practice.");return}liveSet(0);$("live-panel").scrollIntoView({block:"nearest",behavior:"smooth"});toast("Live practice started.")}
 function tickLive(){if(!state.live.active||state.live.paused)return;state.live.remainingSec=Math.max(0,Math.ceil((state.live.endAt-Date.now())/1000));if(state.live.remainingSec<=0){const n=liveIndex()+1;if(n<state.schedule.length){liveSet(n);toast("Next: "+state.schedule[n].name)}else{state.live.active=false;state.live.completed=true;clearInterval(state.live.intervalId);state.live.intervalId=null;renderLive()}}else updateLiveControls()}
 function stepLive(d){const n=liveIndex()+d;if(n<0||n>=state.schedule.length)return;liveSet(n)}
