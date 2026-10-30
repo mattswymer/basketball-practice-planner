@@ -5,7 +5,7 @@ export function addTeam(name) {
   remember();
   const team={id:uid("team"),name:value,players:[]};
   state.teams.push(team);state.plansByTeam[team.id]=[];state.activePlanIds[team.id]=null;
-  state.activeTeamId=team.id;state.selectedTeamId=team.id;save();return true;
+  state.activeTeamId=team.id;state.activePlanId=null;state.selectedTeamId=team.id;save();return true;
 }
 export function renameTeam(id,name) {
   const team=state.teams.find(item=>item.id===id),value=String(name||"").trim();
@@ -35,7 +35,7 @@ export function renamePlayer(teamId,playerId,name) {
   const team=state.teams.find(item=>item.id===teamId),player=team?.players.find(p=>p.id===playerId);
   if(!player)return false;
   const value=String(name||"").trim();if(!value)return false;
-  player.name=value;save();return true;
+  remember();player.name=value;save();return true;
 }
 export function deletePlayer(teamId,playerId) {
   const team=state.teams.find(item=>item.id===teamId);if(!team||!team.players.some(p=>p.id===playerId))return false;
