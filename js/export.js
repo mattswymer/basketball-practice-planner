@@ -21,9 +21,10 @@ export function exportPracticePDF() {
   if(!plan){return {ok:false,message:"Open a practice plan first."};}
   const PDF=window.jspdf?.jsPDF;
   if(!PDF) return {ok:false,message:"The PDF library did not load. Reopen the app while online once."};
-  const doc=new PDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
-  const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
-  const margin=8,gap=5,colWidth=(width-margin*2-gap)/2,bodyTop=31,bodyBottom=height-9,available=bodyBottom-bodyTop;
+  let doc=new PDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
+  let width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
+  const margin=8,gap=5;
+  let colWidth=(width-margin*2-gap)/2,bodyTop=31,bodyBottom=height-9,available=bodyBottom-bodyTop,format="a4";
   const entries=collectEntries(plan);
   const rosterCount=Math.max(1,team?.players?.length||0);
   const equipment=equipmentTotals(plan).map(x=>x.name+" × "+x.quantity).join("   ·   ");
@@ -56,7 +57,16 @@ export function exportPracticePDF() {
   }
   let scale=1,layout=measure(scale);
   while(layout.max>available && scale>.12){scale*=.92;layout=measure(scale);}
-  const compact=scale<.55;
+  if(layout.max>available) {
+    // A3 is still a single printable sheet, with more room for plans containing many detailed drills.
+    format="a3";
+    doc=new PDF({orientation:"landscape",unit:"mm",format:"a3",compress:true});
+    width=doc.internal.pageSize.getWidth();height=doc.internal.pageSize.getHeight();
+    colWidth=(width-margin*2-gap)/2;bodyBottom=height-9;available=bodyBottom-bodyTop;
+    scale=1;layout=measure(scale);
+    while(layout.max>available && scale>.08){scale*=.92;layout=measure(scale);}
+  }
+  const compact=scale<.55,overflow=layout.max>available;
   doc.setFillColor(16,43,63);doc.roundedRect(0,0,width,25,0,0,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
   doc.text(team?.name||"Basketball",margin,9.4);
@@ -87,7 +97,7 @@ export function exportPracticePDF() {
   });
   const safeName=(plan.name||"Basketball-Practice").replace(/[^a-z0-9_-]+/gi,"_");
   doc.save(safeName+"_"+(plan.date||"practice")+".pdf");
-  return {ok:true,scale,compact,overflow:layout.max>available};
+  return {ok:true,scale,compact,overflow,format};
 }
 export function exportBackup() {
   const data={app:"basketball-practice-planner",version:1,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds};
