@@ -17,3 +17,67 @@
 @media(min-width:900px){.app-shell{width:min(100%,980px)}#main-content{padding-left:36px;padding-right:36px}.plans-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.station-lanes{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:390px){#main-content{padding-left:12px;padding-right:12px}.plan-overview{grid-template-columns:.8fr .9fr .65fr 1.4fr}.plan-overview strong{font-size:16px}.drill-card{grid-template-columns:33px minmax(0,1fr) auto}.drag-handle{min-width:33px}.complete-toggle{width:35px}.edit-equipment-row{grid-template-columns:minmax(0,1fr) 52px 72px 32px}.player-row{grid-template-columns:44px minmax(0,1fr) 48px 32px;gap:5px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important}}
+
+
+/* Current screen layouts */
+.drill-header-actions,.roster-actions,.plan-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.team-workspace{display:grid;gap:12px}
+.team-list{display:grid;grid-template-columns:1fr;gap:7px;overflow:visible;padding:0}
+.team-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:5px;align-items:center}
+.team-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;max-width:none;min-height:56px;padding:9px 13px}
+.team-chip strong{flex:1;text-align:left}
+.team-chip small{white-space:nowrap}
+.team-delete{background:#fff0ef}
+.roster-title{align-items:center}
+.roster-actions{gap:2px}
+.roster-panel{min-width:0}
+.roster-list{display:grid;gap:7px}
+.player-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:6px;align-items:center;min-height:56px;padding:3px 0;border-bottom:1px solid #edf1f2}
+.player-name{width:100%;height:48px;min-width:0;border:1px solid #e0e7ea;border-radius:10px;background:#f8fafb;padding:0 12px;font-size:15px;font-weight:650}
+.player-delete{width:48px;height:48px;border-radius:11px;font-size:22px;background:#fff0ef;color:#b44b49}
+.add-player-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:7px;padding:12px 0 2px}
+.add-player-row input{width:100%;height:49px;border:1px solid var(--line);border-radius:11px;padding:0 12px;font-size:15px}
+.add-circle{width:48px;height:48px;border-radius:13px;background:#dcebf0;color:#1f596f;font-size:26px}
+.skill-picker{margin-top:2px}
+.skill-picker .tag-option{min-height:46px;border-left:4px solid var(--chip)}
+.skill-chip{display:inline-flex;align-items:center;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--chip) 13%,white);color:var(--chip);font-size:9px;font-weight:780;letter-spacing:.01em;text-transform:capitalize}
+.drill-subline{align-items:center;gap:5px}
+.drill-card-actions{align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.group-open{width:44px;min-width:44px;height:44px;background:#e8eef1;color:#426273;font-size:13px;font-weight:850}
+.status-pill{min-height:32px;padding:0 7px;border-radius:8px;font-size:9px;font-weight:850}
+.status-pill.complete{background:#d9ede2;color:#20684a}
+.status-pill.skipped{background:#f6e7dd;color:#9a613d}
+.drill-card.is-skipped{opacity:.72;filter:saturate(.7)}
+.station-block.current-popout{background:#e2edf0;border:2px solid var(--station-skill);box-shadow:0 14px 34px #1a4d6330,0 0 0 5px #c8dce355;transform:translateY(-3px)}
+.station-block.current-popout .station-label{color:#19526c}
+.station-block.current-popout .station-lane{background:#ffffff}
+.station-block.current-popout .live-drill-details{display:block}
+.plan-time{display:grid;gap:3px}
+.plan-time strong{font-size:11px;color:#314e5d}
+.plan-time span{font-size:10px;color:#80919a}
+.plan-time small{font-size:9px;color:#9aa6ac}
+.live-bar .live-skip{background:#f0dfd0;color:#804c2e}
+.form-label{font-size:10px;letter-spacing:.09em;font-weight:850;color:#75858d}
+.group-sheet-toolbar{display:flex;gap:8px;margin-bottom:12px}
+.group-sheet-toolbar>*{flex:1}
+.drill-group-board{display:grid;grid-template-columns:1fr;gap:9px;align-items:start;padding-bottom:12px}
+.drill-group{min-width:0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:9px}
+.drill-group[data-group-target].drop-target{border:2px dashed #247a96;background:#e8f2f5}
+.drill-group-head{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:5px;align-items:center;margin-bottom:7px}
+.drill-group-head input{height:43px;min-width:0;border:0;border-radius:8px;background:#eef3f5;padding:0 10px;font-size:13px;font-weight:800;color:#244858}
+.drill-group-head strong{font-size:13px;color:#526b77;padding:0 5px}
+.drill-group-players{display:grid;gap:5px;min-height:46px}
+.group-player{display:grid;grid-template-columns:38px minmax(0,1fr);gap:5px;align-items:center;min-height:48px;padding:2px 4px;border-radius:9px;background:#f4f7f8;touch-action:none}
+.group-player strong{font-size:13px;font-weight:650}
+.group-grip{min-width:38px;min-height:44px;height:44px;color:#718792}
+.group-grip svg{width:17px;height:20px}
+.group-empty{display:grid;place-items:center;min-height:44px;color:#a2adb2;font-size:11px;border:1px dashed #d3dde1;border-radius:9px}
+.unassigned-group{background:#f1f4f5;border-style:dashed}
+.skill-list{display:grid;gap:7px;margin-bottom:12px}
+.skill-edit-row{display:grid;grid-template-columns:minmax(0,1fr) 47px 44px 44px;gap:5px;align-items:center}
+.skill-edit-row input[type=text],.skill-edit-row input:not([type]){height:44px;min-width:0;border:1px solid var(--line);border-radius:9px;padding:0 9px;background:white;font-size:13px}
+.skill-edit-row input[type=color]{width:44px;height:44px;border:0;background:transparent;padding:2px}
+.add-skill-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:7px}
+.add-skill-row input{height:48px;border:1px solid var(--line);border-radius:10px;padding:0 11px}
+.station-lane-edit input{min-width:0}
+@media(min-width:600px){.drill-group-board{grid-template-columns:repeat(2,minmax(0,1fr))}.team-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
