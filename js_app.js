@@ -8,6 +8,7 @@ let state = {
   activeTeamId: null,
   drillBank: [],
   schedule: [],
+  schedulesByTeam: {},
   live: {
     active: false,
     currentIndex: 0,
@@ -19,6 +20,7 @@ let state = {
 
 // Defensive storage and rendering helpers
 const STORAGE_KEY_ACTIVE_TEAM = 'cyb_active_team_v1';
+const STORAGE_KEY_TEAM_SCHEDULES = 'cyb_team_schedules_v1';
 const STORAGE_KEY_META = 'cyb_practice_meta_v1';
 
 function readStoredJSON(key, fallback) {
@@ -90,14 +92,30 @@ function loadData() {
     ? savedBank.map(function(drill, index) { return normalizeDrill(drill, index, false); })
     : JSON.parse(JSON.stringify(PRESET_DRILLS));
 
-  const savedSchedule = readStoredJSON(STORAGE_KEY_SCHEDULE, null);
-  state.schedule = Array.isArray(savedSchedule)
-    ? savedSchedule.map(function(item, index) { return normalizeDrill(item, index, true); })
-    : state.drillBank.slice(0, 5).map(function(drill) {
-        const item = JSON.parse(JSON.stringify(drill));
-        item.schedId = makeId('scheduled');
-        return item;
-      });
+  const savedSchedulesByTeam = readStoredJSON(STORAGE_KEY_TEAM_SCHEDULES, {});
+  state.schedulesByTeam = {};
+  if (savedSchedulesByTeam && typeof savedSchedulesByTeam === 'object' && !Array.isArray(savedSchedulesByTeam)) {
+    Object.keys(savedSchedulesByTeam).forEach(function(teamId) {
+      if (Array.isArray(savedSchedulesByTeam[teamId])) {
+        state.schedulesByTeam[teamId] = savedSchedulesByTeam[teamId].map(function(item, index) {
+          return normalizeDrill(item, index, true);
+        });
+      }
+    });
+  }
+
+  // Migrate the original single-schedule storage into the currently selected team.
+  const legacySchedule = readStoredJSON(STORAGE_KEY_SCHEDULE, null);
+  if (!Object.prototype.hasOwnProperty.call(state.schedulesByTeam, state.activeTeamId)) {
+    state.schedulesByTeam[state.activeTeamId] = Array.isArray(legacySchedule)
+      ? legacySchedule.map(function(item, index) { return normalizeDrill(item, index, true); })
+      : state.drillBank.slice(0, 5).map(function(drill) {
+          const item = JSON.parse(JSON.stringify(drill));
+          item.schedId = makeId('scheduled');
+          return item;
+        });
+  }
+  state.schedule = JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId]));
 
   const meta = readStoredJSON(STORAGE_KEY_META, {});
   document.getElementById('practice-date').value = meta.date || localDateValue();
@@ -109,6 +127,8 @@ function saveData() {
     localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(state.teams));
     localStorage.setItem(STORAGE_KEY_ACTIVE_TEAM, state.activeTeamId || '');
     localStorage.setItem(STORAGE_KEY_BANK, JSON.stringify(state.drillBank));
+    state.schedulesByTeam[state.activeTeamId] = JSON.parse(JSON.stringify(state.schedule));
+    localStorage.setItem(STORAGE_KEY_TEAM_SCHEDULES, JSON.stringify(state.schedulesByTeam));
     localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(state.schedule));
     localStorage.setItem(STORAGE_KEY_META, JSON.stringify({
       date: document.getElementById('practice-date').value,
@@ -124,9 +144,17 @@ function saveData() {
 // Event Bindings
 function bindEvents() {
   document.getElementById('active-team-select').addEventListener('change', (e) => {
+    if (state.live.active) stopLivePractice();
+    saveData();
     state.activeTeamId = e.target.value;
+    state.schedule = Array.isArray(state.schedulesByTeam[state.activeTeamId])
+      ? JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId])) : [];
+    state.live.completed = false;
+    state.live.currentIndex = 0;
     saveData();
     renderTeamSelects();
+    renderSchedule();
+    updateCharts();
   });
 
   document.getElementById('btn-manage-teams').onclick = () => openTeamsModal();
@@ -681,13 +709,20 @@ function openTeamsModal() {
 function addTeam() {
   const name = document.getElementById('new-team-name').value.trim();
   if (!name) return;
-  const newTeam = { id: 't_' + Date.now(), name, roster: [] };
+  if (state.live.active) stopLivePractice();
+  const newTeam = { id: makeId('team'), name: name, roster: [] };
   state.teams.push(newTeam);
+  state.schedulesByTeam[newTeam.id] = [];
   state.activeTeamId = newTeam.id;
+  state.schedule = [];
+  state.live.completed = false;
+  state.live.currentIndex = 0;
   document.getElementById('new-team-name').value = '';
   document.getElementById('team-roster-input').value = '';
   saveData();
   renderTeamSelects();
+  renderSchedule();
+  updateCharts();
 }
 
 function saveRoster() {
