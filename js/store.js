@@ -11,7 +11,7 @@ const PALETTE = ["#2d7891","#bd7837","#ba5c56","#5678a5","#6c8a55","#8a65a7","#3
 export const state = {
   teams:[], activeTeamId:null, drillBank:[], plansByTeam:{}, activePlanIds:{},
   activePlanId:null, view:"plans", live:{active:false,currentDrillId:null,planId:null},
-  wakeLock:null
+  wakeLock:null, planDetailOpen:false, selectedTeamId:null, statsTeamId:null
 };
 let undoStack = [];
 export const clone = value => JSON.parse(JSON.stringify(value));
@@ -73,7 +73,7 @@ export function normalizeDrill(input={}, oldCatalog=[]) {
     name:String(input.name||"Untitled drill").trim()||"Untitled drill",
     minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
     primarySkill, tags:tags.filter(x=>x!==primarySkill),
-    equipment:normalizeEquipment(input.equipment,input.equipmentText||input.equipment,oldCatalog),
+    equipment:normalizeEquipment(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:""),oldCatalog),
     steps, source:input.source||"custom"
   };
 }
@@ -118,7 +118,7 @@ function parsePlayer(value,index=0) {
 function normalizeTeam(input={},index=0) {
   const roster=Array.isArray(input.players)?input.players:(Array.isArray(input.roster)?input.roster:[]);
   const groups=input.groups&&typeof input.groups==="object"?{...input.groups}:{};
-  return {id:String(input.id||uid("team")),name:String(input.name||"Team "+(index+1)),players:roster.map(parsePlayer).filter(x=>x.name),groups};
+  return {id:String(input.id||uid("team")),name:String(input.name||"Team "+(index+1)),players:roster.map(parsePlayer).filter(x=>x.name),groups,groupCount:Math.max(2,Math.min(5,Number(input.groupCount)||2))};
 }
 function mergeBank(savedBank,oldCatalog) {
   const base=(DATA.PRESET_DRILLS||[]).map(x=>normalizeDrill(x,oldCatalog));
@@ -178,6 +178,7 @@ export function loadApp() {
     state.activePlanIds[t.id]=state.plansByTeam[t.id].some(p=>p.id===wanted)?wanted:state.plansByTeam[t.id][0].id;
   }
   state.activePlanId=state.activePlanIds[state.activeTeamId];
+  state.selectedTeamId=state.activeTeamId; state.statsTeamId=state.activeTeamId;
   state.live={active:false,currentDrillId:null,planId:null};
   save();
 }
