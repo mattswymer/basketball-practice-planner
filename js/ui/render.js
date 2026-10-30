@@ -169,11 +169,12 @@ function renderStats() {
     for(const skill of drill.tags){
       const row=skills.get(skill)||{planned:0,completed:0,skipped:0};
       row.planned+=drill.minutes;
-      if(plan.completedIds.includes(drill.id)){row.completed+=drill.minutes;completed+=drill.minutes;}
+      if(plan.completedIds.includes(drill.id))row.completed+=drill.minutes;
       if(plan.skippedIds.includes(drill.id))row.skipped+=drill.minutes;
       skills.set(skill,row);
     }
     planned+=drill.minutes;
+    if(plan.completedIds.includes(drill.id))completed+=drill.minutes;
   }
   $("stats-plan-count").textContent=plans.length;
   $("stats-planned-total").textContent=durationLabel(planned);
