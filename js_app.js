@@ -22,9 +22,17 @@ function loadData(){
  state.teams=Array.isArray(teams)?teams.filter(Boolean).map((t,i)=>({id:t.id||uid("team"+i),name:String(t.name||"Team "+(i+1)),roster:Array.isArray(t.roster)?t.roster.map(String):[]})):clone(defaults);
  if(!state.teams.length)state.teams=clone(defaults);
  const active=localStorage.getItem(K.active);state.activeTeamId=state.teams.some(t=>t.id===active)?active:state.teams[0].id;
- const base=PRESET_DRILLS.map(normalizeBank),savedBank=readJSON(K.bank,readJSON(K.oldBank,null)),names=new Set(base.map(x=>x.name.toLowerCase()));
- const custom=Array.isArray(savedBank)?savedBank.map(normalizeBank).filter(x=>x.source==="custom"&&!names.has(x.name.toLowerCase())):[];
- state.drillBank=base.concat(custom);
+ const base=PRESET_DRILLS.map(normalizeBank),savedBank=readJSON(K.bank,readJSON(K.oldBank,null));
+ const savedItems=Array.isArray(savedBank)?savedBank:[];
+ const merged=base.map(seed=>{
+  const prior=savedItems.find(x=>x&&((x.id&&x.id===seed.id)||((x.name||"").toLowerCase()===seed.name.toLowerCase()&&x.source!=="custom")));
+  if(!prior)return seed;
+  const old=normalizeBank(prior,0);
+  return {...seed,...old,id:seed.id,source:seed.source,equipmentItems:old.equipmentItems.length?old.equipmentItems:seed.equipmentItems};
+ });
+ const names=new Set(base.map(x=>x.name.toLowerCase()));
+ const custom=savedItems.map(normalizeBank).filter(x=>x.source==="custom"&&!names.has(x.name.toLowerCase()));
+ state.drillBank=merged.concat(custom);
  const saved=readJSON(K.schedules,{});state.schedulesByTeam={};
  if(saved&&typeof saved==="object"&&!Array.isArray(saved))Object.keys(saved).forEach(id=>{const a=Array.isArray(saved[id])?saved[id]:saved[id]?.schedule;if(Array.isArray(a))state.schedulesByTeam[id]=a.map(normalizeScheduled)});
  if(!Object.prototype.hasOwnProperty.call(state.schedulesByTeam,state.activeTeamId)){const old=readJSON(K.oldSchedule,null);state.schedulesByTeam[state.activeTeamId]=Array.isArray(old)?old.map(normalizeScheduled):[]}
