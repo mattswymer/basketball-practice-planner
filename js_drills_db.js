@@ -788,21 +788,6 @@ const HISTORICAL_DRILLS = [
     "source": "practice-sheet"
   },
   {
-    "name": "V-CUT PIVOT FOOT DRILL",
-    "duration": 10,
-    "equipment": "three balls, one cone at wing, one cone at top",
-    "tags": [
-      "dribbling",
-      "layups",
-      "passing",
-      "triple threat",
-      "pivot"
-    ],
-    "notes": "1. Player 1A starts on wing and V-cuts\n2. Player 1B starts at top and passes after V-cut\n3. Player 1A catches with inside pivot, triple threat, jab to center, drives baseline for lay-up\n4. Player 1B goes to wing\nPractice jab to center drive baseline and jab to baseline drive center",
-    "id": "archive-v-cut-pivot-foot-drill",
-    "source": "practice-sheet"
-  },
-  {
     "name": "3-OUT IMPLEMENTATION",
     "duration": 10,
     "equipment": "1 cone at top, 4 cones at blocks and short corners",
