@@ -22,7 +22,9 @@ function parseEquipment(text){
  const add=(name,rx,per)=>{const all=[...s.matchAll(new RegExp("\\b(?:"+rx+")\\b","gi"))];if(!all.length)return;
  if(per&&per.test(s)){out.push({name,quantity:1,perPlayer:true});return;}
  const nums=[...s.matchAll(new RegExp("\\b(one|a|an|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s+(?:"+rx+")\\b","gi"))];
- out.push({name,quantity:nums.reduce((n,m)=>n+number(m[1]),0)||all.length,perPlayer:false});};
+ const after=[...s.matchAll(new RegExp("(?:"+rx+")\\s*[×x]\\s*(\\d+)","gi"))];
+ const quantity=after.length?after.reduce((n,m)=>n+number(m[1]),0):nums.reduce((n,m)=>n+number(m[1]),0)||all.length;
+ out.push({name,quantity,perPlayer:false});};
  add("Basketballs","balls?",/(?:ball|basketball)s?\s*(?:for each|per)\s+player|each player[^.]*\bballs?\b|\bball\s+for\s+each\s+player/i);
  add("Cones","cones?");add("Pinnies","pinnies|jerseys?");add("Whistles","whistles?");add("Stopwatches","stopwatches?");add("Clipboards","clipboards?");add("Floor tape","floor\s+tape");add("Hurdles","hurdles?");add("Resistance bands","resistance\s+bands?");add("First-aid kits","first[- ]aid\s+kits?");
  return out;
