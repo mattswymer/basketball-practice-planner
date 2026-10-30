@@ -40,7 +40,11 @@ function deletePlan(id) {
   if(index<0)return;
   remember();const [removed]=list.splice(index,1);
   if(!list.length)list.push({id:uid("plan"),teamId,name:"Practice plan",date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()});
-  if(state.activePlanId===id){setActivePlan(list[Math.min(index,list.length-1)].id);state.planDetailOpen=false;}
+  if(state.activePlanId===id){
+    setActivePlan(list[Math.min(index,list.length-1)].id);
+    state.planDetailOpen=false;
+    if(state.live.planId===id){state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
+  }
   saveApp();renderApp();toast("Plan deleted: "+removed.name, true);
 }
 function switchTeam(teamId) {
@@ -112,7 +116,10 @@ function removeDrill(id) {
   const plan=activePlan(),found=locatePlanDrill(plan,id);if(!found)return;
   remember();found.list.splice(found.list.findIndex(x=>x.id===id),1);
   plan.completedIds=plan.completedIds.filter(x=>x!==id);
-  if(state.live.currentDrillId===id)state.live.currentDrillId=flattenDrills(plan)[0]?.id||null;
+  if(state.live.currentDrillId===id) {
+    state.live.currentDrillId=flattenDrills(plan)[0]?.id||null;
+    if(!state.live.currentDrillId){state.live={active:false,currentDrillId:null,planId:null};releaseWakeLock();}
+  }
   saveApp();renderApp();toast("Drill removed.",true);
 }
 function deleteEditorDrill() {
@@ -136,13 +143,24 @@ function openStation(id=null) {
   $("delete-station").hidden=!existing;
   renderStationEditor(stationDraft);show("station-sheet");
 }
+function captureLaneNames() {
+  if(!stationDraft)return;
+  stationDraft.lanes.forEach(lane=>{
+    const input=$("station-lanes-editor").querySelector('[data-lane-name="'+lane.id+'"]');
+    if(input)lane.name=input.value.trim()||lane.name;
+  });
+}
 function addLane() {
   if(!stationDraft)return;
+  captureLaneNames();
   stationDraft.lanes.push({id:uid("lane"),name:"Lane "+(stationDraft.lanes.length+1),drills:[]});
   renderStationEditor(stationDraft);
 }
 function removeLane(id) {
   if(!stationDraft||stationDraft.lanes.length<=1){toast("A station needs at least one lane.");return;}
+  captureLaneNames();
+  const lane=stationDraft.lanes.find(x=>x.id===id);
+  if(lane?.drills.length){toast("Move drills out of this lane first.");return;}
   stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
 }
 function saveStation(event) {
@@ -202,6 +220,7 @@ function reorderBlock(id,beforeId=null) {
   const from=plan.blocks.findIndex(x=>x.id===id);if(from<0)return;
   const [block]=plan.blocks.splice(from,1);
   const to=beforeId?plan.blocks.findIndex(x=>x.id===beforeId):-1;
+  if(to===from) { plan.blocks.splice(from,0,block); return; }
   plan.blocks.splice(to<0?plan.blocks.length:to,0,block);
   saveApp();renderApp();
 }
@@ -322,7 +341,7 @@ function duringDrag(event) {
   document.querySelectorAll(".drop-target").forEach(x=>x.classList.remove("drop-target"));
   const target=document.elementFromPoint(event.clientX,event.clientY);
   const lane=target?.closest("[data-drop-lane]"),card=target?.closest("[data-drill-card]"),block=target?.closest("[data-drop-block]"),root=target?.closest("[data-drop-root]");
-  const dest=lane||card||block||root;
+  const dest=card||lane||block||root;
   if(dest){dest.classList.add("drop-target");dragState.target=dest;}else dragState.target=null;
 }
 function finishDrag() {
