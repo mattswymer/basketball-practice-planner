@@ -20,7 +20,7 @@ const TAG_COLORS = {
   "stretch": "#8a9d78",
   "rest": "#87909d"
 };
-const PRESET_DRILLS = [
+const COACH_DRILLS = [
   {
     "name": "2 DRIBBLE 1V1",
     "duration": 15,
@@ -455,3 +455,375 @@ const PRESET_DRILLS = [
     "source": "coach"
   }
 ];
+const HISTORICAL_DRILLS = [
+  {
+    "name": "RELAY RACE",
+    "duration": 7,
+    "equipment": "two balls, one per group",
+    "tags": [
+      "dribbling",
+      "passing",
+      "sprints",
+      "team building"
+    ],
+    "notes": "1. Players split into 2 groups and line up in a designated spot\n2. Players either run the obstacles or sprint down and back as fast as they can while dribbling\n3. When they return to the line, they pass the ball to the next player, who then goes\n4. The team who gets through all their players first wins",
+    "id": "archive-relay-race",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "BASKETBALL TAG",
+    "duration": 10,
+    "equipment": "ball for each player",
+    "tags": [
+      "dribbling",
+      "team building",
+      "sprints"
+    ],
+    "notes": "1. One player is \"it\"\n2. All players must dribble their basketball and stay away from the \"it\"\n3. If the \"it\" touches another person's ball, that person has to do 5 pushups and now they are \"it\"",
+    "id": "archive-basketball-tag",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "HOMERUN",
+    "duration": 12,
+    "equipment": "two balls, one per group",
+    "tags": [
+      "shooting",
+      "dribbling",
+      "free throws",
+      "sprints",
+      "team building"
+    ],
+    "notes": "1. Split players into two teams, one at the foul line the other out of bounds under the goal\n2. The players under the goal must run while dribbling around the perimeter of the court as fast as they can\n3. The team at the foul line must take turns shooting free throws\n4. If the foul line team makes it before runner returns, the player is out, otherwise they score a run\n5. After 3 outs, teams switch",
+    "id": "archive-homerun",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "CONE SHOOTING",
+    "duration": 10,
+    "equipment": "two balls, one per group, all cones in a line at halfcourt",
+    "tags": [
+      "shooting",
+      "sprints",
+      "team building"
+    ],
+    "notes": "1. Split players into two groups and line up at opposite sides to shoot\n2. Players shoot one at a time, if they make their shot, they pass to the next person and run to grab a cone\n3. If they miss, they get back in line\n4. The team with the most cones when the cones run out is the winner",
+    "id": "archive-cone-shooting",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "DUCK DUCK GOOSE",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "passing",
+      "sprints",
+      "team building"
+    ],
+    "notes": "1. All players line up in a large circle\n2. Coach passes the ball to one player, that player must pass the ball to the next player and then sprint around the outside of the circle\n3. The player wins and gets a point if they return to their spot to receive the pass",
+    "id": "archive-duck-duck-goose",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "SCORING COMPETITION",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting",
+      "sprints"
+    ],
+    "notes": "1. Half the team steps onto the court, coach gives them the ball\n2. They must make as many shots as possible in 30 seconds\n3. When time is up, next team takes a turn\n4. Loser must run down and back",
+    "id": "archive-scoring-competition",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "SPOT SHOOTING - MODIFIED HORSE",
+    "duration": 10,
+    "equipment": "one ball per player",
+    "tags": [
+      "shooting"
+    ],
+    "notes": "1. Players line up and shoot from a spot\n2. They track the number of makes as a team\n3. They move to different spots, chosen by player\n4. 1 point for each make",
+    "id": "archive-spot-shooting-modified-horse",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "SCRIMMAGE",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting",
+      "defense",
+      "dribbling",
+      "rebounding"
+    ],
+    "notes": "1. Offense receives ball and tries to score\n2. If the offense scores, they stay on the court\n3. If the defense gets the ball, they are now on offense",
+    "id": "archive-scrimmage",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "ZIG ZAG PASS SHOOTING",
+    "duration": 10,
+    "equipment": "three balls",
+    "tags": [
+      "layups",
+      "shooting",
+      "passing",
+      "team building"
+    ],
+    "notes": "1. Players line up in an offset pattern 15 feet apart down center court\n2. The first player passes diagonally, then follows the ball and stands in the new spot they passed to\n3. Ball continues moving player to player until the last player catches and scores\n4. Last player moves to the front, drill starts over",
+    "id": "archive-zig-zag-pass-shooting",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "1V1",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting",
+      "defense",
+      "dribbling",
+      "rebounding"
+    ],
+    "notes": "1. Offense receives ball and tries to score\n2. If the offense scores, they stay on the court\n3. If the defense gets the ball, they are now on offense",
+    "id": "archive-1v1",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "2V2",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting",
+      "defense",
+      "dribbling",
+      "rebounding"
+    ],
+    "notes": "1. Offense receives ball and tries to score\n2. If the offense scores, they stay on the court\n3. If the defense gets the ball, they are now on offense",
+    "id": "archive-2v2",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "3V3",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting",
+      "defense",
+      "dribbling",
+      "rebounding"
+    ],
+    "notes": "1. Offense receives ball and tries to score\n2. If the offense scores, they stay on the court\n3. If the defense gets the ball, they are now on offense",
+    "id": "archive-3v3",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "LAYUPS / SHOOTING",
+    "duration": 10,
+    "equipment": "ball for each player",
+    "tags": [
+      "layups",
+      "shooting"
+    ],
+    "notes": "1. All players line up on wing and take turns laying the ball up\n2. Move to different areas on the court for players",
+    "id": "archive-layups-shooting",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "CATCH AND SHOOT",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "layups",
+      "shooting"
+    ],
+    "notes": "1. Coach stands on the wing, players line up under the goal\n2. First player steps out onto the block, coach tosses a pass, player catches, turns, shoots\n3. Go to the back of the line, next player up\n[left/right]",
+    "id": "archive-catch-and-shoot",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "BALL SECURITY",
+    "duration": 7,
+    "equipment": "ball for each player",
+    "tags": [
+      "triple threat",
+      "defense"
+    ],
+    "notes": "1. All players line up and hold their ball\n2. First player goes down the line trying to knock the ball out of each of their hands\n3. Then the next person goes until all players have gone",
+    "id": "archive-ball-security",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "COACH KEEP AWAY",
+    "duration": 10,
+    "equipment": "one ball",
+    "tags": [
+      "off-ball movement",
+      "layups",
+      "passing",
+      "shooting",
+      "team building"
+    ],
+    "notes": "1. All players get into position\n2. Players must pass the ball to every player without dribbling while coach tries to intercept\n3. After all players have touched the ball, any player may shoot\n4. If the coach intercepts more passes than the players shoot, players must do 10 pushups",
+    "id": "archive-coach-keep-away",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "1V1 DRIBBLING OFFENSE SIMULTATION",
+    "duration": 10,
+    "equipment": "two balls",
+    "tags": [
+      "dribbling",
+      "passing",
+      "shooting"
+    ],
+    "notes": "1. Player 1A starts behind halfcourt, 2A on the wing, 3A in the paint\n2. Player 1A must take the ball over halfcourt and pass to 2A who then passes to 3A to shoot\n3. The coach is trying to deny the pass to 2A",
+    "id": "archive-1v1-dribbling-offense-simultation",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "FAST BREAK",
+    "duration": 10,
+    "equipment": "ball for each player",
+    "tags": [
+      "dribbling",
+      "layups",
+      "passing",
+      "sprints",
+      "shooting"
+    ],
+    "notes": "1. Players line up at halfcourt and hand their ball to coach\n2. Coach rolls or tosses ball slightly towards goal to simulate a steal\n3. Player sprints after the ball, grabs it, and goes for a layup\n4. Player goes to the back of the line and next player steps up",
+    "id": "archive-fast-break",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "FAST BREAK TRIPLE PASSING",
+    "duration": 10,
+    "equipment": "two balls",
+    "tags": [
+      "dribbling",
+      "layups",
+      "passing",
+      "sprints",
+      "shooting"
+    ],
+    "notes": "1. Players split into three lines at halfcourt corners, and center, center line has balls\n2. Player 1 starts with the ball simulating a fast break, players 2 and 3 sprint up the sides\n3. Player 1 passes to player 2 or 3 who then quickly passes to the other for a layup",
+    "id": "archive-fast-break-triple-passing",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "PICK AND ROLL",
+    "duration": 8,
+    "equipment": "two balls",
+    "tags": [
+      "dribbling",
+      "layups",
+      "passing",
+      "triple threat"
+    ],
+    "notes": "1. Players line up at the top of the 3-point line in two lines, one with balls\n2. Player 1 steps out in triple threat, player 2 sets a screen\n3. Player 1 goes around the screen and drives and player 2 rolls\n4. Alternate which player scores\n5. Players switch lines",
+    "id": "archive-pick-and-roll",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "TRIANGLE PASSING TO POST",
+    "duration": 8,
+    "equipment": "two balls",
+    "tags": [
+      "layups",
+      "passing",
+      "post",
+      "shooting"
+    ],
+    "notes": "1. Players line up at top of 3pt line, player 1 to the strongside elbow, player 2 on the wing\n2. Player 3 has the ball at the top, passes to player 2 who then quickly passes to player 1 in the middle\n3. Player 1 catches and either shoots or pump fakes, dribbles up, and shoots\n4. Player 3 goes to 1, 1 goes to 2, 2 goes to the back of the line",
+    "id": "archive-triangle-passing-to-post",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "REBOUND SCRIMMAGE",
+    "duration": 12,
+    "equipment": "1 ball",
+    "tags": [
+      "defense",
+      "rebounding"
+    ],
+    "notes": "1. Two lines at the top, first pair steps out on defense, second on offense\n2. Players 1A and 2A line up ready to box out, players 1B and 2B prepare for an offensive rebound\n3. Coach shoots the ball to miss\n4. If team A gets the ball, the outlet to coach as fast as they can\n5. If team B gets the ball, they try to score in less than 5 seconds\n6. Offense rotates to defense, new offense",
+    "id": "archive-rebound-scrimmage",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "DRIBBLING, PASSING, SHOOTING STATIONS",
+    "duration": 15,
+    "equipment": "one ball for each player, cones 10 feet from wall, cones on 2nd hash, cones along sideline",
+    "tags": [
+      "dribbling",
+      "layups",
+      "passing",
+      "post",
+      "rebounding",
+      "shooting"
+    ],
+    "notes": "1. Separate players into 3 groups, assign each group to one of the three stations\n2. Players complete the task at the station for one minute and then rotate\n3. Drill is over once all players have completed all drills\n4A. Dribbling Station - players dribble through the cones without traveling or double dribbling\nCoach can try to knock ball away occasionally\n4B. Passing Station - players practice bounce passing and chest passing at the wall so that it bounces back to them\n4C. Shooting Station - players practice the Mikan drill, shooting from each block and making as many shots as possible",
+    "id": "archive-dribbling-passing-shooting-stations",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "KEEP AWAY DRILL",
+    "duration": 8,
+    "equipment": "one ball",
+    "tags": [
+      "defense",
+      "dribbling",
+      "off-ball movement",
+      "passing"
+    ],
+    "notes": "1. Separate players into 2 groups\n2. One team is on offense and they can do anything but score\n3. The defense must try to get the ball\n4. The offense has 30 seconds to make 10 passes",
+    "id": "archive-keep-away-drill",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "V-CUT PIVOT FOOT DRILL",
+    "duration": 10,
+    "equipment": "three balls, one cone at wing, one cone at top",
+    "tags": [
+      "dribbling",
+      "layups",
+      "passing",
+      "triple threat",
+      "pivot"
+    ],
+    "notes": "1. Player 1A starts on wing and V-cuts\n2. Player 1B starts at top and passes after V-cut\n3. Player 1A catches with inside pivot, triple threat, jab to center, drives baseline for lay-up\n4. Player 1B goes to wing\nPractice jab to center drive baseline and jab to baseline drive center",
+    "id": "archive-v-cut-pivot-foot-drill",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "3-OUT IMPLEMENTATION",
+    "duration": 10,
+    "equipment": "1 cone at top, 4 cones at blocks and short corners",
+    "tags": [
+      "plays",
+      "off-ball movement"
+    ],
+    "notes": "1. Players 1A-5A stand in each of the spots\n2. When the ball is on the wing, weakside guards switch, weakside post flashes\n3. When the ball is at the elbow, weakside guard drops to block",
+    "id": "archive-3-out-implementation",
+    "source": "practice-sheet"
+  },
+  {
+    "name": "FREE THROW RUNNING",
+    "duration": 5,
+    "equipment": "one ball",
+    "tags": [
+      "free throws",
+      "sprints"
+    ],
+    "notes": "1. First player steps up to shoot a free throw\n2. If he makes it, next player shoots; if he misses it, players run freethrow and back and halfcourt and back",
+    "id": "archive-free-throw-running",
+    "source": "practice-sheet"
+  }
+];
+const PRESET_DRILLS = [...COACH_DRILLS, ...HISTORICAL_DRILLS];
