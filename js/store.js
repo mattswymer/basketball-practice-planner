@@ -163,7 +163,7 @@ function oldPlans(teams,activeTeamId,oldCatalog) {
 export function loadApp() {
   const app=read(APP_KEY,read(LEGACY_KEY,null));
   if(app && Array.isArray(app.teams)) {
-    state.skills.splice(0,state.skills.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_TAGS));\n    state.skillColors={...TAG_COLORS,...(app.skillColors||{})};\n    state.teams=app.teams.map(normalizeTeam);
+    SKILLS.splice(0,SKILLS.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_TAGS));state.skills=SKILLS;\n    state.skillColors={...TAG_COLORS,...(app.skillColors||{})};\n    state.teams=app.teams.map(normalizeTeam);
     if(!state.teams.length) state.teams=defaultTeamData().map(normalizeTeam);
     state.activeTeamId=state.teams.some(t=>t.id===app.activeTeamId)?app.activeTeamId:state.teams[0].id;
     const catalog=Array.isArray(app.equipmentCatalog)?app.equipmentCatalog:[];
