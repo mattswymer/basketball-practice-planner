@@ -126,6 +126,7 @@ function bindEvents() {
   document.getElementById('active-team-select').addEventListener('change', (e) => {
     state.activeTeamId = e.target.value;
     saveData();
+    renderTeamSelects();
   });
 
   document.getElementById('btn-manage-teams').onclick = () => openTeamsModal();
@@ -370,20 +371,29 @@ function deleteScheduledItem(schedId) {
   const removedIndex = state.schedule.findIndex(function(item) { return item.schedId === schedId; });
   if (removedIndex < 0) return;
   state.schedule.splice(removedIndex, 1);
+
   if (state.live.active) {
     if (!state.schedule.length) {
       stopLivePractice();
+      saveData();
       return;
     }
     if (removedIndex < state.live.currentIndex) state.live.currentIndex--;
-    else if (removedIndex === state.live.currentIndex) state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
+    else if (removedIndex === state.live.currentIndex) {
+      state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
+    }
     resetLiveDrillTimer();
   } else if (!state.schedule.length) {
     state.live.completed = false;
+    state.live.currentIndex = 0;
+  } else if (state.live.completed) {
+    state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
   }
+
   saveData();
   renderSchedule();
 }
+
 function fitToAllottedTime() {
   const target = getPracticeWindowMinutes();
   if (!target || !state.schedule.length) {
@@ -471,26 +481,34 @@ function openEditModal(schedId, isNewBank = false) {
 function saveEditModal(e) {
   e.preventDefault();
   const id = document.getElementById('edit-item-id').value;
-  const name = document.getElementById('edit-item-name').value;
-  const duration = parseInt(document.getElementById('edit-item-duration').value) || 5;
-  const equipment = document.getElementById('edit-item-equipment').value;
+  const name = document.getElementById('edit-item-name').value.trim();
+  const durationInput = parseInt(document.getElementById('edit-item-duration').value, 10);
+  const duration = Math.max(1, Math.min(120, Number.isFinite(durationInput) ? durationInput : 5));
+  const equipment = document.getElementById('edit-item-equipment').value.trim();
   const notes = document.getElementById('edit-item-notes').value;
-  const selectedTags = Array.from(document.querySelectorAll('.tag-check:checked')).map(cb => cb.value);
+  const selectedTags = Array.from(document.querySelectorAll('.tag-check:checked')).map(function(cb) { return cb.value; });
 
-  if (id === "NEW_BANK") {
-    const newDrill = {
-      id: 'd_' + Math.random().toString(36).substr(2, 9),
-      name, duration, equipment, notes, tags: selectedTags
-    };
-    state.drillBank.push(newDrill);
+  if (!name) {
+    alert('Enter a name for this activity.');
+    document.getElementById('edit-item-name').focus();
+    return;
+  }
+
+  if (id === 'NEW_BANK') {
+    state.drillBank.push({
+      id: makeId('drill'), name: name, duration: duration,
+      equipment: equipment, notes: notes, tags: selectedTags
+    });
   } else {
-    const item = state.schedule.find(i => i.schedId === id);
+    const itemIndex = state.schedule.findIndex(function(item) { return item.schedId === id; });
+    const item = state.schedule[itemIndex];
     if (item) {
       item.name = name;
       item.duration = duration;
       item.equipment = equipment;
       item.notes = notes;
       item.tags = selectedTags;
+      if (state.live.active && itemIndex === state.live.currentIndex) resetLiveDrillTimer();
     }
   }
 
@@ -641,8 +659,8 @@ function openEquipmentModal() {
       html += `
         <div class="equip-item-row">
           <input type="checkbox">
-          <strong>${equip}</strong>
-          <span style="font-size:11px; color:#7f8c8d;">(Needed for: ${drills.join(', ')})</span>
+          <strong>${escapeHTML(equip)}</strong>
+          <span style="font-size:11px; color:#7f8c8d;">(Needed for: ${drills.map(escapeHTML).join(', ')})</span>
         </div>
       `;
     });
@@ -667,6 +685,7 @@ function addTeam() {
   state.teams.push(newTeam);
   state.activeTeamId = newTeam.id;
   document.getElementById('new-team-name').value = '';
+  document.getElementById('team-roster-input').value = '';
   saveData();
   renderTeamSelects();
 }
@@ -803,6 +822,10 @@ function exportPDF() {
   const timed = calculateTiming();
 
   const win = window.open('', '_blank');
+  if (!win) {
+    alert('Allow pop-ups for this page to print the practice plan.');
+    return;
+  }
   win.document.write(`
     <!DOCTYPE html>
     <html>
@@ -819,12 +842,12 @@ function exportPDF() {
       </style>
     </head>
     <body>
-      <h1>${team.name} - Practice Plan</h1>
-      <div class="meta">Date: ${date} | Time: ${startTime} - ${endTime}</div>
+      <h1>${escapeHTML(team ? team.name : 'Team')} - Practice Plan</h1>
+      <div class="meta">Date: ${escapeHTML(date)} | Time: ${escapeHTML(startTime)} - ${escapeHTML(endTime)}</div>
       
       <div class="equip-box">
         <strong>Master Equipment List:</strong> 
-        ${Array.from(new Set(state.schedule.map(i => i.equipment).filter(Boolean))).join(' · ') || 'None specified'}
+        ${Array.from(new Set(state.schedule.map(i => i.equipment).filter(Boolean))).map(escapeHTML).join(' · ') || 'None specified'}
       </div>
 
       <table>
@@ -843,10 +866,10 @@ function exportPDF() {
             <tr>
               <td><strong>${i.startFormatted}</strong></td>
               <td>${i.duration}m</td>
-              <td><strong>${i.name}</strong></td>
-              <td>${i.tags ? i.tags.join(', ') : ''}</td>
-              <td>${i.equipment || ''}</td>
-              <td>${i.notes ? i.notes.replace(/\n/g, '<br>') : ''}</td>
+              <td><strong>${escapeHTML(i.name)}</strong></td>
+              <td>${i.tags ? i.tags.map(escapeHTML).join(', ') : ''}</td>
+              <td>${escapeHTML(i.equipment || '')}</td>
+              <td>${i.notes ? escapeHTML(i.notes).replace(/\n/g, '<br>') : ''}</td>
             </tr>
           `).join('')}
         </tbody>
