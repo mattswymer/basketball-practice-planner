@@ -7,13 +7,22 @@ export function openDrillGroups(drillId) {
   const drill=flattenDrills(activePlan()).find(item=>item.id===drillId);
   if(!drill)return false;
   drill.grouping??={groups:[]};
+  if(!drill.grouping.groups.length) {
+    remember();
+    drill.grouping.groups.push(
+      {id:uid("group"),name:"Group 1",playerIds:[]},
+      {id:uid("group"),name:"Group 2",playerIds:[]}
+    );
+    save();
+  }
   state.groupingDrillId=drillId;return true;
 }
 export function addDrillGroup() {
   const drill=currentGroupedDrill();if(!drill)return;
   remember();
   const groups=drill.grouping.groups;
-  groups.push({id:uid("group"),name:"Group "+(groups.length+1),playerIds:[]});
+  let number=1;while(groups.some(group=>group.name==="Group "+number))number++;
+  groups.push({id:uid("group"),name:"Group "+number,playerIds:[]});
   save();
 }
 export function renameDrillGroup(groupId,name) {
