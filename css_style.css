@@ -228,3 +228,5 @@ h1 { margin: 4px 0 1px; font-size: 25px; line-height: 1.2; font-weight: 700; let
   button { min-height: 38px; }
   .bank-plus { min-height: 34px; min-width: 34px; }
 }
+
+.bank-panel.drag-over{background:#e9f0f6;outline:2px dashed var(--navy);outline-offset:-6px}.station-block.drop-target{outline:3px solid rgba(43,91,128,.3);outline-offset:2px}
