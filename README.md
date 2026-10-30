@@ -24,7 +24,7 @@ A phone-first basketball practice planner and live coaching tool. Open `index.ht
 - Select equipment options for a drill and set quantities.
 - Add, rename, and remove equipment options in the editable catalog.
 - The practice equipment view totals selected quantities across drills and station activities.
-- Existing free-text equipment notes are preserved until the drill is edited and converted to selectable equipment.
+- Existing equipment descriptions are automatically mapped to matching catalog items when possible. Review quantities such as ball-per-player or team-wide equipment after the first load.
 
 ## Teams and groups
 - Maintain separate teams, rosters, and practice schedules. Teams can be deleted; at least one team must remain.
