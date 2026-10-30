@@ -103,24 +103,19 @@
           <div><p class="eyebrow">ROSTERS</p><h1>Teams</h1></div>
           <button class="primary-btn" id="new-team">New team <span aria-hidden="true">+</span></button>
         </div>
-        <div id="team-list" class="team-list"></div>
-        <div class="roster-panel">
-          <div class="section-title-row compact">
-            <div><p class="eyebrow">PLAYERS</p><h2 id="roster-team-name">Roster</h2></div>
-            <button class="text-btn" id="edit-team-name">Rename</button><button class="text-btn danger-text" id="delete-team">Delete</button>
-          </div>
-          <div id="roster-list" class="roster-list"></div>
-          <div class="add-player-row">
-            <input id="new-player-number" inputmode="numeric" maxlength="4" placeholder="#" aria-label="Jersey number">
-            <input id="new-player-name" maxlength="60" placeholder="Player name" aria-label="Player name">
-            <button class="add-circle" id="add-player" aria-label="Add player">+</button>
-          </div>
-          <div class="groups-tools">
-            <label><span>GROUPS</span><select id="group-count"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
-            <button class="small-btn" id="random-groups">Randomize</button>
-            <button class="text-btn" id="clear-groups">Clear</button>
-          </div>
-          <div id="group-list" class="group-list"></div>
+        <div class="team-workspace">
+          <div id="team-list" class="team-list"></div>
+          <section class="roster-panel">
+            <div class="section-title-row compact roster-title">
+              <div><p class="eyebrow">SELECTED TEAM</p><h2 id="roster-team-name">Roster</h2></div>
+              <div class="roster-actions"><button class="text-btn" id="edit-team-name">Rename</button><button class="text-btn danger-text" id="delete-team">Delete</button></div>
+            </div>
+            <div id="roster-list" class="roster-list"></div>
+            <div class="add-player-row">
+              <input id="new-player-name" maxlength="60" placeholder="Player name" aria-label="Player name">
+              <button class="add-circle" id="add-player" aria-label="Add player">+</button>
+            </div>
+          </section>
         </div>
       </section>
 
