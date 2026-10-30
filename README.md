@@ -7,7 +7,7 @@ A lightweight, browser-based practice planner for basketball coaches. It runs di
 - **Practice timing:** Fit activities proportionally to the available gym time, with whole-minute durations that add up to the practice window.
 - **Live practice companion:** Run a countdown for each activity, move between activities, and keep the current activity's coaching notes visible.
 - **Drill bank:** Search and filter drills, add custom activities, and keep equipment, skill tags, and coaching notes with each drill.
-- **Teams and rosters:** Maintain team rosters, split players into balanced random groups, and retain the selected team.
+- **Teams and rosters:** Maintain team rosters, keep a separate practice schedule for each team, split players into balanced random groups, and retain the selected team.
 - **Equipment checklist:** Combine equipment across the planned activities.
 - **Import/export:** Save and restore practice plans as JSON or print a practice sheet to PDF.
 - **Skill analytics:** View planned minutes by skill and activity when the Chart.js library is available.
