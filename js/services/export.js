@@ -82,7 +82,7 @@ export function exportPracticePDF() {
     doc.setFontSize(6);doc.text("Condensed to one page",width-margin,19,{align:"right"});
   }
   layout.layouts.forEach(item=>{
-    const c=colorHex(skillColor(item.drill.tags?.[0])),bg=pale(skillColor(item.drill.primarySkill),.88);
+    const c=colorHex(skillColor(item.drill.tags?.[0])),bg=pale(skillColor(item.drill.tags?.[0]),.88);
     doc.setFillColor(...bg);doc.roundedRect(item.x,item.y,item.w,item.h,2,2,"F");
     doc.setFillColor(...c);doc.roundedRect(item.x,item.y,1.5,item.h,.6,.6,"F");
     let y=item.y+2.8*scale;
