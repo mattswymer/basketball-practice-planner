@@ -318,7 +318,14 @@ function deletePlayer(id) {
 }
 function updatePlayer(id,field,value) {
   const team=state.teams.find(t=>t.id===state.selectedTeamId),player=team?.players.find(p=>p.id===id);if(!player)return;
-  player[field]=value;saveApp();renderOneTeam();
+  player[field]=value;saveApp();
+  if(field==="name") {
+    const count=team.groupCount||2,spans=$("group-list").querySelectorAll(".group-summary span");
+    for(let i=0;i<count;i++) {
+      const names=team.players.filter(p=>Number(team.groups?.[p.id]||0)===i+1).map(p=>p.name);
+      if(spans[i])spans[i].textContent=names.length?names.join(" · "):"—";
+    }
+  }
 }
 function updateGroup(id,value) {
   const team=state.teams.find(t=>t.id===state.selectedTeamId);if(!team)return;
