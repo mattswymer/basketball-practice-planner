@@ -175,8 +175,9 @@ function assignStationDrill(blockId,sId,drillId){
 }
 function removeStationDrill(blockId,sId){
  const b=state.schedule.find(x=>x.schedId===blockId&&x.type==="station");if(!b)return;
- if(b.stations.length<=2){toast("A rotation needs at least two stations.");return}
- remember();b.stations=b.stations.filter(x=>x.id!==sId);b.stations.forEach((x,i)=>x.label="Station "+(i+1));saveData();renderSchedule();
+ remember();b.stations=b.stations.filter(x=>x.id!==sId);b.stations.forEach((x,i)=>x.label="Station "+(i+1));
+ if(!b.stations.length)state.schedule=state.schedule.filter(x=>x.schedId!==blockId);
+ saveData();renderSchedule();toast(b.stations.length?"Station activity removed.":"Empty station block removed.");
 }
 function addStationSlot(blockId){const b=state.schedule.find(x=>x.schedId===blockId&&x.type==="station");if(!b)return;remember();b.stations.push({id:uid("station"),label:"Station "+(b.stations.length+1),drillId:"",name:"Choose a drill",equipment:"",equipmentItems:[],notes:"",tags:[]});saveData();renderSchedule()}
 function deleteStationBlock(){if(!stationId||!confirm("Remove this station rotation?"))return;const id=stationId;stationId=null;$("dialog-station").close();deleteScheduledItem(id)}
