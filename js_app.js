@@ -1,966 +1,181 @@
-// State Management
-const STORAGE_KEY_TEAMS = 'cyb_teams_v1';
-const STORAGE_KEY_BANK = 'cyb_drill_bank_v1';
-const STORAGE_KEY_SCHEDULE = 'cyb_active_schedule_v1';
-
-let state = {
-  teams: [],
-  activeTeamId: null,
-  drillBank: [],
-  schedule: [],
-  schedulesByTeam: {},
-  live: {
-    active: false,
-    currentIndex: 0,
-    intervalId: null,
-    timeRemainingSec: 0
-  }
-};
-
-
-// Defensive storage and rendering helpers
-const STORAGE_KEY_ACTIVE_TEAM = 'cyb_active_team_v1';
-const STORAGE_KEY_TEAM_SCHEDULES = 'cyb_team_schedules_v1';
-const STORAGE_KEY_META = 'cyb_practice_meta_v1';
-
-function readStoredJSON(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? fallback : JSON.parse(raw);
-  } catch (error) {
-    console.warn('Could not read saved app data for ' + key, error);
-    return fallback;
-  }
+"use strict";
+const $=id=>document.getElementById(id), clone=x=>JSON.parse(JSON.stringify(x));
+const K={teams:"cyb_teams_v1",active:"cyb_active_team_v1",oldBank:"cyb_drill_bank_v1",bank:"cyb_drill_bank_v2",oldSchedule:"cyb_active_schedule_v1",schedules:"cyb_team_schedules_v2",meta:"cyb_practice_meta_v2"};
+let state={teams:[],activeTeamId:null,drillBank:[],schedulesByTeam:{},schedule:[],practice:{date:"",start:"18:00",end:"19:30"},live:{active:false,paused:false,completed:false,currentId:null,endAt:null,remainingSec:0,intervalId:null}};
+let undoStack=[],editing=null,stationId=null,toastTimer=null,dragging=null;
+function readJSON(k,f){try{const x=localStorage.getItem(k);return x===null?f:JSON.parse(x)}catch(e){return f}}
+function uid(p){return (p||"id")+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function localDate(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function team(){return state.teams.find(x=>x.id===state.activeTeamId)||state.teams[0]||null}
+function normalizeBank(x,i){x=x||{};return {id:x.id||uid("drill"+i),name:String(x.name||"Untitled drill"),duration:Math.max(1,Math.min(240,Math.round(+x.duration||10))),equipment:String(x.equipment||""),notes:String(x.notes||""),tags:Array.isArray(x.tags)?[...new Set(x.tags.filter(t=>DEFAULT_TAGS.includes(t)))]:[],source:x.source||"custom"}}
+function normalizeScheduled(x){x=x||{};if(x.type==="station")return {type:"station",schedId:x.schedId||x.id||uid("schedule"),name:String(x.name||"Station rotation"),duration:Math.max(1,Math.min(240,Math.round(+x.duration||15))),stations:(Array.isArray(x.stations)?x.stations:[]).map((s,i)=>({id:s.id||uid("station"),label:s.label||"Station "+(i+1),drillId:s.drillId||"",name:s.name||"Choose an activity",equipment:s.equipment||"",notes:s.notes||"",tags:s.tags||[]}))};return {type:"activity",schedId:x.schedId||x.id||uid("schedule"),bankId:x.bankId||x.id||"",name:String(x.name||"Untitled activity"),duration:Math.max(1,Math.min(240,Math.round(+x.duration||10))),equipment:String(x.equipment||""),notes:String(x.notes||""),tags:Array.isArray(x.tags)?x.tags.filter(t=>DEFAULT_TAGS.includes(t)):[]}}
+function loadData(){
+ const defaults=[{id:"t1",name:"CYB Indian Knoll 3B-2",roster:[]},{id:"t2",name:"CYB 1B-2 Team",roster:[]}],teams=readJSON(K.teams,defaults);
+ state.teams=Array.isArray(teams)?teams.filter(Boolean).map((t,i)=>({id:t.id||uid("team"+i),name:String(t.name||"Team "+(i+1)),roster:Array.isArray(t.roster)?t.roster.map(String):[]})):clone(defaults);
+ if(!state.teams.length)state.teams=defaults;
+ const oldActive=localStorage.getItem(K.active);state.activeTeamId=state.teams.some(t=>t.id===oldActive)?oldActive:state.teams[0].id;
+ const base=PRESET_DRILLS.map(normalizeBank),savedBank=readJSON(K.bank,readJSON(K.oldBank,null)),names=new Set(base.map(x=>x.name.toLowerCase()));
+ const custom=Array.isArray(savedBank)?savedBank.map(normalizeBank).filter(x=>x.source==="custom"&&!names.has(x.name.toLowerCase())):[];
+ state.drillBank=base.concat(custom);
+ const saved=readJSON(K.schedules,{});state.schedulesByTeam={};
+ if(saved&&typeof saved==="object"&&!Array.isArray(saved))Object.keys(saved).forEach(id=>{const a=Array.isArray(saved[id])?saved[id]:saved[id]?.schedule;if(Array.isArray(a))state.schedulesByTeam[id]=a.map(normalizeScheduled)});
+ if(!Object.prototype.hasOwnProperty.call(state.schedulesByTeam,state.activeTeamId)){const old=readJSON(K.oldSchedule,null);state.schedulesByTeam[state.activeTeamId]=Array.isArray(old)?old.map(normalizeScheduled):[]}
+ state.schedule=clone(state.schedulesByTeam[state.activeTeamId]||[]);
+ const meta=readJSON(K.meta,{});state.practice={date:meta.date||localDate(),start:meta.start||meta.startTime||"18:00",end:meta.end||meta.endTime||"19:30"};
+ $("practice-date").value=state.practice.date;$("practice-start-time").value=state.practice.start;$("practice-end-time").value=state.practice.end;saveData();
 }
-function makeId(prefix) {
-  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function saveData(){try{state.schedulesByTeam[state.activeTeamId]=clone(state.schedule);localStorage.setItem(K.teams,JSON.stringify(state.teams));localStorage.setItem(K.active,state.activeTeamId||"");localStorage.setItem(K.bank,JSON.stringify(state.drillBank));localStorage.setItem(K.schedules,JSON.stringify(state.schedulesByTeam));localStorage.setItem(K.meta,JSON.stringify(state.practice));$("save-status").textContent="Saved on this device"}catch(e){$("save-status").textContent="Local save unavailable · Export a backup";toast("Browser storage failed. Export a JSON backup.")}}
+function toast(s){$("toast").textContent=s;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").textContent="",4000)}
+function remember(){undoStack.push({schedule:clone(state.schedule),bank:clone(state.drillBank),teams:clone(state.teams),activeTeamId:state.activeTeamId});if(undoStack.length>30)undoStack.shift();$("btn-undo").disabled=false}
+function undo(){const x=undoStack.pop();if(!x)return;state.schedule=x.schedule;state.drillBank=x.bank;state.teams=x.teams;state.activeTeamId=x.activeTeamId;resetLive();$("btn-undo").disabled=!undoStack.length;saveData();renderAll();toast("Last change undone.")}
+function colour(t){return TAG_COLORS[t]||"#788894"}
+function tagBadges(tags){return (tags||[]).map(t=>`<span class="tag-badge" style="--tag:${colour(t)}">${esc(t)}</span>`).join("")}
+function renderTeams(){$("active-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");$("active-team-select").value=state.activeTeamId;$("roster-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}
+function renderBank(){
+ const q=$("bank-search").value.trim().toLowerCase(),tag=$("bank-tag-filter").value,sort=$("bank-sort").value;
+ const list=state.drillBank.filter(x=>(x.name+" "+x.equipment+" "+x.notes).toLowerCase().includes(q)&&(!tag||x.tags.includes(tag)));
+ list.sort((a,b)=>sort==="time"?a.duration-b.duration||a.name.localeCompare(b.name):sort==="time-desc"?b.duration-a.duration||a.name.localeCompare(b.name):a.name.localeCompare(b.name));
+ $("bank-count").textContent=list.length+" of "+state.drillBank.length+" activities";
+ $("bank-list").innerHTML=list.length?list.map(x=>`<article class="bank-item" style="--tag:${colour(x.tags[0])}"><button class="bank-title" data-bank-edit="${esc(x.id)}" type="button">${esc(x.name)}</button><span class="bank-duration">${x.duration} min</span><div class="bank-meta">${tagBadges(x.tags)}</div><button type="button" class="bank-plus" data-add-drill="${esc(x.id)}" aria-label="Add ${esc(x.name)}">+</button></article>`).join(""):'<div class="empty-state">No activities match those filters.</div>';
 }
-function localDateValue(date) {
-  const d = date || new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return year + '-' + month + '-' + day;
+function renderTagFilter(){const v=$("bank-tag-filter").value;$("bank-tag-filter").innerHTML='<option value="">All skills</option>'+DEFAULT_TAGS.map(t=>`<option value="${esc(t)}">${esc(t.toUpperCase())}</option>`).join("");if(DEFAULT_TAGS.includes(v))$("bank-tag-filter").value=v}
+function windowMinutes(){const a=($("practice-start-time").value||"18:00").split(":").map(Number),b=($("practice-end-time").value||"19:30").split(":").map(Number);let n=b[0]*60+b[1]-(a[0]*60+a[1]);if(n<=0)n+=1440;return n}
+function clock(n){n=Math.max(0,Math.round(n));const d=Math.floor(n/1440),h=Math.floor(n/60)%24;return (h%12||12)+":"+String(n%60).padStart(2,"0")+(h>=12?" PM":" AM")+(d?" +"+d+"d":"")}
+function getTiming(){const a=($("practice-start-time").value||"18:00").split(":").map(Number);let n=a[0]*60+a[1];return state.schedule.map(x=>{const start=n,end=n+x.duration;n=end;return {start,end}})}
+function renderSummary(){const planned=state.schedule.reduce((a,x)=>a+x.duration,0),available=windowMinutes(),diff=planned-available,s=$("schedule-summary");s.classList.remove("over","good");$("summary-planned").textContent=planned+" minutes planned";$("summary-window").textContent=available+" minutes available";if(!state.schedule.length)$("summary-difference").textContent="Add drills to begin";else if(diff>0){s.classList.add("over");$("summary-difference").textContent=diff+" minutes over"}else{s.classList.add("good");$("summary-difference").textContent=diff<0?Math.abs(diff)+" minutes remaining":"Fits exactly"}}
+function equipmentSpan(text){return text?'<span class="equipment-inline">Equipment: '+esc(text)+'</span>':""}
+function stationEquipment(text){return text?'<div class="station-equipment">Equipment: '+esc(text)+'</div>':""}
+function renderActivity(x,i,t){
+ return `<article class="schedule-card" data-schedule-id="${esc(x.schedId)}" draggable="true" style="--tag:${colour(x.tags[0])}"><div class="time-badge">${clock(t.start)} – ${clock(t.end)}</div><div class="drill-details"><button type="button" class="scheduled-name" data-edit-activity="${esc(x.schedId)}">${esc(x.name)}</button><div class="drill-sub">${tagBadges(x.tags)}${equipmentSpan(x.equipment)}</div></div><div class="card-actions"><button class="btn" data-move-index="${i}" data-direction="-1" ${i===0?"disabled":""} aria-label="Move up">↑</button><button class="btn" data-move-index="${i}" data-direction="1" ${i===state.schedule.length-1?"disabled":""} aria-label="Move down">↓</button><button class="btn remove" data-delete-schedule="${esc(x.schedId)}" aria-label="Remove">×</button></div></article>`
 }
-function escapeHTML(value) {
-  return String(value == null ? '' : value).replace(/[&<>"']/g, function(character) {
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character];
-  });
+function renderStation(x,i,t){
+ return `<section class="station-block" data-schedule-id="${esc(x.schedId)}" draggable="true"><div class="station-block-header"><div><div class="station-label">Concurrent station block</div><button type="button" class="station-block-title" data-edit-station="${esc(x.schedId)}">${esc(x.name)}</button></div><span class="station-time">${clock(t.start)} – ${clock(t.end)} · ${x.duration} min</span><div class="station-actions"><button class="btn" data-move-index="${i}" data-direction="-1" ${i===0?"disabled":""}>↑</button><button class="btn" data-move-index="${i}" data-direction="1" ${i===state.schedule.length-1?"disabled":""}>↓</button><button class="btn" data-edit-station="${esc(x.schedId)}">Edit</button><button class="btn remove" data-delete-schedule="${esc(x.schedId)}">×</button></div></div><div class="station-grid">${(x.stations||[]).map((s,j)=>`<article class="station-card"><h4>${esc(s.label||"Station "+(j+1))}: ${esc(s.name)}</h4><div class="bank-meta">${tagBadges(s.tags)}</div><p>${esc(s.notes||"No instructions added.")}</p>${stationEquipment(s.equipment)}</article>`).join("")}</div></section>`
 }
-function normalizeDrill(drill, index, scheduled) {
-  const item = drill && typeof drill === 'object' ? drill : {};
-  const clean = Object.assign({}, item);
-  clean.id = typeof item.id === 'string' && item.id ? item.id : makeId('drill' + index);
-  clean.name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Untitled activity';
-  clean.duration = Math.max(1, Math.min(240, Math.round(Number(item.duration) || 10)));
-  clean.equipment = typeof item.equipment === 'string' ? item.equipment : '';
-  clean.notes = typeof item.notes === 'string' ? item.notes : '';
-  clean.tags = Array.isArray(item.tags) ? item.tags.filter(function(tag) { return typeof tag === 'string'; }) : [];
-  if (scheduled) clean.schedId = typeof item.schedId === 'string' && item.schedId ? item.schedId : makeId('scheduled');
-  return clean;
+function renderSchedule(){const times=getTiming();$("planner-team-name").textContent=team()?.name||"Your practice";$("schedule-list").innerHTML=state.schedule.length?state.schedule.map((x,i)=>x.type==="station"?renderStation(x,i,times[i]):renderActivity(x,i,times[i])).join(""):'<div class="empty-state">Your practice is empty.<br>Add activities from the bank or create a station rotation.</div>';$("schedule-finish").textContent=times.length?"Scheduled finish "+clock(times[times.length-1].end):"No activities scheduled";renderSummary();renderLive()}
+function renderAll(){$("practice-date").value=state.practice.date;$("practice-start-time").value=state.practice.start;$("practice-end-time").value=state.practice.end;renderTeams();renderTagFilter();renderBank();renderSchedule()}
+function bankItem(id){return state.drillBank.find(x=>x.id===id)||null}
+function addDrill(id,at){const d=bankItem(id);if(!d)return;remember();const x={type:"activity",schedId:uid("scheduled"),bankId:d.id,name:d.name,duration:d.duration,equipment:d.equipment,notes:d.notes,tags:clone(d.tags)};state.schedule.splice(Number.isInteger(at)?Math.max(0,Math.min(at,state.schedule.length)):state.schedule.length,0,x);saveData();renderSchedule();toast("Added "+d.name+".")}
+function moveItem(i,d){const n=i+d;if(n<0||n>=state.schedule.length)return;remember();const [x]=state.schedule.splice(i,1);state.schedule.splice(n,0,x);saveData();renderSchedule()}
+function deleteItem(id){const i=state.schedule.findIndex(x=>x.schedId===id);if(i<0)return;remember();state.schedule.splice(i,1);if(state.live.currentId===id){if(state.schedule.length)liveSet(Math.min(i,state.schedule.length-1));else resetLive()}saveData();renderSchedule()}
+function fitPractice(){
+ const target=windowMinutes(),items=state.schedule;if(!target||!items.length){toast("Set a valid practice window and add activities first.");return}if(target<items.length){toast("There must be at least one minute for each scheduled block.");return}
+ remember();const w=items.map(x=>Math.max(1,x.duration)),sum=w.reduce((a,b)=>a+b,0),q=w.map(x=>target*x/sum),v=q.map(x=>Math.max(1,Math.floor(x)));let d=target-v.reduce((a,b)=>a+b,0);
+ if(d>0){const order=q.map((x,i)=>({i,r:x-Math.floor(x)})).sort((a,b)=>b.r-a.r);let n=0;while(d>0){v[order[n++%order.length].i]++;d--}}
+ else while(d<0){let best=-1,over=-Infinity;v.forEach((x,i)=>{if(x>1&&x-q[i]>over){best=i;over=x-q[i]}});if(best<0)break;v[best]--;d++}
+ items.forEach((x,i)=>x.duration=v[i]);if(state.live.active||state.live.paused)liveSet(liveIndex());saveData();renderSchedule();toast("Practice now fits the allotted "+target+" minutes.");
 }
-
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  loadData();
-  bindEvents();
-  renderAll();
-  initCharts();
-});
-
-function loadData() {
-  const defaultTeams = [
-    { id: 't1', name: 'CYB Indian Knoll 3B-2', roster: ['10 Jordan', '12 Alex', '15 Sam', '22 Taylor', '30 Chris'] },
-    { id: 't2', name: 'CYB 1B-2 Team', roster: ['3 Morgan', '5 Riley', '11 Casey', '14 Jamie'] }
-  ];
-  const savedTeams = readStoredJSON(STORAGE_KEY_TEAMS, defaultTeams);
-  state.teams = Array.isArray(savedTeams) ? savedTeams.filter(Boolean).map(function(team, index) {
-    return {
-      id: typeof team.id === 'string' && team.id ? team.id : makeId('team' + index),
-      name: typeof team.name === 'string' && team.name.trim() ? team.name.trim() : 'Team ' + (index + 1),
-      roster: Array.isArray(team.roster) ? team.roster.map(String) : []
-    };
-  }) : defaultTeams;
-  if (!state.teams.length) state.teams = [{ id: makeId('team'), name: 'My Team', roster: [] }];
-
-  const savedActiveTeamId = localStorage.getItem(STORAGE_KEY_ACTIVE_TEAM);
-  state.activeTeamId = state.teams.some(function(team) { return team.id === savedActiveTeamId; })
-    ? savedActiveTeamId : state.teams[0].id;
-
-  const savedBank = readStoredJSON(STORAGE_KEY_BANK, null);
-  state.drillBank = Array.isArray(savedBank)
-    ? savedBank.map(function(drill, index) { return normalizeDrill(drill, index, false); })
-    : JSON.parse(JSON.stringify(PRESET_DRILLS));
-
-  const savedSchedulesByTeam = readStoredJSON(STORAGE_KEY_TEAM_SCHEDULES, {});
-  state.schedulesByTeam = {};
-  if (savedSchedulesByTeam && typeof savedSchedulesByTeam === 'object' && !Array.isArray(savedSchedulesByTeam)) {
-    Object.keys(savedSchedulesByTeam).forEach(function(teamId) {
-      if (Array.isArray(savedSchedulesByTeam[teamId])) {
-        state.schedulesByTeam[teamId] = savedSchedulesByTeam[teamId].map(function(item, index) {
-          return normalizeDrill(item, index, true);
-        });
-      }
-    });
-  }
-
-  // Migrate the original single-schedule storage into the currently selected team.
-  const legacySchedule = readStoredJSON(STORAGE_KEY_SCHEDULE, null);
-  if (!Object.prototype.hasOwnProperty.call(state.schedulesByTeam, state.activeTeamId)) {
-    state.schedulesByTeam[state.activeTeamId] = Array.isArray(legacySchedule)
-      ? legacySchedule.map(function(item, index) { return normalizeDrill(item, index, true); })
-      : state.drillBank.slice(0, 5).map(function(drill) {
-          const item = JSON.parse(JSON.stringify(drill));
-          item.schedId = makeId('scheduled');
-          return item;
-        });
-  }
-  state.schedule = JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId]));
-
-  const meta = readStoredJSON(STORAGE_KEY_META, {});
-  document.getElementById('practice-date').value = meta.date || localDateValue();
-  document.getElementById('practice-start-time').value = meta.startTime || '18:00';
-  document.getElementById('practice-end-time').value = meta.endTime || '19:30';
+function openActivity(id,mode){
+ const fresh=mode==="new",x=fresh?{id:uid("drill"),name:"",duration:10,equipment:"",notes:"",tags:[],source:"custom"}:mode==="bank"?bankItem(id):state.schedule.find(v=>v.schedId===id);
+ if(!x)return;editing={id:mode==="schedule"?x.schedId:x.id,mode};$("edit-dialog-title").textContent=fresh?"Create a drill":mode==="bank"?"Edit bank drill":"Edit scheduled activity";
+ $("edit-item-id").value=editing.id;$("edit-item-mode").value=mode;$("edit-item-name").value=x.name||"";$("edit-item-duration").value=x.duration||10;$("edit-item-equipment").value=x.equipment||"";$("edit-item-notes").value=x.notes||"";
+ $("edit-item-tags").innerHTML=DEFAULT_TAGS.map(t=>`<label class="tag-choice"><input type="checkbox" value="${esc(t)}" ${x.tags&&x.tags.includes(t)?"checked":""}><span class="tag-badge" style="--tag:${colour(t)}">${esc(t)}</span></label>`).join("");
+ $("btn-remove-bank").hidden=mode!=="bank";$("btn-remove-scheduled").hidden=mode!=="schedule";$("btn-update-bank-default").hidden=mode!=="schedule";$("dialog-edit-item").showModal();
 }
-function saveData() {
-  try {
-    localStorage.setItem(STORAGE_KEY_TEAMS, JSON.stringify(state.teams));
-    localStorage.setItem(STORAGE_KEY_ACTIVE_TEAM, state.activeTeamId || '');
-    localStorage.setItem(STORAGE_KEY_BANK, JSON.stringify(state.drillBank));
-    state.schedulesByTeam[state.activeTeamId] = JSON.parse(JSON.stringify(state.schedule));
-    localStorage.setItem(STORAGE_KEY_TEAM_SCHEDULES, JSON.stringify(state.schedulesByTeam));
-    localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(state.schedule));
-    localStorage.setItem(STORAGE_KEY_META, JSON.stringify({
-      date: document.getElementById('practice-date').value,
-      startTime: document.getElementById('practice-start-time').value,
-      endTime: document.getElementById('practice-end-time').value
-    }));
-  } catch (error) {
-    console.error('Could not save the practice planner data.', error);
-    alert('The browser could not save your changes. Export a JSON backup before closing this page.');
-  }
+function saveActivity(e){
+ e.preventDefault();if(!editing)return;const name=$("edit-item-name").value.trim();if(!name){$("edit-item-name").focus();return}
+ const data={name,duration:Math.max(1,Math.min(240,Math.round(+$("edit-item-duration").value||10))),equipment:$("edit-item-equipment").value.trim(),notes:$("edit-item-notes").value,tags:[...$("edit-item-tags").querySelectorAll("input:checked")].map(x=>x.value)};remember();
+ if(editing.mode==="new")state.drillBank.push({id:editing.id,...data,source:"custom"});
+ else if(editing.mode==="bank"){const x=bankItem(editing.id);if(x)Object.assign(x,data)}
+ else{const x=state.schedule.find(v=>v.schedId===editing.id);if(x&&x.type==="activity"){Object.assign(x,data);if(state.live.currentId===x.schedId&&(state.live.active||state.live.paused))liveSet(liveIndex())}}
+ saveData();renderAll();$("dialog-edit-item").close();editing=null;toast("Activity saved.");
 }
-
-// Event Bindings
-function bindEvents() {
-  document.getElementById('active-team-select').addEventListener('change', (e) => {
-    if (state.live.active) stopLivePractice();
-    saveData();
-    state.activeTeamId = e.target.value;
-    state.schedule = Array.isArray(state.schedulesByTeam[state.activeTeamId])
-      ? JSON.parse(JSON.stringify(state.schedulesByTeam[state.activeTeamId])) : [];
-    state.live.completed = false;
-    state.live.currentIndex = 0;
-    saveData();
-    renderTeamSelects();
-    renderSchedule();
-    updateCharts();
-  });
-
-  document.getElementById('btn-manage-teams').onclick = () => openTeamsModal();
-  document.getElementById('btn-add-team').onclick = addTeam;
-  document.getElementById('btn-save-roster').onclick = saveRoster;
-  document.getElementById('btn-close-teams').onclick = () => document.getElementById('dialog-teams').close();
-
-  document.getElementById('btn-view-planner').onclick = () => switchView('planner');
-  document.getElementById('btn-view-analytics').onclick = () => { switchView('analytics'); updateCharts(); };
-
-  document.getElementById('bank-search').oninput = renderDrillBank;
-  document.getElementById('bank-tag-filter').onchange = renderDrillBank;
-
-  document.getElementById('btn-new-bank-drill').onclick = () => openEditModal(null, true);
-  document.getElementById('form-edit-item').onsubmit = saveEditModal;
-  document.getElementById('btn-cancel-edit').onclick = () => document.getElementById('dialog-edit-item').close();
-  document.getElementById('btn-remove-scheduled').onclick = removeScheduledItem;
-  document.getElementById('btn-update-bank-default').onclick = updateBankDefaultFromModal;
-
-  document.getElementById('practice-start-time').onchange = () => { saveData(); renderSchedule(); };
-  document.getElementById('practice-end-time').onchange = () => { saveData(); renderSchedule(); };
-  document.getElementById('practice-date').onchange = saveData;
-  document.getElementById('btn-fit-practice').onclick = fitToAllottedTime;
-
-  document.getElementById('btn-equipment').onclick = openEquipmentModal;
-  document.getElementById('btn-close-equipment').onclick = () => document.getElementById('dialog-equipment').close();
-
-  document.getElementById('btn-grouping').onclick = openGroupingModal;
-  document.getElementById('btn-generate-groups').onclick = generateGroups;
-  document.getElementById('btn-close-grouping').onclick = () => document.getElementById('dialog-grouping').close();
-
-  document.getElementById('btn-export-json').onclick = exportJSON;
-  document.getElementById('btn-import-json').onclick = () => document.getElementById('input-import-file').click();
-  document.getElementById('input-import-file').onchange = importJSON;
-  document.getElementById('btn-export-pdf').onclick = exportPDF;
-
-  // Live Practice Companion Controls
-  document.getElementById('btn-start-practice').onclick = toggleLivePractice;
-  document.getElementById('btn-prev-drill').onclick = () => stepLiveDrill(-1);
-  document.getElementById('btn-next-drill').onclick = () => stepLiveDrill(1);
-  document.getElementById('btn-stop-practice').onclick = stopLivePractice;
-
-  document.getElementById('bank-list').addEventListener('click', function(event) {
-    const card = event.target.closest('[data-drill-id]');
-    if (card) addDrillToSchedule(card.dataset.drillId);
-  });
-  document.getElementById('schedule-board').addEventListener('click', function(event) {
-    const control = event.target.closest('[data-action]');
-    if (!control) return;
-    const action = control.dataset.action;
-    if (action === 'edit') openEditModal(control.dataset.id);
-    if (action === 'move-up') moveScheduledItem(Number(control.dataset.index), -1);
-    if (action === 'move-down') moveScheduledItem(Number(control.dataset.index), 1);
-    if (action === 'delete') deleteScheduledItem(control.dataset.id);
-  });
+function deleteBankDrill(){if(!editing||editing.mode!=="bank")return;const x=bankItem(editing.id);if(!x||!confirm("Delete "+x.name+" from the bank? Scheduled copies remain."))return;remember();state.drillBank=state.drillBank.filter(y=>y.id!==x.id);saveData();renderAll();$("dialog-edit-item").close();editing=null}
+function updateBankDefault(){
+ if(!editing||editing.mode!=="schedule")return;const x=state.schedule.find(v=>v.schedId===editing.id);if(!x||!confirm("Update the drill-bank default with these scheduled details?"))return;remember();
+ const d=x.bankId?bankItem(x.bankId):state.drillBank.find(y=>y.name.toLowerCase()===x.name.toLowerCase());
+ if(d)Object.assign(d,{name:x.name,duration:x.duration,equipment:x.equipment,notes:x.notes,tags:clone(x.tags)});
+ else{const n={id:uid("drill"),name:x.name,duration:x.duration,equipment:x.equipment,notes:x.notes,tags:clone(x.tags),source:"custom"};state.drillBank.push(n);x.bankId=n.id}
+ saveData();renderAll();toast("Bank default updated.");
 }
-
-function switchView(viewName) {
-  document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-  if (viewName === 'planner') {
-    document.getElementById('btn-view-planner').classList.add('active');
-    document.getElementById('view-planner').classList.add('active');
-  } else {
-    document.getElementById('btn-view-analytics').classList.add('active');
-    document.getElementById('view-analytics').classList.add('active');
-  }
+function closeEdit(){$("dialog-edit-item").close();editing=null}
+function stationOptions(v){return '<option value="">Choose a drill…</option>'+state.drillBank.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(x=>`<option value="${esc(x.id)}" ${x.id===v?"selected":""}>${esc(x.name)} · ${x.duration}m</option>`).join("")}
+function drawStationRows(rows){$("station-rows").innerHTML=rows.map((x,i)=>`<div class="station-edit-row"><span class="station-number">${i+1}</span><select data-station-select="${i}" aria-label="Station ${i+1} activity">${stationOptions(x.drillId)}</select><button type="button" data-remove-station-row="${i}" aria-label="Remove station">×</button></div>`).join("")}
+function openStation(id){
+ const old=id?state.schedule.find(x=>x.schedId===id&&x.type==="station"):null;stationId=old?old.schedId:null;$("station-dialog-title").textContent=old?"Edit station rotation":"Create station rotation";$("station-id").value=stationId||"";
+ $("station-name").value=old?old.name:"Station rotation";$("station-duration").value=old?old.duration:15;$("btn-delete-station").hidden=!old;
+ let rows=old?clone(old.stations):[];if(!rows.length)rows=["DRIBBLING","PASS TO SCORE","ELBOW SHOOTING DRILL"].map(n=>state.drillBank.find(x=>x.name===n)).filter(Boolean).map(x=>({drillId:x.id}));
+ drawStationRows(rows.length?rows:[{drillId:""},{drillId:""}]);$("dialog-station").showModal();
 }
-
-// Rendering
-function renderAll() {
-  renderTeamSelects();
-  renderTagFilterOptions();
-  renderDrillBank();
-  renderSchedule();
+function saveStation(e){
+ e.preventDefault();const ids=[...$("station-rows").querySelectorAll("[data-station-select]")].map(x=>x.value).filter(Boolean);if(ids.length<2){toast("A station block needs at least two activities.");return}
+ const stations=ids.map((id,i)=>{const x=bankItem(id);return {id:uid("station"),label:"Station "+(i+1),drillId:id,name:x.name,equipment:x.equipment,notes:x.notes,tags:clone(x.tags)}});
+ remember();const x={type:"station",schedId:stationId||uid("scheduled"),name:$("station-name").value.trim()||"Station rotation",duration:Math.max(1,Math.min(240,Math.round(+$("station-duration").value||15))),stations};
+ if(stationId){const i=state.schedule.findIndex(y=>y.schedId===stationId);if(i>=0)state.schedule[i]=x;else state.schedule.push(x)}else state.schedule.push(x);
+ saveData();renderSchedule();$("dialog-station").close();stationId=null;toast("Station rotation saved. All stations run concurrently.");
 }
-
-function renderTeamSelects() {
-  const activeSelect = document.getElementById('active-team-select');
-  const rosterSelect = document.getElementById('roster-team-select');
-  activeSelect.innerHTML = state.teams.map(function(team) {
-    return '<option value="' + escapeHTML(team.id) + '"' +
-      (team.id === state.activeTeamId ? ' selected' : '') + '>' + escapeHTML(team.name) + '</option>';
-  }).join('');
-  rosterSelect.innerHTML = state.teams.map(function(team) {
-    return '<option value="' + escapeHTML(team.id) + '">' + escapeHTML(team.name) + '</option>';
-  }).join('');
-  rosterSelect.value = state.activeTeamId;
-  rosterSelect.onchange = function() {
-    const team = state.teams.find(function(item) { return item.id === rosterSelect.value; });
-    document.getElementById('team-roster-input').value = team ? team.roster.join('\n') : '';
-  };
+function deleteStation(){if(!stationId||!confirm("Remove this station block?"))return;const id=stationId;stationId=null;$("dialog-station").close();deleteItem(id)}
+function renderRosterSelect(){$("roster-team-select").innerHTML=state.teams.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}
+function openTeams(){renderRosterSelect();$("roster-team-select").value=state.activeTeamId;$("team-roster-input").value=(team()?.roster||[]).join("\n");$("dialog-teams").showModal()}
+function updateRosterEditor(){const x=state.teams.find(t=>t.id===$("roster-team-select").value);$("team-roster-input").value=x?x.roster.join("\n"):""}
+function addTeam(){const name=$("new-team-name").value.trim();if(!name){$("new-team-name").focus();return}if(state.teams.some(x=>x.name.toLowerCase()===name.toLowerCase())){toast("A team with that name already exists.");return}remember();const x={id:uid("team"),name,roster:[]};state.teams.push(x);state.schedulesByTeam[x.id]=[];state.activeTeamId=x.id;state.schedule=[];$("new-team-name").value="";$("team-roster-input").value="";resetLive();saveData();renderAll();renderRosterSelect();toast("Team created.")}
+function saveRoster(){const x=state.teams.find(t=>t.id===$("roster-team-select").value);if(!x)return;remember();x.roster=$("team-roster-input").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);saveData();renderGroupingRoster();toast("Roster saved.")}
+function switchTeam(id){resetLive();saveData();state.activeTeamId=id;state.schedule=clone(state.schedulesByTeam[id]||[]);undoStack=[];$("btn-undo").disabled=true;renderAll()}
+function renderGroupingRoster(){const list=team()?.roster||[];$("grouping-roster").innerHTML=list.length?list.map((x,i)=>`<label class="roster-check"><input type="checkbox" data-player-index="${i}" checked><span>${esc(x)}</span></label>`).join(""):'<div class="inline-help">Add players to this team roster first.</div>'}
+function makeGroups(){
+ const roster=team()?.roster||[],players=[...$("grouping-roster").querySelectorAll("input:checked")].map(x=>roster[+x.dataset.playerIndex]).filter(Boolean);if(!players.length){$("groups-output-container").innerHTML='<div class="inline-help">Select at least one player.</div>';return}
+ for(let i=players.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[players[i],players[j]]=[players[j],players[i]]}
+ const count=Math.max(2,Math.min(5,+$("group-count-select").value||2)),groups=Array.from({length:Math.min(count,players.length)},()=>[]);players.forEach((p,i)=>groups[i%groups.length].push(p));
+ $("groups-output-container").innerHTML=groups.map((g,i)=>`<article class="group-card"><h4>Group ${i+1} · ${g.length}</h4><ul>${g.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></article>`).join("");
 }
+function equipmentItems(){const map=new Map(),add=(text,activity)=>String(text||"").split(",").map(s=>s.trim()).filter(Boolean).forEach(s=>{const k=s.toLowerCase();if(!map.has(k))map.set(k,{name:s,activities:[]});map.get(k).activities.push(activity)});state.schedule.forEach(x=>x.type==="station"?(x.stations||[]).forEach(s=>add(s.equipment,s.name)):add(x.equipment,x.name));return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name))}
+function openEquipment(){const items=equipmentItems();$("equipment-master-list").innerHTML=items.length?items.map(x=>`<label class="equipment-row"><input type="checkbox"><span><strong>${esc(x.name)}</strong><small>Needed for: ${esc([...new Set(x.activities)].join(", "))}</small></span></label>`).join(""):'<div class="empty-state">No equipment is listed for this practice.</div>'; $("dialog-equipment").showModal()}
 
-function renderTagFilterOptions() {
-  const select = document.getElementById('bank-tag-filter');
-  select.innerHTML = '<option value="">All Skill Tags</option>' + DEFAULT_TAGS.map(t => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
+function liveIndex(){return state.schedule.findIndex(x=>x.schedId===state.live.currentId)}
+function liveSet(i){const x=state.schedule[i];if(!x){resetLive();return}state.live.currentId=x.schedId;state.live.remainingSec=x.duration*60;state.live.endAt=Date.now()+state.live.remainingSec*1000;state.live.active=true;state.live.paused=false;state.live.completed=false;if(!state.live.intervalId)state.live.intervalId=setInterval(tickLive,250);renderLive()}
+function startLive(){if(!state.schedule.length){toast("Add at least one activity before starting practice.");return}liveSet(0);$("live-panel").scrollIntoView({block:"nearest",behavior:"smooth"});toast("Live practice started.")}
+function tickLive(){if(!state.live.active||state.live.paused)return;state.live.remainingSec=Math.max(0,Math.ceil((state.live.endAt-Date.now())/1000));if(state.live.remainingSec<=0){const n=liveIndex()+1;if(n<state.schedule.length){liveSet(n);toast("Next: "+state.schedule[n].name)}else{state.live.active=false;state.live.completed=true;clearInterval(state.live.intervalId);state.live.intervalId=null;renderLive()}}else updateLiveControls()}
+function stepLive(d){const n=liveIndex()+d;if(n<0||n>=state.schedule.length)return;liveSet(n)}
+function pauseLive(){if(!state.live.active&&!state.live.paused)return;if(state.live.paused){state.live.endAt=Date.now()+state.live.remainingSec*1000;state.live.paused=false;state.live.active=true;state.live.intervalId=setInterval(tickLive,250)}else{state.live.remainingSec=Math.max(0,Math.ceil((state.live.endAt-Date.now())/1000));state.live.paused=true;state.live.active=false;clearInterval(state.live.intervalId);state.live.intervalId=null}renderLive()}
+function resetLive(){clearInterval(state.live.intervalId);state.live.intervalId=null;state.live.active=false;state.live.paused=false;state.live.completed=false;state.live.currentId=null;state.live.endAt=null;state.live.remainingSec=0;renderLive()}
+function updateLiveControls(){
+ const run=state.live.active,pause=state.live.paused,done=state.live.completed,i=liveIndex(),r=run?Math.max(0,Math.ceil((state.live.endAt-Date.now())/1000)):state.live.remainingSec;
+ $("live-status-text").textContent=done?"Practice complete":run?"Live practice running":pause?"Practice paused":"Practice offline";$("live-indicator").classList.toggle("active",run);$("live-timer-readout").textContent=done?"0:00":run||pause?Math.floor(Math.max(0,r)/60)+":"+String(Math.max(0,r)%60).padStart(2,"0"):"--:--";
+ $("btn-start-practice").hidden=run||pause;$("btn-start-practice").textContent=done?"Restart practice":"Start live practice";$("btn-stop-practice").hidden=!(run||pause||done);$("btn-stop-practice").textContent=done?"Reset":"End practice";
+ $("btn-prev-drill").disabled=!run||i<=0;$("btn-next-drill").disabled=!run||i<0||i>=state.schedule.length-1;$("btn-pause-practice").hidden=!run&&!pause;$("btn-pause-practice").textContent=pause?"Resume":"Pause";
 }
-
-function renderDrillBank() {
-  const search = document.getElementById('bank-search').value.toLowerCase().trim();
-  const tagFilter = document.getElementById('bank-tag-filter').value;
-  const list = document.getElementById('bank-list');
-  const filtered = state.drillBank.filter(function(drill) {
-    const searchable = (drill.name + ' ' + (drill.equipment || '') + ' ' + (drill.notes || '')).toLowerCase();
-    return searchable.includes(search) && (!tagFilter || drill.tags.includes(tagFilter));
-  });
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">No drills match those filters.</div>';
-    return;
-  }
-  list.innerHTML = filtered.map(function(drill) {
-    return '<button type="button" class="bank-item" data-drill-id="' + escapeHTML(drill.id) + '">' +
-      '<span class="bank-item-title"><span>' + escapeHTML(drill.name) + '</span><span>' + drill.duration + 'm</span></span>' +
-      '<span class="bank-item-meta">' + drill.tags.map(function(tag) {
-        return '<span class="tag-badge">' + escapeHTML(tag) + '</span>';
-      }).join('') + '</span></button>';
-  }).join('');
+function renderLive(){
+ updateLiveControls();const i=liveIndex();if(i<0){$("live-current").innerHTML="<h3>Ready when you are.</h3><div class='live-meta'>Start the session to put the current activity, instructions, and countdown front and center.</div>";return}
+ const x=state.schedule[i];
+ if(x.type==="station")$("live-current").innerHTML=`<h3>${esc(x.name)}</h3><div class="live-meta">${x.duration} minutes · ${x.stations.length} stations running concurrently</div><div class="live-stations">${x.stations.map((s,j)=>`<div class="live-station"><strong>${esc(s.label||"Station "+(j+1))}: ${esc(s.name)}</strong><span>${esc(s.notes||"No coaching cues added.")}</span><span>${s.equipment?"Equipment: "+esc(s.equipment):""}</span></div>`).join("")}</div>`;
+ else $("live-current").innerHTML=`<h3>${esc(x.name)}</h3><div class="live-meta">${x.duration} minutes · ${esc(x.equipment)}</div><div class="live-notes">${esc(x.notes||"No instructions have been added.")}</div>`;
 }
-
-function getActiveTeam() {
-  return state.teams.find(function(team) { return team.id === state.activeTeamId; }) || state.teams[0] || null;
+function exportJSON(){saveData();const d={app:"basketball-practice-planner",version:2,team:team(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,schedule:state.schedule,practice:state.practice,schedulesByTeam:state.schedulesByTeam};const url=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:"application/json"})),a=document.createElement("a");a.href=url;a.download=((team()?.name)||"Team").replace(/[^a-z0-9_-]+/gi,"_")+"_"+state.practice.date+"_Practice.json";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);toast("Practice backup exported.")}
+function importJSON(e){
+ const file=e.target.files&&e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=event=>{try{const d=JSON.parse(event.target.result);if(!d||!Array.isArray(d.schedule))throw Error("Invalid practice export.");if(!confirm("Import this practice? It replaces the active team's schedule."))return;remember();
+ if(Array.isArray(d.teams)&&d.teams.length)state.teams=d.teams.map((t,i)=>({id:t.id||uid("team"+i),name:String(t.name||"Team "+(i+1)),roster:Array.isArray(t.roster)?t.roster.map(String):[]}));
+ if(d.team&&d.team.name){let t=state.teams.find(x=>x.name.toLowerCase()===String(d.team.name).toLowerCase());if(!t){t={id:uid("team"),name:String(d.team.name),roster:d.team.roster||[]};state.teams.push(t)}state.activeTeamId=t.id}
+ if(Array.isArray(d.drillBank))d.drillBank.map(normalizeBank).forEach(x=>{if(!state.drillBank.some(y=>y.name.toLowerCase()===x.name.toLowerCase()))state.drillBank.push(x)});
+ state.schedule=d.schedule.map(normalizeScheduled);state.practice={date:d.practice?.date||d.date||state.practice.date,start:d.practice?.start||d.startTime||state.practice.start,end:d.practice?.end||d.endTime||state.practice.end};state.schedulesByTeam[state.activeTeamId]=clone(state.schedule);resetLive();saveData();renderAll();toast("Practice imported.");
+ }catch(err){console.error(err);toast(err.message||"Could not import that file.")}finally{e.target.value=""}};reader.onerror=()=>{toast("Could not read the selected file.");e.target.value=""};reader.readAsText(file)
 }
-function getPracticeWindowMinutes() {
-  const start = (document.getElementById('practice-start-time').value || '18:00').split(':').map(Number);
-  const end = (document.getElementById('practice-end-time').value || '19:30').split(':').map(Number);
-  const startMinutes = start[0] * 60 + start[1];
-  const endMinutes = end[0] * 60 + end[1];
-  return endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 1440 - startMinutes;
+function printPractice(){
+ const times=getTiming(),rows=state.schedule.map((x,i)=>{const t=times[i];if(x.type==="station")return "<tr><td>"+clock(t.start)+"–"+clock(t.end)+"</td><td>"+x.duration+"m</td><td><strong>"+esc(x.name)+"</strong><br>"+x.stations.map((s,j)=>"Station "+(j+1)+": "+esc(s.name)+"<br>"+esc(s.notes).replace(/\n/g,"<br>")).join("<hr>")+"</td><td>"+x.stations.map(s=>esc(s.equipment)).join("; ")+"</td></tr>";return "<tr><td>"+clock(t.start)+"–"+clock(t.end)+"</td><td>"+x.duration+"m</td><td><strong>"+esc(x.name)+"</strong><br>"+esc(x.notes).replace(/\n/g,"<br>")+"</td><td>"+esc(x.equipment)+"</td></tr>"}).join("");
+ const win=window.open("","_blank");if(!win){toast("Allow pop-ups to open the printable practice sheet.");return}
+ win.document.write("<!doctype html><html><head><title>Practice Plan</title><style>body{font:12px/1.4 system-ui,sans-serif;color:#172b3b;padding:24px}h1{font-size:20px;margin:0 0 5px}.meta{color:#536574;margin-bottom:16px;border-bottom:2px solid #183b57;padding-bottom:8px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd5dc;padding:8px;text-align:left;vertical-align:top}th{background:#edf2f5}@media print{body{padding:0}@page{size:letter;margin:.45in}}</style></head><body><h1>"+esc(team()?.name||"Team")+" — Practice Plan</h1><div class='meta'>"+esc(state.practice.date)+" · "+esc(state.practice.start)+"–"+esc(state.practice.end)+"</div><table><thead><tr><th>Time</th><th>Duration</th><th>Activity & coaching cues</th><th>Equipment</th></tr></thead><tbody>"+rows+"</tbody></table><script>window.onload=()=>window.print();<\\/script></body></html>");win.document.close()
 }
-function calculateTiming() {
-  const start = (document.getElementById('practice-start-time').value || '18:00').split(':').map(Number);
-  let currentMinutes = start[0] * 60 + start[1];
-  return state.schedule.map(function(item) {
-    const itemStart = currentMinutes;
-    const itemEnd = currentMinutes + item.duration;
-    currentMinutes = itemEnd;
-    return Object.assign({}, item, {
-      startFormatted: formatMins(itemStart), endFormatted: formatMins(itemEnd),
-      startMins: itemStart, endMins: itemEnd
-    });
-  });
+function bindEvents(){
+ $("active-team-select").addEventListener("change",e=>{resetLive();saveData();state.activeTeamId=e.target.value;state.schedule=clone(state.schedulesByTeam[state.activeTeamId]||[]);undoStack=[];$("btn-undo").disabled=true;renderAll()});
+ $("btn-manage-teams").addEventListener("click",openTeams);$("btn-add-team").addEventListener("click",addTeam);$("roster-team-select").addEventListener("change",updateRosterEditor);$("btn-save-roster").addEventListener("click",saveRoster);$("btn-close-teams").addEventListener("click",()=>$("dialog-teams").close());
+ $("bank-search").addEventListener("input",renderBank);$("bank-tag-filter").addEventListener("change",renderBank);$("bank-sort").addEventListener("change",renderBank);$("btn-new-bank-drill").addEventListener("click",()=>openActivity(null,"new"));
+ $("bank-list").addEventListener("click",e=>{const a=e.target.closest("[data-add-drill]"),b=e.target.closest("[data-bank-edit]");if(a)addDrill(a.dataset.addDrill);else if(b)openActivity(b.dataset.bankEdit,"bank")});
+ $("form-edit-item").addEventListener("submit",saveActivity);$("btn-cancel-edit").addEventListener("click",closeEdit);$("form-edit-item").querySelector("[data-close-edit]").addEventListener("click",closeEdit);$("btn-remove-bank").addEventListener("click",deleteBankDrill);
+ $("btn-remove-scheduled").addEventListener("click",()=>{if(editing){const id=editing.id;$("dialog-edit-item").close();editing=null;deleteItem(id)}});$("btn-update-bank-default").addEventListener("click",updateBankDefault);
+ $("schedule-list").addEventListener("click",e=>{const a=e.target.closest("[data-edit-activity]"),b=e.target.closest("[data-edit-station]"),m=e.target.closest("[data-move-index]"),d=e.target.closest("[data-delete-schedule]");if(a)openActivity(a.dataset.editActivity,"schedule");else if(b)openStation(b.dataset.editStation);else if(m)moveItem(+m.dataset.moveIndex,+m.dataset.direction);else if(d)deleteItem(d.dataset.deleteSchedule)});
+ $("schedule-list").addEventListener("dragstart",e=>{const x=e.target.closest("[data-schedule-id]");if(!x)return;dragging=x.dataset.scheduleId;x.classList.add("dragging");e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain",dragging)});
+ $("schedule-list").addEventListener("dragend",()=>{dragging=null;document.querySelectorAll(".dragging,.drop-target").forEach(x=>x.classList.remove("dragging","drop-target"))});
+ $("schedule-list").addEventListener("dragover",e=>{if(!dragging)return;const x=e.target.closest("[data-schedule-id]");if(!x||x.dataset.scheduleId===dragging)return;e.preventDefault();document.querySelectorAll(".drop-target").forEach(y=>y.classList.remove("drop-target"));x.classList.add("drop-target")});
+ $("schedule-list").addEventListener("drop",e=>{if(!dragging)return;const x=e.target.closest("[data-schedule-id]");if(!x)return;e.preventDefault();const a=state.schedule.findIndex(y=>y.schedId===dragging),b=state.schedule.findIndex(y=>y.schedId===x.dataset.scheduleId);if(a>=0&&b>=0&&a!==b){remember();const [item]=state.schedule.splice(a,1);state.schedule.splice(b,0,item);saveData();renderSchedule()}dragging=null});
+ $("btn-fit-practice").addEventListener("click",fitPractice);$("btn-add-station-block").addEventListener("click",()=>openStation(null));$("btn-clear-schedule").addEventListener("click",()=>{if(!state.schedule.length||!confirm("Clear this team's practice schedule?"))return;remember();state.schedule=[];resetLive();saveData();renderSchedule()});
+ $("practice-date").addEventListener("change",()=>{state.practice.date=$("practice-date").value;saveData()});$("practice-start-time").addEventListener("change",()=>{state.practice.start=$("practice-start-time").value;saveData();renderSchedule()});$("practice-end-time").addEventListener("change",()=>{state.practice.end=$("practice-end-time").value;saveData();renderSchedule()});
+ $("form-station").addEventListener("submit",saveStation);$("btn-add-station-row").addEventListener("click",()=>{const x=[...$("station-rows").querySelectorAll("[data-station-select]")].map(y=>({drillId:y.value}));x.push({drillId:""});drawStationRows(x)});
+ $("station-rows").addEventListener("click",e=>{const b=e.target.closest("[data-remove-station-row]");if(!b)return;const x=[...$("station-rows").querySelectorAll("[data-station-select]")].map(y=>({drillId:y.value}));x.splice(+b.dataset.removeStationRow,1);drawStationRows(x)});
+ $("btn-cancel-station").addEventListener("click",()=>$("dialog-station").close());$("btn-cancel-station-x").addEventListener("click",()=>$("dialog-station").close());$("btn-delete-station").addEventListener("click",deleteStation);
+ $("btn-grouping").addEventListener("click",()=>{renderGroupingRoster();$("groups-output-container").innerHTML="";$("dialog-grouping").showModal()});$("btn-close-grouping").addEventListener("click",()=>$("dialog-grouping").close());$("btn-generate-groups").addEventListener("click",makeGroups);$("btn-select-all-players").addEventListener("click",()=>$("grouping-roster").querySelectorAll("input").forEach(x=>x.checked=true));$("btn-clear-players").addEventListener("click",()=>$("grouping-roster").querySelectorAll("input").forEach(x=>x.checked=false));
+ $("btn-equipment").addEventListener("click",openEquipment);$("btn-close-equipment").addEventListener("click",()=>$("dialog-equipment").close());$("btn-done-equipment").addEventListener("click",()=>$("dialog-equipment").close());
+ $("btn-start-practice").addEventListener("click",startLive);$("btn-prev-drill").addEventListener("click",()=>stepLive(-1));$("btn-next-drill").addEventListener("click",()=>stepLive(1));$("btn-pause-practice").addEventListener("click",pauseLive);$("btn-stop-practice").addEventListener("click",()=>state.live.completed?resetLive():(resetLive(),toast("Live practice ended.")));
+ $("btn-undo").addEventListener("click",undo);$("btn-export-json").addEventListener("click",exportJSON);$("btn-import-json").addEventListener("click",()=>$("input-import-file").click());$("input-import-file").addEventListener("change",importJSON);$("btn-export-pdf").addEventListener("click",printPractice);
+ $("btn-help").addEventListener("click",()=>$("dialog-help").showModal());$("btn-close-help").addEventListener("click",()=>$("dialog-help").close());document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close()}));
 }
-
-function formatMins(m) {
-  const hrs = Math.floor(m / 60) % 24;
-  const mins = m % 60;
-  const h12 = hrs % 12 || 12;
-  const ampm = hrs >= 12 ? 'PM' : 'AM';
-  return `${h12}:${mins < 10 ? '0' : ''}${mins} ${ampm}`;
-}
-
-function renderSchedule() {
-  const timedSchedule = calculateTiming();
-  const board = document.getElementById('schedule-board');
-  const totalPlanned = state.schedule.reduce(function(total, item) { return total + item.duration; }, 0);
-  const allotted = getPracticeWindowMinutes();
-  const difference = totalPlanned - allotted;
-  const summary = document.getElementById('time-summary-banner');
-
-  if (!allotted) {
-    summary.className = 'summary-banner overtime';
-    summary.textContent = 'Set an end time later than the start time to calculate the practice window.';
-  } else if (difference > 0) {
-    summary.className = 'summary-banner overtime';
-    summary.textContent = 'Planned: ' + totalPlanned + ' min | Available: ' + allotted + ' min | ' + difference + ' min over.';
-  } else if (difference < 0) {
-    summary.className = 'summary-banner';
-    summary.textContent = 'Planned: ' + totalPlanned + ' min | Available: ' + allotted + ' min | ' + Math.abs(difference) + ' min available.';
-  } else {
-    summary.className = 'summary-banner';
-    summary.textContent = 'Planned: ' + totalPlanned + ' min | Practice fits the allotted window exactly.';
-  }
-
-  const focus = document.getElementById('live-drill-detail');
-  if (focus) {
-    const current = state.schedule[state.live.currentIndex];
-    if ((state.live.active || state.live.completed) && current) {
-      focus.hidden = false;
-      focus.innerHTML = '<h3>' + (state.live.completed ? 'Practice complete: ' : 'Current activity: ') + escapeHTML(current.name) + '</h3>' +
-        '<div class="live-detail-meta">' + current.duration + ' min' +
-        (current.equipment ? ' · Equipment: ' + escapeHTML(current.equipment) : '') + '</div>' +
-        '<p>' + (current.notes ? escapeHTML(current.notes).replace(/\n/g, '<br>') : 'No coaching notes have been added for this activity.') + '</p>';
-    } else {
-      focus.hidden = true;
-      focus.innerHTML = '';
-    }
-  }
-
-  if (!timedSchedule.length) {
-    board.innerHTML = '<div class="empty-state">Your practice is empty. Add activities from the Drill Bank.</div>';
-    updateLiveUI();
-    return;
-  }
-
-  board.innerHTML = timedSchedule.map(function(item, index) {
-    const active = state.live.active && index === state.live.currentIndex;
-    const next = timedSchedule[index + 1];
-    const tags = item.tags.map(function(tag) { return '<span class="tag-badge">' + escapeHTML(tag) + '</span>'; }).join('');
-    return '<div class="scheduled-card ' + (active ? 'is-active-drill' : '') + '">' +
-      '<div class="left-info"><div class="time-badge">' + item.startFormatted + ' – ' + item.endFormatted + ' (' + item.duration + 'm)</div>' +
-      '<div class="drill-details"><button type="button" class="drill-name" data-action="edit" data-id="' + escapeHTML(item.schedId) + '">' +
-      escapeHTML(item.name) + '</button><div class="drill-sub">' + tags +
-      (item.equipment ? ' | Equipment: ' + escapeHTML(item.equipment) : '') + '</div>' +
-      (active && next ? '<div class="next-equip-box"><strong>UP NEXT:</strong> ' + escapeHTML(next.name) +
-        (next.equipment ? ' (Need: ' + escapeHTML(next.equipment) + ')' : '') + '</div>' : '') +
-      '</div></div><div class="card-actions">' +
-      '<button type="button" class="btn btn-sm" data-action="move-up" data-index="' + index + '"' + (index === 0 ? ' disabled' : '') + '>▲</button>' +
-      '<button type="button" class="btn btn-sm" data-action="move-down" data-index="' + index + '"' + (index === timedSchedule.length - 1 ? ' disabled' : '') + '>▼</button>' +
-      '<button type="button" class="btn btn-sm btn-danger" data-action="delete" data-id="' + escapeHTML(item.schedId) + '">Remove</button>' +
-      '</div></div>';
-  }).join('');
-  updateLiveUI();
-}
-
-// Schedule Operations
-function addDrillToSchedule(bankId) {
-  const drill = state.drillBank.find(function(item) { return item.id === bankId; });
-  if (!drill) return;
-  const added = JSON.parse(JSON.stringify(drill));
-  added.schedId = makeId('scheduled');
-  state.schedule.push(added);
-  saveData();
-  renderSchedule();
-}
-function moveScheduledItem(index, direction) {
-  const nextIndex = index + direction;
-  if (nextIndex < 0 || nextIndex >= state.schedule.length) return;
-  const currentIndex = state.live.currentIndex;
-  const swap = state.schedule[index];
-  state.schedule[index] = state.schedule[nextIndex];
-  state.schedule[nextIndex] = swap;
-  if (state.live.active) {
-    if (currentIndex === index) state.live.currentIndex = nextIndex;
-    else if (currentIndex === nextIndex) state.live.currentIndex = index;
-    resetLiveDrillTimer();
-  }
-  saveData();
-  renderSchedule();
-}
-function deleteScheduledItem(schedId) {
-  const removedIndex = state.schedule.findIndex(function(item) { return item.schedId === schedId; });
-  if (removedIndex < 0) return;
-  state.schedule.splice(removedIndex, 1);
-
-  if (state.live.active) {
-    if (!state.schedule.length) {
-      stopLivePractice();
-      saveData();
-      return;
-    }
-    if (removedIndex < state.live.currentIndex) state.live.currentIndex--;
-    else if (removedIndex === state.live.currentIndex) {
-      state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
-    }
-    resetLiveDrillTimer();
-  } else if (!state.schedule.length) {
-    state.live.completed = false;
-    state.live.currentIndex = 0;
-  } else if (state.live.completed) {
-    state.live.currentIndex = Math.min(state.live.currentIndex, state.schedule.length - 1);
-  }
-
-  saveData();
-  renderSchedule();
-}
-
-function fitToAllottedTime() {
-  const target = getPracticeWindowMinutes();
-  if (!target || !state.schedule.length) {
-    alert('Set a valid practice window and add at least one activity first.');
-    return;
-  }
-  if (target < state.schedule.length) {
-    alert('There are more activities than available minutes. Remove activities or extend the practice window.');
-    return;
-  }
-
-  const weights = state.schedule.map(function(item) { return Math.max(1, Number(item.duration) || 1); });
-  const totalWeight = weights.reduce(function(sum, value) { return sum + value; }, 0);
-  const quotas = weights.map(function(value) { return target * value / totalWeight; });
-  const durations = quotas.map(function(value) { return Math.max(1, Math.floor(value)); });
-  let difference = target - durations.reduce(function(sum, value) { return sum + value; }, 0);
-
-  while (difference > 0) {
-    let best = 0;
-    for (let i = 1; i < quotas.length; i++) {
-      if (quotas[i] - Math.floor(quotas[i]) > quotas[best] - Math.floor(quotas[best])) best = i;
-    }
-    durations[best]++;
-    quotas[best] = Math.floor(quotas[best]);
-    difference--;
-  }
-  while (difference < 0) {
-    let best = -1;
-    let overage = -Infinity;
-    for (let i = 0; i < durations.length; i++) {
-      if (durations[i] > 1 && durations[i] - quotas[i] > overage) {
-        best = i;
-        overage = durations[i] - quotas[i];
-      }
-    }
-    if (best < 0) break;
-    durations[best]--;
-    difference++;
-  }
-
-  state.schedule.forEach(function(item, index) { item.duration = durations[index]; });
-  if (state.live.active) resetLiveDrillTimer();
-  saveData();
-  renderSchedule();
-}
-
-// Editing Modal
-function openEditModal(schedId, isNewBank = false) {
-  const dialog = document.getElementById('dialog-edit-item');
-  const tagContainer = document.getElementById('edit-item-tags');
-  
-  tagContainer.innerHTML = DEFAULT_TAGS.map(t => `
-    <label><input type="checkbox" value="${t}" class="tag-check"> ${t}</label>
-  `).join('');
-
-  if (isNewBank) {
-    document.getElementById('edit-dialog-title').textContent = "Create New Bank Drill";
-    document.getElementById('edit-item-id').value = "NEW_BANK";
-    document.getElementById('edit-item-name').value = "";
-    document.getElementById('edit-item-duration').value = 10;
-    document.getElementById('edit-item-equipment').value = "";
-    document.getElementById('edit-item-notes').value = "";
-    document.getElementById('btn-remove-scheduled').style.display = "none";
-    document.getElementById('btn-update-bank-default').style.display = "none";
-  } else {
-    const item = state.schedule.find(i => i.schedId === schedId);
-    if (!item) return;
-    document.getElementById('edit-dialog-title').textContent = "Edit Scheduled Activity";
-    document.getElementById('edit-item-id').value = schedId;
-    document.getElementById('edit-item-name').value = item.name;
-    document.getElementById('edit-item-duration').value = item.duration;
-    document.getElementById('edit-item-equipment').value = item.equipment || "";
-    document.getElementById('edit-item-notes').value = item.notes || "";
-    document.getElementById('btn-remove-scheduled').style.display = "inline-block";
-    document.getElementById('btn-update-bank-default').style.display = "inline-block";
-
-    document.querySelectorAll('.tag-check').forEach(cb => {
-      cb.checked = item.tags && item.tags.includes(cb.value);
-    });
-  }
-
-  dialog.showModal();
-}
-
-function saveEditModal(e) {
-  e.preventDefault();
-  const id = document.getElementById('edit-item-id').value;
-  const name = document.getElementById('edit-item-name').value.trim();
-  const durationInput = parseInt(document.getElementById('edit-item-duration').value, 10);
-  const duration = Math.max(1, Math.min(120, Number.isFinite(durationInput) ? durationInput : 5));
-  const equipment = document.getElementById('edit-item-equipment').value.trim();
-  const notes = document.getElementById('edit-item-notes').value;
-  const selectedTags = Array.from(document.querySelectorAll('.tag-check:checked')).map(function(cb) { return cb.value; });
-
-  if (!name) {
-    alert('Enter a name for this activity.');
-    document.getElementById('edit-item-name').focus();
-    return;
-  }
-
-  if (id === 'NEW_BANK') {
-    state.drillBank.push({
-      id: makeId('drill'), name: name, duration: duration,
-      equipment: equipment, notes: notes, tags: selectedTags
-    });
-  } else {
-    const itemIndex = state.schedule.findIndex(function(item) { return item.schedId === id; });
-    const item = state.schedule[itemIndex];
-    if (item) {
-      item.name = name;
-      item.duration = duration;
-      item.equipment = equipment;
-      item.notes = notes;
-      item.tags = selectedTags;
-      if (state.live.active && itemIndex === state.live.currentIndex) resetLiveDrillTimer();
-    }
-  }
-
-  saveData();
-  renderAll();
-  document.getElementById('dialog-edit-item').close();
-}
-
-function removeScheduledItem() {
-  const id = document.getElementById('edit-item-id').value;
-  deleteScheduledItem(id);
-  document.getElementById('dialog-edit-item').close();
-}
-
-function updateBankDefaultFromModal() {
-  const id = document.getElementById('edit-item-id').value;
-  const item = state.schedule.find(i => i.schedId === id);
-  if (!item) return;
-
-  const bankItem = state.drillBank.find(d => d.id === item.id || d.name.toLowerCase() === item.name.toLowerCase());
-  if (confirm(`Update default properties for "${item.name}" in the Activity Bank?`)) {
-    if (bankItem) {
-      bankItem.name = item.name;
-      bankItem.duration = item.duration;
-      bankItem.equipment = item.equipment;
-      bankItem.notes = item.notes;
-      bankItem.tags = item.tags;
-    } else {
-      state.drillBank.push({
-        id: 'd_' + Math.random().toString(36).substr(2, 9),
-        name: item.name,
-        duration: item.duration,
-        equipment: item.equipment,
-        notes: item.notes,
-        tags: item.tags
-      });
-    }
-    saveData();
-    renderDrillBank();
-    alert("Bank default updated!");
-  }
-}
-
-// Live Practice Companion
-function toggleLivePractice() {
-  if (state.live.active) {
-    stopLivePractice();
-    return;
-  }
-  if (!state.schedule.length) {
-    alert('Add at least one activity before starting practice.');
-    return;
-  }
-  state.live.active = true;
-  state.live.completed = false;
-  state.live.currentIndex = 0;
-  resetLiveDrillTimer();
-  state.live.intervalId = setInterval(tickLiveTimer, 250);
-  renderSchedule();
-}
-function resetLiveDrillTimer() {
-  const current = state.schedule[state.live.currentIndex];
-  if (!current) return;
-  state.live.endAt = Date.now() + current.duration * 60 * 1000;
-  state.live.timeRemainingSec = current.duration * 60;
-  updateTimerDisplay();
-}
-function tickLiveTimer() {
-  if (!state.live.active) return;
-  state.live.timeRemainingSec = Math.max(0, Math.ceil((state.live.endAt - Date.now()) / 1000));
-  if (state.live.timeRemainingSec <= 0) {
-    if (state.live.currentIndex < state.schedule.length - 1) {
-      stepLiveDrill(1);
-      return;
-    }
-    state.live.active = false;
-    state.live.completed = true;
-    clearInterval(state.live.intervalId);
-    state.live.intervalId = null;
-    state.live.timeRemainingSec = 0;
-    renderSchedule();
-    return;
-  }
-  updateTimerDisplay();
-}
-function updateTimerDisplay() {
-  const seconds = Math.max(0, state.live.timeRemainingSec || 0);
-  document.getElementById('live-timer-readout').textContent =
-    Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
-}
-function stepLiveDrill(direction) {
-  if (!state.live.active) return;
-  const nextIndex = state.live.currentIndex + direction;
-  if (nextIndex < 0 || nextIndex >= state.schedule.length) return;
-  state.live.currentIndex = nextIndex;
-  resetLiveDrillTimer();
-  renderSchedule();
-}
-function updateLiveUI() {
-  const start = document.getElementById('btn-start-practice');
-  const stop = document.getElementById('btn-stop-practice');
-  const previous = document.getElementById('btn-prev-drill');
-  const next = document.getElementById('btn-next-drill');
-  document.getElementById('live-indicator').classList.toggle('active', state.live.active);
-  document.getElementById('live-status-text').textContent = state.live.active
-    ? 'Live Practice Running' : (state.live.completed ? 'Practice Complete' : 'Practice Offline');
-  start.style.display = state.live.active ? 'none' : 'inline-block';
-  start.textContent = state.live.completed ? 'Restart Practice' : 'Start Live Practice';
-  stop.style.display = state.live.active || state.live.completed ? 'inline-block' : 'none';
-  stop.textContent = state.live.completed ? 'Reset' : 'End Practice';
-  previous.disabled = !state.live.active || state.live.currentIndex <= 0;
-  next.disabled = !state.live.active || state.live.currentIndex >= state.schedule.length - 1;
-  if (state.live.active) updateTimerDisplay();
-  else document.getElementById('live-timer-readout').textContent = state.live.completed ? '0:00' : '--:--';
-}
-function stopLivePractice() {
-  clearInterval(state.live.intervalId);
-  state.live.intervalId = null;
-  state.live.active = false;
-  state.live.completed = false;
-  state.live.currentIndex = 0;
-  state.live.endAt = null;
-  state.live.timeRemainingSec = 0;
-  renderSchedule();
-}
-
-// Master Equipment Modal
-function openEquipmentModal() {
-  const list = document.getElementById('equipment-master-list');
-  const equipMap = new Map();
-
-  state.schedule.forEach(item => {
-    if (item.equipment && item.equipment.trim()) {
-      item.equipment.split(',').forEach(raw => {
-        const clean = raw.trim();
-        if (clean) {
-          equipMap.set(clean, (equipMap.get(clean) || []).concat(item.name));
-        }
-      });
-    }
-  });
-
-  if (!equipMap.size) {
-    list.innerHTML = "<p>No equipment listed for scheduled items.</p>";
-  } else {
-    let html = "";
-    equipMap.forEach((drills, equip) => {
-      html += `
-        <div class="equip-item-row">
-          <input type="checkbox">
-          <strong>${escapeHTML(equip)}</strong>
-          <span style="font-size:11px; color:#7f8c8d;">(Needed for: ${drills.map(escapeHTML).join(', ')})</span>
-        </div>
-      `;
-    });
-    list.innerHTML = html;
-  }
-
-  document.getElementById('dialog-equipment').showModal();
-}
-
-// Team & Grouping Modals
-function openTeamsModal() {
-  renderTeamSelects();
-  const activeTeam = getActiveTeam();
-  document.getElementById('team-roster-input').value = activeTeam ? activeTeam.roster.join('\n') : '';
-  document.getElementById('dialog-teams').showModal();
-}
-
-function addTeam() {
-  const name = document.getElementById('new-team-name').value.trim();
-  if (!name) return;
-  if (state.live.active) stopLivePractice();
-  const newTeam = { id: makeId('team'), name: name, roster: [] };
-  state.teams.push(newTeam);
-  state.schedulesByTeam[newTeam.id] = [];
-  state.activeTeamId = newTeam.id;
-  state.schedule = [];
-  state.live.completed = false;
-  state.live.currentIndex = 0;
-  document.getElementById('new-team-name').value = '';
-  document.getElementById('team-roster-input').value = '';
-  saveData();
-  renderTeamSelects();
-  renderSchedule();
-  updateCharts();
-}
-
-function saveRoster() {
-  const teamId = document.getElementById('roster-team-select').value;
-  const team = state.teams.find(t => t.id === teamId);
-  if (team) {
-    team.roster = document.getElementById('team-roster-input').value.split('\n').map(s => s.trim()).filter(Boolean);
-    saveData();
-    alert('Roster saved!');
-  }
-}
-
-function openGroupingModal() {
-  document.getElementById('dialog-grouping').showModal();
-  generateGroups();
-}
-
-function generateGroups() {
-  const team = getActiveTeam();
-  const count = parseInt(document.getElementById('group-count-select').value) || 2;
-  const container = document.getElementById('groups-output-container');
-
-  if (!team || !team.roster.length) {
-    container.innerHTML = "<p>No players in active team roster.</p>";
-    return;
-  }
-
-  const shuffled = [...team.roster];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  const groups = Array.from({ length: count }, () => []);
-
-  shuffled.forEach((player, i) => {
-    groups[i % count].push(player);
-  });
-
-  container.innerHTML = groups.map((g, idx) => `
-    <div class="group-card">
-      <h4>Group ${idx + 1} (${g.length})</h4>
-      <ul>${g.map(p => `<li>${escapeHTML(p)}</li>`).join('')}</ul>
-    </div>
-  `).join('');
-}
-
-// JSON Export & Import (Standardized Filenames: TeamName_YYYY-MM-DD_HHMM.json)
-function buildStandardFilename(extension) {
-  const activeTeam = getActiveTeam();
-  const team = (activeTeam ? activeTeam.name : 'Team').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const date = document.getElementById('practice-date').value || localDateValue();
-  const time = (document.getElementById('practice-start-time').value || "18:00").replace(':', '');
-  return `${team}_${date}_${time}.${extension}`;
-}
-
-function exportJSON() {
-  const exportData = {
-    team: getActiveTeam(),
-    date: document.getElementById('practice-date').value,
-    startTime: document.getElementById('practice-start-time').value,
-    endTime: document.getElementById('practice-end-time').value,
-    schedule: state.schedule,
-    bank: state.drillBank
-  };
-
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = buildStandardFilename('json');
-  a.click();
-}
-
-function importJSON(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(loadEvent) {
-    try {
-      const data = JSON.parse(loadEvent.target.result);
-      if (!data || typeof data !== 'object' || !Array.isArray(data.schedule)) {
-        throw new Error('This file is not a valid practice plan.');
-      }
-      state.schedule = data.schedule.map(function(item, index) {
-        if (!item || typeof item.name !== 'string' || !item.name.trim()) {
-          throw new Error('A scheduled activity is missing its name.');
-        }
-        return normalizeDrill(item, index, true);
-      });
-      if (Array.isArray(data.bank)) {
-        state.drillBank = data.bank.map(function(item, index) { return normalizeDrill(item, index, false); });
-      }
-      if (data.team && typeof data.team.name === 'string' && data.team.name.trim()) {
-        let team = state.teams.find(function(existing) {
-          return existing.name.toLowerCase() === data.team.name.trim().toLowerCase();
-        });
-        if (!team) {
-          team = {
-            id: makeId('team'), name: data.team.name.trim(),
-            roster: Array.isArray(data.team.roster) ? data.team.roster.map(String) : []
-          };
-          state.teams.push(team);
-        }
-        state.activeTeamId = team.id;
-      }
-      if (typeof data.startTime === 'string') document.getElementById('practice-start-time').value = data.startTime;
-      if (typeof data.endTime === 'string') document.getElementById('practice-end-time').value = data.endTime;
-      if (typeof data.date === 'string') document.getElementById('practice-date').value = data.date;
-      stopLivePractice();
-      saveData();
-      renderAll();
-      alert('Practice imported successfully.');
-    } catch (error) {
-      console.error('Practice import failed:', error);
-      alert('Could not import this file. Make sure it is a valid Basketball Practice Planner JSON export.');
-    } finally {
-      event.target.value = '';
-    }
-  };
-  reader.onerror = function() {
-    alert('The selected file could not be read.');
-    event.target.value = '';
-  };
-  reader.readAsText(file);
-}
-
-// PDF Export (Standardized Filename: TeamName_YYYY-MM-DD_HHMM.pdf)
-function exportPDF() {
-  const team = getActiveTeam();
-  const date = document.getElementById('practice-date').value;
-  const startTime = document.getElementById('practice-start-time').value;
-  const endTime = document.getElementById('practice-end-time').value;
-  const timed = calculateTiming();
-
-  const win = window.open('', '_blank');
-  if (!win) {
-    alert('Allow pop-ups for this page to print the practice plan.');
-    return;
-  }
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>${buildStandardFilename('pdf')}</title>
-      <style>
-        body { font-family: system-ui, sans-serif; padding: 20px; color: #2c3e50; }
-        h1 { margin: 0; font-size: 22px; color: #0d5c91; }
-        .meta { margin-bottom: 15px; font-size: 13px; color: #5a6b7c; border-bottom: 2px solid #0d5c91; padding-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 12px; }
-        th { background: #f1f5f9; }
-        .equip-box { background: #fef3c7; border: 1px solid #fde68a; padding: 10px; margin-bottom: 15px; border-radius: 4px; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <h1>${escapeHTML(team ? team.name : 'Team')} - Practice Plan</h1>
-      <div class="meta">Date: ${escapeHTML(date)} | Time: ${escapeHTML(startTime)} - ${escapeHTML(endTime)}</div>
-      
-      <div class="equip-box">
-        <strong>Master Equipment List:</strong> 
-        ${Array.from(new Set(state.schedule.map(i => i.equipment).filter(Boolean))).map(escapeHTML).join(' · ') || 'None specified'}
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Dur</th>
-            <th>Drill Name</th>
-            <th>Tags</th>
-            <th>Equipment</th>
-            <th>Notes & Cues</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${timed.map(i => `
-            <tr>
-              <td><strong>${i.startFormatted}</strong></td>
-              <td>${i.duration}m</td>
-              <td><strong>${escapeHTML(i.name)}</strong></td>
-              <td>${i.tags ? i.tags.map(escapeHTML).join(', ') : ''}</td>
-              <td>${escapeHTML(i.equipment || '')}</td>
-              <td>${i.notes ? escapeHTML(i.notes).replace(/\n/g, '<br>') : ''}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <script>
-        window.onload = () => { window.print(); };
-      </script>
-    </body>
-    </html>
-  `);
-}
-
-// Chart.js Skill Analytics
-let radarChart, barChart;
-
-function initCharts() {
-  if (typeof Chart === 'undefined') {
-    document.querySelector('.analytics-grid').innerHTML = '<div class="empty-state">Skill charts are unavailable while the chart library cannot be reached. The planner and practice timer still work.</div>';
-    return;
-  }
-  const radarCtx = document.getElementById('skillRadarChart').getContext('2d');
-  const barCtx = document.getElementById('drillBarChart').getContext('2d');
-
-  radarChart = new Chart(radarCtx, {
-    type: 'radar',
-    data: { labels: DEFAULT_TAGS, datasets: [{ label: 'Minutes', data: [], backgroundColor: 'rgba(13, 92, 145, 0.2)', borderColor: '#0d5c91' }] },
-    options: { responsive: true, scales: { r: { beginAtZero: true } } }
-  });
-
-  barChart = new Chart(barCtx, {
-    type: 'bar',
-    data: { labels: [], datasets: [{ label: 'Planned Mins', data: [], backgroundColor: '#5a6b7c' }] },
-    options: { responsive: true, scales: { y: { beginAtZero: true } } }
-  });
-
-  updateCharts();
-}
-
-function updateCharts() {
-  if (!radarChart || !barChart) return;
-
-  const tagMins = {};
-  DEFAULT_TAGS.forEach(t => tagMins[t] = 0);
-
-  state.schedule.forEach(item => {
-    if (item.tags) {
-      item.tags.forEach(t => {
-        if (tagMins[t] !== undefined) tagMins[t] += item.duration;
-      });
-    }
-  });
-
-  radarChart.data.datasets[0].data = DEFAULT_TAGS.map(t => tagMins[t]);
-  radarChart.update();
-
-  barChart.data.labels = state.schedule.map(i => i.name);
-  barChart.data.datasets[0].data = state.schedule.map(i => i.duration);
-  barChart.update();
-}
+function renderAll(){renderTeams();renderTagFilter();renderBank();$("practice-date").value=state.practice.date;$("practice-start-time").value=state.practice.start;$("practice-end-time").value=state.practice.end;renderSchedule()}
+document.addEventListener("DOMContentLoaded",()=>{loadData();bindEvents();renderAll();$("btn-undo").disabled=true});
