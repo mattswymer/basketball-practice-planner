@@ -25,7 +25,7 @@ function parseEquipment(text){
  const after=[...s.matchAll(new RegExp("(?:"+rx+")\\s*[×x]\\s*(\\d+)","gi"))];
  const quantity=after.length?after.reduce((n,m)=>n+number(m[1]),0):nums.reduce((n,m)=>n+number(m[1]),0)||all.length;
  out.push({name,quantity,perPlayer:false});};
- add("Basketballs","balls?",/(?:ball|basketball)s?\s*(?:for each|per)\s+player|each player[^.]*\bballs?\b|\bball\s+for\s+each\s+player/i);
+ add("Basketballs","basketballs?|balls?",/(?:balls?|basketballs?)\s*(?:for each|per)\s+player|each player[^.]*\b(?:balls?|basketballs?)\b|\b(?:ball|basketball)\s+for\s+each\s+player/i);
  add("Cones","cones?");add("Pinnies","pinnies|jerseys?");add("Whistles","whistles?");add("Stopwatches","stopwatches?");add("Clipboards","clipboards?");add("Floor tape","floor\s+tape");add("Hurdles","hurdles?");add("Resistance bands","resistance\s+bands?");add("First-aid kits","first[- ]aid\s+kits?");
  return out;
 }
