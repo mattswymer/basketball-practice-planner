@@ -427,7 +427,7 @@ function wireEvents() {
   $("live-exit").addEventListener("click",stopLive);
   $("plan-equipment").addEventListener("click",openEquipment);
   $("plan-pdf").addEventListener("click",()=>{const r=exportPracticePDF();if(r.ok)toast(r.format==="a3"?"One-page A3 PDF downloaded.":"One-page PDF downloaded.");else toast(r.message);});
-  $("header-pdf").addEventListener("click",()=>{const r=exportPracticePDF();if(r.ok)toast("One-page PDF downloaded.");else toast(r.message);});
+  $("header-pdf").addEventListener("click",()=>{const r=exportPracticePDF();if(r.ok)toast(r.format==="a3"?"One-page A3 PDF downloaded.":"One-page PDF downloaded.");else toast(r.message);});
   $("header-menu").addEventListener("click",()=>show("backup-sheet"));
   $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
   $("import-backup").addEventListener("click",()=>$("backup-file").click());
