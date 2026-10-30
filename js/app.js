@@ -217,7 +217,7 @@ function randomizeGroups(){
  renderGroupBoard();persist();toast("Players randomized.");
 }
 function renameGroup(id,name){grouping.renameDrillGroup(id,name);persist();}
-function deleteGroup(id){remember();grouping.deleteDrillGroup(id);renderGroupBoard();persist();}
+function deleteGroup(id){grouping.deleteDrillGroup(id);renderGroupBoard();persist();}
 function openSkills(){renderSkillManager();show("skill-sheet");}
 function addSkillFromInput(){
  const name=$("new-skill-name").value.trim();if(!name)return;
@@ -331,7 +331,7 @@ function endPlanDrag(){
  const card=target.closest("[data-drill-card]"),lane=target.closest("[data-drop-lane]");
  const laneId=lane?.dataset.dropLane||card?.dataset.parentLane||null;
  const beforeId=card?.dataset.drillCard||null;
- if(item.id!==beforeId){remember();if(practice.moveScheduledDrill(item.id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
+ if(item.id!==beforeId){if(practice.moveScheduledDrill(item.id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
