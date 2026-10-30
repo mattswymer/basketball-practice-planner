@@ -24,7 +24,7 @@ export function fitPractice(plan=activePlan()){
 }
 export function startLive(plan=activePlan()){
   if(!plan?.blocks.length)return {ok:false,reason:"empty"};
-  let index=plan.blocks.findIndex(block=>!uniqueIds(block).every(id=>plan.completedIds.includes(id)));
+  let index=plan.blocks.findIndex(block=>!uniqueIds(block).every(id=>plan.completedIds.includes(id)||plan.skippedIds.includes(id)));
   if(index<0)index=0;
   state.live={active:true,planId:plan.id,currentBlockId:plan.blocks[index].id};
   return {ok:true,index};
