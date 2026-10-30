@@ -227,10 +227,10 @@
 
   <dialog id="team-sheet" class="sheet short-sheet">
     <div class="sheet-grabber"></div>
-    <div class="sheet-head"><div><p class="eyebrow">TEAM</p><h2>New team</h2></div><button class="close-sheet" data-close="team-sheet" aria-label="Close">×</button></div>
+    <div class="sheet-head"><div><p class="eyebrow">TEAM</p><h2 id="team-sheet-title">New team</h2></div><button class="close-sheet" data-close="team-sheet" aria-label="Close">×</button></div>
     <form id="team-form" class="sheet-form">
       <label class="full-field">Team name<input id="new-team-name" maxlength="80" required></label>
-      <div class="sheet-actions"><span></span><button type="button" class="secondary-btn" data-close="team-sheet">Cancel</button><button class="primary-btn" type="submit">Create</button></div>
+      <div class="sheet-actions"><span></span><button type="button" class="secondary-btn" data-close="team-sheet">Cancel</button><button class="primary-btn" id="team-form-submit" type="submit">Create</button></div>
     </form>
   </dialog>
 
