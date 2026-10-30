@@ -1,0 +1,19 @@
+{
+  "name": "Basketball Practice Planner",
+  "short_name": "Practice",
+  "description": "Plan and run basketball practices offline.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f5f6",
+  "theme_color": "#102b3f",
+  "icons": [
+    {
+      "src": "icons/basketball.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
