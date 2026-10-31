@@ -1,4 +1,5 @@
 import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
+export {fitStationLanes};
 function uniqueIds(block){return drillsInBlock(block).map(drill=>drill.id);}
 function setBlockStatus(plan,block,status){
   const ids=uniqueIds(block);
