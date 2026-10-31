@@ -14,10 +14,10 @@ import {skills} from "./features/skills.js";
 const $=id=>document.getElementById(id);
 const show=id=>{const dialog=$(id);if(dialog&&!dialog.open)dialog.showModal();};
 const close=id=>{const dialog=$(id);if(dialog?.open)dialog.close();};
-let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null;
+let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null,pendingLiveStart=false;
 function toast(message,undoable=false){
  $("toast-message").textContent=message;$("toast-undo").hidden=!undoable;$("toast").classList.add("show");
- clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),4200);
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),undoable?12000:4200);
 }
 function persist(){save();}
 function openPlan(id){setActivePlan(id);state.planDetailOpen=true;state.view="plans";renderApp();}
@@ -134,7 +134,8 @@ function removeLane(id){
 function saveStation(event){
  event.preventDefault();if(!stationDraft)return;
  captureLaneNames();stationDraft.name=$("station-name").value.trim()||"Station rotation";
- stationDraft.minutes=Math.max(1,Math.min(240,Math.round(Number($("station-minutes").value)||15)));
+ const requested=Math.max(1,Math.min(240,Math.round(Number($("station-minutes").value)||15)));
+ stationDraft.minutes=practice.fitStationLanes(stationDraft,requested);
  const plan=activePlan();if(!plan)return;remember();
  const index=plan.blocks.findIndex(b=>b.id===stationEditingId);
  if(index>=0)plan.blocks[index]=stationDraft;else plan.blocks.push(stationDraft);
@@ -150,10 +151,14 @@ function moveDrill(id,laneId,beforeId){if(practice.moveScheduledDrill(id,laneId,
 function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.laneId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
 function fitCurrentPlan(){
  const result=practice.fitPractice();
- if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"There are more schedule blocks than available minutes.");
+ if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"Not enough time: each drill in a station lane needs at least one minute.");
  renderApp();toast("Schedule adjusted to exactly "+result.target+" minutes.");
 }
 function startLive(){
+ const plan=activePlan();if(!plan?.blocks.length)return toast("Add a drill or station first.");
+ pendingLiveStart=true;renderEquipment();$("equipment-done").textContent="Start practice";show("equipment-sheet");
+}
+function beginLive(){
  const result=practice.startLive();if(!result.ok)return toast("Add a drill or station first.");
  state.planDetailOpen=true;state.view="plans";renderApp();requestWakeLock();
  const block=activePlan().blocks[result.index];
@@ -207,13 +212,13 @@ function groupPointerUp(event){
  if(!targetGroup)return;
  const groupId=targetGroup.dataset.groupTarget||null;
  const targetPlayer=targetRow?.dataset.groupPlayer&&targetRow.dataset.groupPlayer!==drag.playerId?targetRow.dataset.groupPlayer:null;
- remember();grouping.assignPlayer(drag.drillId,drag.playerId,groupId,targetPlayer);renderGroupBoard();persist();
+ grouping.assignPlayer(drag.drillId,drag.playerId,groupId,targetPlayer);renderGroupBoard();persist();
 }
 function addGroup(){
- remember();grouping.addDrillGroup();renderGroupBoard();persist();
+ grouping.addDrillGroup();renderGroupBoard();persist();
 }
 function randomizeGroups(){
- remember();if(!grouping.randomizeDrillGroups())return toast("Add players to the team first.");
+ if(!grouping.randomizeDrillGroups())return toast("Add players to the team first.");
  renderGroupBoard();persist();toast("Players randomized.");
 }
 function renameGroup(id,name){grouping.renameDrillGroup(id,name);persist();}
@@ -221,17 +226,17 @@ function deleteGroup(id){grouping.deleteDrillGroup(id);renderGroupBoard();persis
 function openSkills(){renderSkillManager();show("skill-sheet");}
 function addSkillFromInput(){
  const name=$("new-skill-name").value.trim();if(!name)return;
- remember();if(!skills.add(name))return toast("That skill already exists.");
+ if(!skills.add(name))return toast("That skill already exists.");
  $("new-skill-name").value="";renderSkillManager();renderApp();persist();
 }
 function saveSkill(oldName){
  const name=$("skill-list").querySelector('[data-skill-name="'+CSS.escape(oldName)+'"]').value.trim();
  const color=$("skill-list").querySelector('[data-skill-color="'+CSS.escape(oldName)+'"]').value;
- remember();if(!skills.rename(oldName,name,color))return toast("That skill name is unavailable.");
+ if(!skills.rename(oldName,name,color))return toast("That skill name is unavailable.");
  renderSkillManager();renderApp();persist();toast("Skill updated.");
 }
 function removeSkill(name){
- remember();if(!skills.remove(name))return;
+ if(!skills.remove(name))return;
  renderSkillManager();renderApp();persist();toast("Skill deleted.",true);
 }
 function addTeamDialog(){
@@ -251,7 +256,9 @@ function submitTeam(event){
 function deleteTeam(id=state.selectedTeamId){
  if(state.teams.length<=1)return toast("At least one team must remain.");
  const team=state.teams.find(t=>t.id===id);if(!team)return;
- remember();const wasActive=team.id===state.activeTeamId;
+ const planCount=(state.plansByTeam[team.id]||[]).length;
+ if(!window.confirm("Delete "+team.name+" and its "+planCount+" practice plan"+(planCount===1?"":"s")+"? You can use Undo afterward or restore a backup."))return;
+ const wasActive=team.id===state.activeTeamId;
  if(!teams.deleteTeam(id))return;
  if(wasActive)releaseWakeLock();
  state.selectedTeamId=state.activeTeamId;state.statsTeamId=state.activeTeamId;
@@ -268,9 +275,10 @@ function renamePlayer(id,name){
 }
 function deletePlayer(id){
  const player=state.teams.find(t=>t.id===state.selectedTeamId)?.players.find(p=>p.id===id);
- if(!player)return;remember();teams.deletePlayer(state.selectedTeamId,id);renderOneTeam();toast(player.name+" removed.",true);
+ if(!player)return;
+ teams.deletePlayer(state.selectedTeamId,id);renderOneTeam();toast(player.name+" removed.",true);
 }
-function openEquipment(){renderEquipment();show("equipment-sheet");}
+function openEquipment(){pendingLiveStart=false;$("equipment-done").textContent="Done";renderEquipment();show("equipment-sheet");}
 function checkEquipment(key,value){
  const plan=activePlan();if(!plan)return;
  plan.equipmentChecked[key]=value;persist();
@@ -279,11 +287,14 @@ function checkEquipment(key,value){
 function updatePlan(field,value){const plan=activePlan();if(!plan)return;plan[field]=value;persist();renderOnePlan();}
 function backupRestore(event){
  const file=event.target.files?.[0];if(!file)return;
+ if(!window.confirm("Restore this backup? It will replace all teams, plans, drills, and skill settings currently stored on this device.")){event.target.value="";return;}
  importBackup(file).then(()=>{toast("Backup restored. Reloading…");setTimeout(()=>location.reload(),300);}).catch(error=>toast(error.message||"Could not restore backup.")).finally(()=>event.target.value="");
 }
 function handleClick(event){
  const target=event.target;
  const closeButton=target.closest("[data-close]");if(closeButton){close(closeButton.dataset.close);return;}
+ const statusButton=target.closest("[data-drill-status]");
+ if(statusButton){practice.toggleDrillStatus(statusButton.dataset.drillStatus,statusButton.dataset.nextStatus==="complete"?"complete":null);renderApp();return;}
  const nav=target.closest("[data-view]");if(nav){changeView(nav.dataset.view);return;}
  const planCard=target.closest("[data-open-plan]");if(planCard&&!target.closest("[data-delete-plan]")){openPlan(planCard.dataset.openPlan);return;}
  const deletePlanButton=target.closest("[data-delete-plan]");if(deletePlanButton){deletePlan(deletePlanButton.dataset.deletePlan);return;}
@@ -353,6 +364,8 @@ function registerEvents(){
  $("live-previous").addEventListener("click",previousLive);
  $("live-exit").addEventListener("click",()=>endLive());
  $("plan-equipment").addEventListener("click",openEquipment);
+ $("equipment-done").addEventListener("click",()=>{const shouldStart=pendingLiveStart;pendingLiveStart=false;close("equipment-sheet");if(shouldStart)beginLive();});
+ $("equipment-sheet").addEventListener("close",()=>{pendingLiveStart=false;$("equipment-done").textContent="Done";});
  const pdf=()=>{const result=exportPracticePDF();if(result.ok)toast("PDF saved.");else toast(result.message);};
  $("plan-pdf").addEventListener("click",pdf);$("header-pdf").addEventListener("click",pdf);
  $("header-menu").addEventListener("click",()=>show("backup-sheet"));
@@ -382,7 +395,15 @@ function registerEvents(){
  $("drill-group-board").addEventListener("change",e=>{const input=e.target.closest("[data-group-name]");if(input)renameGroup(input.dataset.groupName,input.value);});
  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
- document.querySelectorAll("dialog").forEach(dialog=>dialog.addEventListener("click",e=>{if(e.target===dialog)dialog.close();}));
+ document.querySelectorAll("dialog").forEach(dialog=>{
+  const grabber=dialog.querySelector(".sheet-grabber");
+  if(grabber){
+   let startY=null;
+   grabber.addEventListener("pointerdown",e=>{startY=e.clientY;grabber.setPointerCapture(e.pointerId);});
+   grabber.addEventListener("pointerup",e=>{if(startY!==null&&e.clientY-startY>80&&dialog.scrollTop<=4)dialog.close();startY=null;});
+   grabber.addEventListener("pointercancel",()=>{startY=null;});
+  }
+ });
  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.live.active&&!wakeLock)requestWakeLock();});
  if("serviceWorker"in navigator)navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
 }
