@@ -77,47 +77,103 @@ export function exportPracticePDF() {
     return {item,h,metaLines,titleLines,gearLines,steps};
   }
 
-  function planPages(w,bodyEnd){
+
+  function planPages(bodyEnd){
     const colW=(width-margin*2-gap)/2,pages=[];
-    let page={columns:[[],[]],ys:[bodyTop,bodyTop]},col=0,y=bodyTop;
+    let page={columns:[[],[]]},col=0,y=bodyTop,stationContext=null,laneContext=null;
     const maxH=bodyEnd-bodyTop;
-    function nextColumn(){
-      if(col===0){col=1;y=bodyTop;}
-      else{pages.push(page);page={columns:[[],[]],ys:[bodyTop,bodyTop]};col=0;y=bodyTop;}
-    }
-    function add(item,context=false){
-      const measured=layoutItem(item,colW);
-      if(measured.h>maxH)return false;
-      if(y+measured.h>bodyEnd)nextColumn();
+    function append(layout){
       const x=margin+col*(colW+gap);
-      page.columns[col].push({...measured,x,y,w:colW});
-      y+=measured.h+2.2;
-      page.ys[col]=y;
-      return true;
+      page.columns[col].push({...layout,x,y,w:colW});
+      y+=layout.h+2.2;
     }
-    for(const item of items){
-      if(!add(item)){
-        // A single unusually long drill is retained at the minimum readable font and flagged.
-        const measured=layoutItem(item,colW);
-        nextColumn();
-        const x=margin+col*(colW+gap);
-        page.columns[col].push({...measured,x,y,w:colW,overflow:true});
-        y+=measured.h+2.2;page.ys[col]=y;
+    function nextColumn(repeat=true){
+      if(col===0){col=1;y=bodyTop;}
+      else{pages.push(page);page={columns:[[],[]]};col=0;y=bodyTop;}
+      if(repeat){
+        if(stationContext)append({item:{...stationContext,repeated:true},h:10});
+        if(laneContext)append({item:{...laneContext,repeated:true},h:7});
+      }
+    }
+    function splitDrill(item){
+      const measured=layoutItem(item,colW);
+      const target=maxH-22;
+      if(measured.h<=target)return [measured];
+      const titleLines=measured.titleLines;
+      const firstFixed=2.8+measured.metaLines.length*3.1+1.1+titleLines.length*4.1+(measured.gearLines.length?measured.gearLines.length*3.1+1:0)+2.8;
+      const laterMeta=["CONTINUED · #"+String(item.number).padStart(2,"0")+" · "+item.start+"–"+item.end];
+      const laterFixed=2.8+3.1+1.1+titleLines.length*4.1+2.8;
+      const chunks=[];
+      let first=true,pending=[],used=firstFixed;
+      function flush(){
+        const meta=first?measured.metaLines:laterMeta;
+        const gear=first?measured.gearLines:[];
+        const fixed=first?firstFixed:laterFixed;
+        if(pending.length||!chunks.length){
+          const h=fixed+pending.reduce((sum,lines)=>sum+lines.length*3.15+.5,0);
+          chunks.push({item:{...item,continued:!first},h,metaLines:meta,titleLines,gearLines:gear,steps:pending});
+        }
+        pending=[];first=false;used=laterFixed;
+      }
+      for(const sourceLines of measured.steps){
+        let offset=0;
+        while(offset<sourceLines.length){
+          let room=Math.floor((target-used-.5)/3.15);
+          if(room<1){flush();room=Math.max(1,Math.floor((target-used-.5)/3.15));}
+          const take=Math.min(room,sourceLines.length-offset);
+          pending.push(sourceLines.slice(offset,offset+take));
+          used+=take*3.15+.5;offset+=take;
+          if(offset<sourceLines.length)flush();
+        }
+      }
+      flush();
+      return chunks;
+    }
+    function minimumDrillHeight(item){
+      if(!item||item.kind!=="drill")return 0;
+      const layout=layoutItem(item,colW);
+      const fixed=2.8+layout.metaLines.length*3.1+1.1+layout.titleLines.length*4.1+(layout.gearLines.length?layout.gearLines.length*3.1+1:0)+2.8;
+      return Math.min(fixed+5,maxH-22);
+    }
+    for(let i=0;i<items.length;i++){
+      const item=items[i];
+      if(item.kind==="station"){
+        stationContext=item;laneContext=null;
+        const following=items[i+1]?.kind==="lane"?items[i+1]:null;
+        const nextDrill=following?items[i+2]:null;
+        const needed=10+(following?7+minimumDrillHeight(nextDrill):0)+4.4;
+        if(y+needed>bodyEnd)nextColumn(false);
+        append({item,h:10});
+        continue;
+      }
+      if(item.kind==="lane"){
+        laneContext=item;
+        const nextDrill=items[i+1];
+        const needed=7+minimumDrillHeight(nextDrill)+2.2;
+        if(y+needed>bodyEnd)nextColumn(true);
+        else append({item,h:7});
+        continue;
+      }
+      for(const chunk of splitDrill(item)){
+        if(y+chunk.h>bodyEnd)nextColumn(true);
+        append(chunk);
       }
     }
     if(page.columns[0].length||page.columns[1].length)pages.push(page);
-    return pages.length?pages:[{columns:[[],[]],ys:[bodyTop,bodyTop]}];
+    return pages.length?pages:[{columns:[[],[]]}];
   }
 
-  // Prefer A3 before reducing legibility. Pages are added only when A3 is still dense.
-  let pages=planPages(colWidth,bodyBottom);
-  const a4Capacity=2*(bodyBottom-bodyTop);
-  const totalHeight=items.reduce((sum,item)=>sum+layoutItem(item,(297-margin*2-gap)/2).h+2.2,0);
-  if(totalHeight>a4Capacity*0.82){
+  // Move dense plans to A3 first; additional pages preserve the minimum font size.
+  const a4ColumnHeight=height-8-bodyTop;
+  const a4ColumnWidth=(width-margin*2-gap)/2;
+  const totalHeight=items.reduce((sum,item)=>sum+layoutItem(item,a4ColumnWidth).h+2.2,0);
+  const largestItem=Math.max(0,...items.filter(item=>item.kind==="drill").map(item=>layoutItem(item,a4ColumnWidth).h));
+  let pages=planPages(bodyBottom);
+  if(totalHeight>2*a4ColumnHeight*.82||largestItem>a4ColumnHeight-22){
     format="a3";doc=createDoc("a3");
     width=doc.internal.pageSize.getWidth();height=doc.internal.pageSize.getHeight();
     colWidth=(width-margin*2-gap)/2;bodyBottom=height-8;available=bodyBottom-bodyTop;
-    pages=planPages(colWidth,bodyBottom);
+    pages=planPages(bodyBottom);
   }
 
   function header(pageIndex){
@@ -140,7 +196,7 @@ export function exportPracticePDF() {
     if(item.kind==="station"){
       doc.setFillColor(216,230,235);doc.roundedRect(x,y,w,layout.h,1.6,1.6,"F");
       doc.setTextColor(26,66,84);doc.setFont("helvetica","bold");doc.setFontSize(8.5);
-      doc.text("STATION ROTATION  ·  "+String(item.station).toUpperCase(),x+3,y+4);
+      doc.text((item.repeated?"STATION CONTINUED  ·  ":"STATION ROTATION  ·  ")+String(item.station).toUpperCase(),x+3,y+4);
       doc.setFont("helvetica","normal");doc.setFontSize(7);
       doc.text(item.start+"–"+item.end+"  ·  "+item.duration+" MIN",x+3,y+7.6);
       return;
@@ -148,7 +204,7 @@ export function exportPracticePDF() {
     if(item.kind==="lane"){
       doc.setFillColor(239,243,245);doc.roundedRect(x,y,w,layout.h,1.2,1.2,"F");
       doc.setTextColor(52,83,98);doc.setFont("helvetica","bold");doc.setFontSize(7.2);
-      doc.text(String(item.lane).toUpperCase(),x+3,y+4.7);
+      doc.text((item.repeated?"LANE CONTINUED  ·  ":"")+String(item.lane).toUpperCase(),x+3,y+4.7);
       return;
     }
     const drill=item.drill,tags=[...new Set(drill.tags||[])],colors=tags.map(skillColor);
