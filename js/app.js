@@ -113,7 +113,7 @@ function saveDrill(event){
  remember();
  if(editing.type==="new")state.drillBank.unshift({...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}});
  else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
- else {const item=findPlanDrill(activePlan(),editing.id);if(item)Object.assign(item,data);}
+ else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);practice.ensureStationFits(activePlan());}}
  persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
 }
 function deleteEditorDrill(){
