@@ -154,6 +154,7 @@ export function exportPracticePDF() {
         else append({item,h:7});
         continue;
       }
+      if(!item.stationContext){stationContext=null;laneContext=null;}
       for(const chunk of splitDrill(item)){
         if(y+chunk.h>bodyEnd)nextColumn(true);
         append(chunk);

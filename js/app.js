@@ -351,7 +351,7 @@ function movePlanDrag(event){
  }
  event.preventDefault();drag.pointerY=event.clientY;
  if(drag.ghost){drag.ghost.style.left=(event.clientX+12)+"px";drag.ghost.style.top=(event.clientY+12)+"px";}
- const scroller=$("main-content")||$("main-content");
+ const scroller=$("main-content");
  const rect=scroller.getBoundingClientRect(),edge=76;
  if(event.clientY<rect.top+edge)scroller.scrollTop-=Math.ceil((rect.top+edge-event.clientY)/3);
  else if(event.clientY>rect.bottom-edge)scroller.scrollTop+=Math.ceil((event.clientY-(rect.bottom-edge))/3);
@@ -416,7 +416,7 @@ function registerEvents(){
  $("plan-equipment").addEventListener("click",openEquipment);
  $("equipment-done").addEventListener("click",()=>{const shouldStart=pendingLiveStart;pendingLiveStart=false;close("equipment-sheet");if(shouldStart)beginLive();});
  $("equipment-sheet").addEventListener("close",()=>{pendingLiveStart=false;$("equipment-done").textContent="Done";});
- const pdf=()=>{const result=exportPracticePDF();if(result.ok)toast("PDF saved.");else toast(result.message);};
+ const pdf=()=>{const result=exportPracticePDF();if(!result.ok)toast(result.message);else if(result.overflow)toast("PDF saved, but a drill’s instructions may exceed the printable area. Shorten that drill’s notes.");else toast("PDF saved · "+result.pages+" page"+(result.pages===1?"":"s"));};
  $("plan-pdf").addEventListener("click",pdf);$("header-pdf").addEventListener("click",pdf);
  $("header-menu").addEventListener("click",()=>show("backup-sheet"));
  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
