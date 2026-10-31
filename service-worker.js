@@ -1,7 +1,7 @@
-const CACHE_NAME="basketball-planner-v2";
+const CACHE_NAME="basketball-planner-v3";
 const CORE_ASSETS=[
  "./","./index.html","./css/app.css","./js/data/drills.js","./manifest.webmanifest",
- "./icons/basketball.svg","./js/app.js","./js/core/store.js","./js/ui/render.js",
+ "./icons/basketball.svg","./icons/basketball-192.png","./icons/basketball-512.png","./icons/apple-touch-icon.png","./js/app.js","./js/core/store.js","./js/ui/render.js",
  "./js/features/practice.js","./js/features/groups.js","./js/features/teams.js","./js/features/skills.js",
  "./js/services/export.js","./vendor/jspdf.umd.min.js"
 ];
