@@ -351,63 +351,45 @@ function handleClick(event){
 }
 function beginPlanDrag(event){
  const handle=event.target.closest("[data-drag-kind]");if(!handle)return;
- drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,startX:event.clientX,startY:event.clientY,pointerY:event.clientY,active:false,target:null,ghost:null,
-  timer:setTimeout(()=>{
-   if(!drag)return;
-   drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);
-   const source=handle.closest("[data-drill-card],[data-block-id]");
-   const label=source?.querySelector(".drill-name")?.textContent||source?.querySelector(".station-title strong")?.textContent||"Moving schedule item";
-   const ghost=document.createElement("div");ghost.className="drag-ghost";ghost.textContent=label;
-   document.body.appendChild(ghost);drag.ghost=ghost;ghost.style.left=(event.clientX+12)+"px";ghost.style.top=(event.clientY+12)+"px";
-  },230)};
+ drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
+ drag.timer=setTimeout(()=>{
+  if(!drag)return;
+  drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);
+  const source=handle.closest("[data-drill-card],[data-block-id]")||handle;
+  const rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);
+  ghost.classList.add("drag-ghost");ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";
+  document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;
+ },230);
 }
 function movePlanDrag(event){
  if(!drag)return;
- if(!drag.active){
-  if(Math.abs(event.clientX-drag.startX)>12||Math.abs(event.clientY-drag.startY)>12){clearTimeout(drag.timer);drag=null;}
-  return;
- }
- event.preventDefault();drag.pointerY=event.clientY;
- if(drag.ghost){drag.ghost.style.left=(event.clientX+12)+"px";drag.ghost.style.top=(event.clientY+12)+"px";}
- const scroller=$("main-content");
- const rect=scroller.getBoundingClientRect(),edge=76;
- if(event.clientY<rect.top+edge)scroller.scrollTop-=Math.ceil((rect.top+edge-event.clientY)/3);
- else if(event.clientY>rect.bottom-edge)scroller.scrollTop+=Math.ceil((event.clientY-(rect.bottom-edge))/3);
- document.querySelectorAll(".drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("drop-target","drop-before","drop-after"));
+ if(!drag.active){if(Math.abs(event.clientX-drag.startX)>12||Math.abs(event.clientY-drag.startY)>12){clearTimeout(drag.timer);drag=null;}return;}
+ event.preventDefault();
+ const scroller=$("main-content"),bounds=scroller.getBoundingClientRect(),edge=64;
+ if(event.clientY<bounds.top+edge)scroller.scrollTop-=Math.max(7,(bounds.top+edge-event.clientY)*.32);
+ else if(event.clientY>bounds.bottom-edge)scroller.scrollTop+=Math.max(7,(event.clientY-(bounds.bottom-edge))*.32);
+ if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
+ document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
  const target=document.elementFromPoint(event.clientX,event.clientY);
  const dest=target?.closest("[data-drill-card],[data-drop-lane],[data-block-id],[data-drop-root]");
  drag.target=dest||null;
- const card=dest?.closest("[data-drill-card]");
- if(card){
-  const bounds=card.getBoundingClientRect();
-  card.classList.add("drop-target",event.clientY<bounds.top+bounds.height/2?"drop-before":"drop-after");
- }else dest?.classList.add("drop-target");
+ const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]");
+ if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");
+ else if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");
+ else dest?.classList.add("drop-target");
 }
 function endPlanDrag(){
- if(!drag)return;
- const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");
+ if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");
  item.ghost?.remove();
- document.querySelectorAll(".dragging,.drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("dragging","drop-target","drop-before","drop-after"));
+ document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));
  if(!item.active||!item.target)return;
  const target=item.target;
  if(item.kind==="block"){
-  const block=target.closest("[data-block-id]");
-  if(block&&block.dataset.blockId!==item.id){
-   const cards=[...$("plan-blocks").querySelectorAll(":scope > [data-block-id]")];
-   const index=cards.indexOf(block),after=item.pointerY>block.getBoundingClientRect().top+block.getBoundingClientRect().height/2;
-   const next=after?cards[index+1]:block;
-   remember();practice.reorderScheduledBlock(item.id,next?.dataset.blockId||null);renderApp();
-  }
-  return;
+  const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){remember();practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;
  }
  const card=target.closest("[data-drill-card]"),lane=target.closest("[data-drop-lane]");
  const laneId=lane?.dataset.dropLane||card?.dataset.parentLane||null;
- let beforeId=card?.dataset.drillCard||null;
- if(card&&item.pointerY>card.getBoundingClientRect().top+card.getBoundingClientRect().height/2){
-  const list=lane||$("plan-blocks");
-  const siblings=[...list.querySelectorAll("[data-drill-card]")].filter(el=>lane?el.closest("[data-drop-lane]")===lane:!el.closest("[data-drop-lane]"));
-  const index=siblings.indexOf(card);beforeId=siblings[index+1]?.dataset.drillCard||null;
- }
+ const beforeId=card?.dataset.drillCard||null;
  if(item.id!==beforeId){if(practice.moveScheduledDrill(item.id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
 }
 function registerEvents(){
