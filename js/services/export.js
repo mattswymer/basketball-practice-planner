@@ -26,221 +26,117 @@ export function exportPracticePDF() {
   if(!plan)return {ok:false,message:"Open a practice plan first."};
   const PDF=window.jspdf?.jsPDF;
   if(!PDF)return {ok:false,message:"The PDF library did not load. Reopen the app while online once."};
-
-  // Preserve the practice's sequence. Stations remain grouped by station and lane.
-  const items=[];
+  const entries=[];
+  const clock=(start,offset)=>{
+    const [h,m]=(start||"18:00").split(":").map(Number);
+    const n=h*60+m+offset,hour=Math.floor(n/60)%24,minute=n%60;
+    return (hour%12||12)+":"+String(minute).padStart(2,"0")+(hour>=12?"p":"a")+(Math.floor(n/1440)?" +"+Math.floor(n/1440)+"d":"");
+  };
   let elapsed=0,sequence=0;
   for(const block of plan.blocks||[]){
-    const duration=blockMinutes(block),start=clockLabel(plan.start,elapsed),end=clockLabel(plan.start,elapsed+duration);
+    const minutes=Math.max(1,Math.round(Number(block.minutes)||1));
+    const blockStart=clock(plan.start,elapsed);
     if(block.kind==="station"){
-      items.push({kind:"station",station:block.name||"Station",start,end,duration:duration,stationContext:block.name||"Station"});
-      for(const lane of block.lanes||[]){
-        items.push({kind:"lane",lane:lane.name||"Lane",stationContext:block.name||"Station"});
-        let laneElapsed=elapsed;
+      for(const [laneIndex,lane] of (block.lanes||[]).entries()){
+        entries.push({type:"station",name:block.name||"Station",lane:lane.name||"Lane "+(laneIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes:block.minutes||minutes});
+        let laneOffset=0;
         for(const drill of lane.drills||[]){
-          const drillStart=clockLabel(plan.start,laneElapsed);
-          laneElapsed+=Math.max(1,Number(drill.minutes)||1);
-          items.push({kind:"drill",number:++sequence,drill,start:drillStart,end:clockLabel(plan.start,laneElapsed),stationContext:block.name||"Station",laneContext:lane.name||"Lane"});
+          const duration=Math.max(1,Math.round(Number(drill.minutes)||1));
+          entries.push({type:"drill",drill,number:++sequence,lane:lane.name||"Lane "+(laneIndex+1),station:block.name||"Station",start:clock(plan.start,elapsed+laneOffset),end:clock(plan.start,elapsed+laneOffset+duration)});
+          laneOffset+=duration;
         }
       }
-    } else {
-      items.push({kind:"drill",number:++sequence,drill:block,start,end,stationContext:"",laneContext:""});
+    }else{
+      entries.push({type:"drill",drill:block,number:++sequence,lane:"",station:"",start:blockStart,end:clock(plan.start,elapsed+minutes)});
     }
-    elapsed+=duration;
+    elapsed+=minutes;
   }
-
   const rosterCount=Math.max(1,team?.players?.length||0);
-  const gearSummary=equipmentTotals(plan).map(item=>item.name+" × "+item.quantity).join("   ·   ");
-  const margin=8,gap=5,bodyTop=35,minFont=7.2,titleFont=10.2;
-  let format="a4";
-  function createDoc(fmt){return new PDF({orientation:"landscape",unit:"mm",format:fmt,compress:true});}
-  let doc=createDoc("a4");
-  let width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
-  let colWidth=(width-margin*2-gap)/2,bodyBottom=height-8,available=bodyBottom-bodyTop;
-
-  function layoutItem(item,w){
-    if(item.kind==="station")return {item,h:10};
-    if(item.kind==="lane")return {item,h:7};
-    const drill=item.drill;
-    doc.setFont("helvetica","bold");doc.setFontSize(7.1);
-    const meta="#"+String(item.number).padStart(2,"0")+"  "+item.start+"–"+item.end+"  ·  "+drill.minutes+" MIN  ·  "+((drill.tags||[]).join(" / ")||"NO SKILL").toUpperCase();
-    const metaLines=doc.splitTextToSize(meta,w-8);
-    doc.setFont("helvetica","bold");doc.setFontSize(titleFont);
-    const titleLines=doc.splitTextToSize(drill.name||"Untitled drill",w-8);
-    doc.setFont("helvetica","normal");doc.setFontSize(7.1);
-    const gear=(drill.equipment||[]).map(x=>x.name+" × "+(x.quantity*(x.perPlayer?rosterCount:1))).join(", ");
-    const gearLines=gear?doc.splitTextToSize("Gear: "+gear,w-8):[];
-    const steps=(drill.steps||[]).map((step,index)=>doc.splitTextToSize((index+1)+". "+step,w-9));
-    const metaH=metaLines.length*3.1,titleH=titleLines.length*4.1,gearH=gearLines.length*3.1;
-    const stepsH=steps.reduce((sum,lines)=>sum+lines.length*3.15+.5,0);
-    const h=2.8+metaH+1.1+titleH+(gearLines.length?gearH+1:0)+stepsH+2.8;
-    return {item,h,metaLines,titleLines,gearLines,steps};
-  }
-
-
-  function planPages(bodyEnd){
-    const colW=(width-margin*2-gap)/2,pages=[];
-    let page={columns:[[],[]]},col=0,y=bodyTop,stationContext=null,laneContext=null;
-    const maxH=bodyEnd-bodyTop;
-    function append(layout){
-      const x=margin+col*(colW+gap);
-      page.columns[col].push({...layout,x,y,w:colW});
-      y+=layout.h+2.2;
-    }
-    function nextColumn(repeat=true){
-      if(col===0){col=1;y=bodyTop;}
-      else{pages.push(page);page={columns:[[],[]]};col=0;y=bodyTop;}
-      if(repeat){
-        if(stationContext)append({item:{...stationContext,repeated:true},h:10});
-        if(laneContext)append({item:{...laneContext,repeated:true},h:7});
-      }
-    }
-    function splitDrill(item){
-      const measured=layoutItem(item,colW);
-      const target=maxH-22;
-      if(measured.h<=target)return [measured];
-      const titleLines=measured.titleLines;
-      const firstFixed=2.8+measured.metaLines.length*3.1+1.1+titleLines.length*4.1+(measured.gearLines.length?measured.gearLines.length*3.1+1:0)+2.8;
-      const laterMeta=["CONTINUED · #"+String(item.number).padStart(2,"0")+" · "+item.start+"–"+item.end];
-      const laterFixed=2.8+3.1+1.1+titleLines.length*4.1+2.8;
-      const chunks=[];
-      let first=true,pending=[],used=firstFixed;
-      function flush(){
-        const meta=first?measured.metaLines:laterMeta;
-        const gear=first?measured.gearLines:[];
-        const fixed=first?firstFixed:laterFixed;
-        if(pending.length||!chunks.length){
-          const h=fixed+pending.reduce((sum,lines)=>sum+lines.length*3.15+.5,0);
-          chunks.push({item:{...item,continued:!first},h,metaLines:meta,titleLines,gearLines:gear,steps:pending});
-        }
-        pending=[];first=false;used=laterFixed;
-      }
-      for(const sourceLines of measured.steps){
-        let offset=0;
-        while(offset<sourceLines.length){
-          let room=Math.floor((target-used-.5)/3.15);
-          if(room<1){flush();room=Math.max(1,Math.floor((target-used-.5)/3.15));}
-          const take=Math.min(room,sourceLines.length-offset);
-          pending.push(sourceLines.slice(offset,offset+take));
-          used+=take*3.15+.5;offset+=take;
-          if(offset<sourceLines.length)flush();
-        }
-      }
-      flush();
-      return chunks;
-    }
-    function minimumDrillHeight(item){
-      if(!item||item.kind!=="drill")return 0;
-      const layout=layoutItem(item,colW);
-      const fixed=2.8+layout.metaLines.length*3.1+1.1+layout.titleLines.length*4.1+(layout.gearLines.length?layout.gearLines.length*3.1+1:0)+2.8;
-      return Math.min(fixed+5,maxH-22);
-    }
-    for(let i=0;i<items.length;i++){
-      const item=items[i];
-      if(item.kind==="station"){
-        stationContext=item;laneContext=null;
-        const following=items[i+1]?.kind==="lane"?items[i+1]:null;
-        const nextDrill=following?items[i+2]:null;
-        const needed=10+(following?7+minimumDrillHeight(nextDrill):0)+4.4;
-        if(y+needed>bodyEnd)nextColumn(false);
-        append({item,h:10});
-        continue;
-      }
-      if(item.kind==="lane"){
-        laneContext=item;
-        const nextDrill=items[i+1];
-        const needed=7+minimumDrillHeight(nextDrill)+2.2;
-        if(y+needed>bodyEnd)nextColumn(true);
-        else append({item,h:7});
-        continue;
-      }
-      if(!item.stationContext){stationContext=null;laneContext=null;}
-      for(const chunk of splitDrill(item)){
-        if(y+chunk.h>bodyEnd)nextColumn(true);
-        append(chunk);
-      }
-    }
-    if(page.columns[0].length||page.columns[1].length)pages.push(page);
-    return pages.length?pages:[{columns:[[],[]]}];
-  }
-
-  // Move dense plans to A3 first; additional pages preserve the minimum font size.
-  const a4ColumnHeight=height-8-bodyTop;
-  const a4ColumnWidth=(width-margin*2-gap)/2;
-  const totalHeight=items.reduce((sum,item)=>sum+layoutItem(item,a4ColumnWidth).h+2.2,0);
-  const largestItem=Math.max(0,...items.filter(item=>item.kind==="drill").map(item=>layoutItem(item,a4ColumnWidth).h));
-  let pages=planPages(bodyBottom);
-  if(totalHeight>2*a4ColumnHeight*.82||largestItem>a4ColumnHeight-22){
-    format="a3";doc=createDoc("a3");
-    width=doc.internal.pageSize.getWidth();height=doc.internal.pageSize.getHeight();
-    colWidth=(width-margin*2-gap)/2;bodyBottom=height-8;available=bodyBottom-bodyTop;
-    pages=planPages(bodyBottom);
-  }
-
-  function header(pageIndex){
-    doc.setFillColor(16,43,63);doc.rect(0,0,width,31,"F");
-    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
-    doc.text(team?.name||"Basketball",margin,9.5);
-    doc.setFont("helvetica","normal");doc.setFontSize(10);
-    doc.text(plan.name||"Practice plan",margin,16.2);
-    doc.setFontSize(8);
-    doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||""),margin,21.1);
-    doc.setFont("helvetica","bold");doc.setFontSize(9);
-    doc.text(durationLabel(totalPracticeMinutes(plan))+" court time  ·  "+sequence+" drills",width-margin,10,{align:"right"});
-    doc.setFont("helvetica","normal");doc.setFontSize(6.8);
-    const gearLines=gearSummary?doc.splitTextToSize("EQUIPMENT: "+gearSummary,width-margin*2):["EQUIPMENT: —"];
-    doc.text(gearLines.slice(0,2),margin,27);
-    doc.setFontSize(7);doc.text("PAGE "+(pageIndex+1)+" / "+pages.length,width-margin,21,{align:"right"});
-  }
-  function drawItem(layout){
-    const item=layout.item,x=layout.x,y=layout.y,w=layout.w;
-    if(item.kind==="station"){
-      doc.setFillColor(216,230,235);doc.roundedRect(x,y,w,layout.h,1.6,1.6,"F");
-      doc.setTextColor(26,66,84);doc.setFont("helvetica","bold");doc.setFontSize(8.5);
-      doc.text((item.repeated?"STATION CONTINUED  ·  ":"STATION ROTATION  ·  ")+String(item.station).toUpperCase(),x+3,y+4);
-      doc.setFont("helvetica","normal");doc.setFontSize(7);
-      doc.text(item.start+"–"+item.end+"  ·  "+item.duration+" MIN",x+3,y+7.6);
-      return;
-    }
-    if(item.kind==="lane"){
-      doc.setFillColor(239,243,245);doc.roundedRect(x,y,w,layout.h,1.2,1.2,"F");
-      doc.setTextColor(52,83,98);doc.setFont("helvetica","bold");doc.setFontSize(7.2);
-      doc.text((item.repeated?"LANE CONTINUED  ·  ":"")+String(item.lane).toUpperCase(),x+3,y+4.7);
-      return;
-    }
-    const drill=item.drill,tags=[...new Set(drill.tags||[])],colors=tags.map(skillColor);
-    const first=colors[0]||"#52758a",rgb=first.replace("#","");
-    const color=[0,2,4].map(index=>parseInt(rgb.slice(index,index+2),16)||82);
-    doc.setFillColor(249,251,252);doc.roundedRect(x,y,w,layout.h,1.5,1.5,"F");
-    // One segment per skill; no averaged colors.
-    const stripeWidth=w/Math.max(1,colors.length);
-    (colors.length?colors:["#52758a"]).forEach((value,index)=>{
-      const rgbValue=value.replace("#","");
-      const rgbColor=[0,2,4].map(pos=>parseInt(rgbValue.slice(pos,pos+2),16)||82);
-      doc.setFillColor(...rgbColor);doc.rect(x+index*stripeWidth,y,stripeWidth+.08,1.8,"F");
-    });
-    let yy=y+4.3;
-    doc.setTextColor(76,91,101);doc.setFont("helvetica","bold");doc.setFontSize(7.1);
-    doc.text(layout.metaLines,x+3,yy);yy+=layout.metaLines.length*3.1+1.1;
-    doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(titleFont);
-    doc.text(layout.titleLines,x+3,yy);yy+=layout.titleLines.length*4.1+1;
-    doc.setTextColor(80,99,110);doc.setFont("helvetica","normal");doc.setFontSize(7.1);
-    if(layout.gearLines.length){doc.text(layout.gearLines,x+3,yy);yy+=layout.gearLines.length*3.1+1;}
-    doc.setTextColor(40,55,66);
-    layout.steps.forEach(lines=>{
-      doc.text(lines,x+3,yy);yy+=lines.length*3.15+.5;
-    });
-  }
-
-  pages.forEach((page,index)=>{
-    if(index)doc.addPage(format,"landscape");
-    header(index);
-    page.columns.forEach(column=>column.forEach(drawItem));
-  });
+  const equipment=equipmentTotals(plan).map(x=>x.name+" × "+x.quantity).join("   ·   ");
   const safeName=value=>String(value||"").normalize("NFKD").replace(/[^a-z0-9_-]+/gi,"_").replace(/^_+|_+$/g,"");
-  doc.save((safeName(team?.name)||"Team")+"_"+(safeName(plan.date)||"No-Date")+".pdf");
-  return {ok:true,scale:1,compact:false,overflow:pages.some(page=>page.columns.some(column=>column.some(item=>item.overflow))),pages:pages.length,format};
+  function build(format){
+    const doc=new PDF({orientation:"landscape",unit:"mm",format,compress:true});
+    const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
+    const margin=8,gap=5,colWidth=(width-margin*2-gap)/2,top=35,bottom=height-10,available=bottom-top;
+    const fonts=format==="a4"?{title:7.8,body:6.4,small:5.5,station:9}:{title:8.6,body:7.0,small:6.0,station:10};
+    function layout(atom){
+      if(atom.type==="station"){
+        doc.setFont("helvetica","bold");doc.setFontSize(fonts.station);
+        const title=doc.splitTextToSize(atom.name+" · "+atom.lane,colWidth-10);
+        doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);
+        const sub=doc.splitTextToSize(atom.start+"–"+atom.end+" · "+atom.minutes+" min",colWidth-10);
+        return {...atom,title,sub,h:3+title.length*(fonts.station*.43)+1+sub.length*(fonts.small*.46)+3};
+      }
+      const drill=atom.drill;
+      const meta=String(atom.number).padStart(2,"0")+"  ·  "+atom.start+"–"+atom.end+"  ·  "+(drill.minutes||1)+" MIN";
+      const skills=(drill.tags||[]).join(" / ");
+      const title=(atom.station?atom.station+" / "+atom.lane+" · ":atom.lane?atom.lane+" · ":"")+drill.name;
+      doc.setFont("helvetica","bold");doc.setFontSize(fonts.title);
+      const titleLines=doc.splitTextToSize(title,colWidth-10);
+      doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);
+      const skillLines=skills?doc.splitTextToSize("SKILLS  "+skills.toUpperCase(),colWidth-10):[];
+      const gear=(drill.equipment||[]).map(x=>x.name+" × "+(x.quantity*(x.perPlayer?rosterCount:1))).join(", ");
+      const gearLines=gear?doc.splitTextToSize("GEAR  "+gear,colWidth-10):[];
+      doc.setFont("helvetica","normal");doc.setFontSize(fonts.body);
+      const steps=(drill.steps||[]).map((step,i)=>doc.splitTextToSize((i+1)+". "+step,colWidth-12));
+      const h=3+2+skillLines.length*(fonts.small*.46)+titleLines.length*(fonts.title*.44)+gearLines.length*(fonts.small*.46)+steps.reduce((sum,lines)=>sum+lines.length*(fonts.body*.48)+.7,0)+3;
+      return {...atom,meta,skillLines,titleLines,gearLines,steps,h};
+    }
+    const atoms=entries.map(layout);
+    const pages=[];
+    let page={columns:[[],[]],ys:[top,top],column:0};
+    const newPage=()=>{pages.push(page);page={columns:[[],[]],ys:[top,top],column:0};};
+    for(const atom of atoms){
+      let col=page.column;
+      if(page.ys[col]+atom.h>bottom){
+        if(col===0){col=1;page.column=1;}
+        if(page.ys[col]+atom.h>bottom){newPage();col=0;}
+      }
+      const x=margin+col*(colWidth+gap),y=page.ys[col];
+      page.columns[col].push({atom,x,y,w:colWidth});page.ys[col]+=atom.h+2;
+    }
+    if(page.columns.some(col=>col.length))pages.push(page);
+    const pageGear=doc.splitTextToSize("EQUIPMENT  "+(equipment||"—"),width-margin*2);
+    pages.forEach((pg,pageIndex)=>{
+      if(pageIndex)doc.addPage();
+      doc.setFillColor(16,43,63);doc.rect(0,0,width,31,"F");
+      doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text(team?.name||"Basketball",margin,9);
+      doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(plan.name||"Practice plan",margin,16);
+      doc.setFontSize(7.5);doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||"")+"  ·  "+durationLabel(totalPracticeMinutes(plan))+" court time",margin,21);
+      doc.setFontSize(6);doc.text(doc.splitTextToSize(pageGear.join(" "),width-margin*2),margin,27);
+      if(pageIndex) {doc.setFontSize(6);doc.text("CONTINUED",width-margin,8,{align:"right"});}
+      pg.columns.forEach((items,col)=>{
+        items.forEach(({atom,x,y,w})=>{
+          if(atom.type==="station"){
+            doc.setFillColor(225,237,242);doc.setDrawColor(186,207,216);doc.roundedRect(x,y,w,atom.h-1,2,2,"FD");
+            doc.setTextColor(28,77,99);doc.setFont("helvetica","bold");doc.setFontSize(fonts.station);doc.text(atom.title,x+3,y+3+fonts.station*.32);
+            doc.setTextColor(80,103,113);doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);doc.text(atom.sub,x+3,y+3+atom.title.length*(fonts.station*.43)+fonts.small*.72);
+            return;
+          }
+          doc.setFillColor(249,251,252);doc.setDrawColor(219,228,232);doc.roundedRect(x,y,w,atom.h-1,1.7,1.7,"FD");
+          const colors=[...new Set(atom.drill.tags||[])].map(skillColor);
+          const segments=colors.length?colors:["#8a9da6"];
+          segments.forEach((color,i)=>{const c=color.replace("#","");doc.setFillColor(parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16));doc.rect(x+1+i*(w-2)/segments.length,y+1.1,(w-2)/segments.length+.2,1.4,"F");});
+          let cursor=y+4.2;
+          doc.setTextColor(91,111,120);doc.setFont("helvetica","bold");doc.setFontSize(fonts.small);doc.text(atom.meta,x+3,cursor);cursor+=fonts.small*.65+1.2;
+          if(atom.skillLines.length){doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);doc.text(atom.skillLines,x+3,cursor);cursor+=atom.skillLines.length*(fonts.small*.46)+.8;}
+          doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(fonts.title);doc.text(atom.titleLines,x+3,cursor);cursor+=atom.titleLines.length*(fonts.title*.44)+.8;
+          if(atom.gearLines.length){doc.setTextColor(80,99,110);doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);doc.text(atom.gearLines,x+3,cursor);cursor+=atom.gearLines.length*(fonts.small*.46)+.8;}
+          doc.setTextColor(40,55,66);doc.setFont("helvetica","normal");doc.setFontSize(fonts.body);
+          atom.steps.forEach(lines=>{doc.text(lines,x+3,cursor);cursor+=lines.length*(fonts.body*.48)+.7;});
+        });
+      });
+      doc.setTextColor(110,124,132);doc.setFont("helvetica","normal");doc.setFontSize(6);
+      doc.text((pageIndex+1)+" / "+pages.length,width-margin,height-4,{align:"right"});
+    });
+    return {doc,pages:pages.length,format};
+  }
+  let output=build("a4");
+  if(output.pages>1)output=build("a3");
+  output.doc.save((safeName(team?.name)||"Team")+"_"+(safeName(plan.date)||"No-Date")+".pdf");
+  return {ok:true,format:output.format,pages:output.pages,entries:sequence};
 }
+
 export function exportBackup() {
   const data={app:"basketball-practice-planner",version:2,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:state.skills,skillColors:state.skillColors};
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
