@@ -3,11 +3,10 @@ const $=id=>document.getElementById(id);
 const hidden=(id,value)=>{if($(id))$(id).hidden=value;};
 const grip='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1.2"/><circle cx="16" cy="6" r="1.2"/><circle cx="8" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/><circle cx="8" cy="18" r="1.2"/><circle cx="16" cy="18" r="1.2"/></svg>';
 function skillStyle(tags=[]) {
-  const colors=[...new Set(tags)].map(skillColor).map(color=>color.replace("#","")).filter(color=>/^[0-9a-f]{6}$/i.test(color));
-  if(!colors.length)colors.push("78909c");
-  const blend=[0,2,4].map(i=>Math.round(colors.reduce((sum,color)=>sum+parseInt(color.slice(i,i+2),16),0)/colors.length).toString(16).padStart(2,"0")).join("");
-  const color="#"+blend;
-  return `--skill:${color};--skill-soft:${color}18;--skill-mid:${color}34`;
+  const colors=[...new Set(tags)].map(skillColor);
+  const color=colors[0]||"#78909c";
+  const stripe=colors.length>1?"linear-gradient(90deg,"+colors.map((value,index)=>value+" "+(index/colors.length*100)+"% "+((index+1)/colors.length*100)+"%").join(",")+")":color;
+  return `--skill:${color};--skill-soft:${color}18;--skill-mid:${color}34;--skill-strip:${stripe}`;
 }
 function skillLabels(tags=[]) {
   return tags.map(tag=>`<span class="skill-chip" style="--chip:${skillColor(tag)}">${esc(tag)}</span>`).join("");
@@ -55,7 +54,7 @@ function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) 
     </button>
     <div class="drill-card-actions">
       <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
-      ${status? `<button class="status-pill ${status}">${status==="complete"?"Done":"Skipped"}</button>`:""}
+      <button class="status-pill ${status||"pending"}" data-drill-status="${esc(drill.id)}" data-next-status="${status?"clear":"complete"}" aria-label="${status?"Clear drill status":"Mark drill done"}">${status==="complete"?"Done · undo":status==="skipped"?"Skipped · undo":"Mark done"}</button>
       ${laneId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
       <button class="mini-icon danger-text" data-remove-drill="${esc(drill.id)}" aria-label="Remove drill">×</button>
     </div>
@@ -175,13 +174,18 @@ function renderStats() {
       if(drills.length&&drills.every(drill=>plan.completedIds.includes(drill.id)))completed+=blockMinutes(block);
     }
     for(const drill of flattenDrills(plan)){
-      for(const skill of drill.tags){
+      const tags=[...new Set(drill.tags||[])];
+      if(!tags.length)continue;
+      const base=Math.floor(drill.minutes/tags.length),extra=drill.minutes%tags.length;
+      tags.forEach((skill,index)=>{
+        const share=base+(index<extra?1:0);
         const row=skills.get(skill)||{planned:0,completed:0,skipped:0};
-        row.planned+=drill.minutes;
-        if(plan.completedIds.includes(drill.id))row.completed+=drill.minutes;
-        if(plan.skippedIds.includes(drill.id))row.skipped+=drill.minutes;
+        row.planned+=share;
+        if(plan.completedIds.includes(drill.id))row.completed+=share;
+        if(plan.skippedIds.includes(drill.id))row.skipped+=share;
         skills.set(skill,row);
-      }
+      });
+    }
     }
   }
   $("stats-plan-count").textContent=plans.length;
