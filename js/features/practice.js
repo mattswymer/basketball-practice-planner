@@ -1,4 +1,4 @@
-import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid} from "../core/store.js";
+import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
 function uniqueIds(block){return drillsInBlock(block).map(drill=>drill.id);}
 function setBlockStatus(plan,block,status){
   const ids=uniqueIds(block);
@@ -10,28 +10,21 @@ function setBlockStatus(plan,block,status){
 export function fitPractice(plan=activePlan()){
   if(!plan||!plan.blocks.length)return {ok:false,reason:"empty"};
   const target=timeWindow(plan),blocks=plan.blocks;
-  if(target<blocks.length)return {ok:false,reason:"too-many-blocks"};
+  const minimums=blocks.map(block=>block.kind==="station"?Math.max(1,...(block.lanes||[]).map(l=>l.drills?.length||0)):1);
+  const minimumTotal=minimums.reduce((a,b)=>a+b,0);
+  if(target<minimumTotal)return {ok:false,reason:"too-many-blocks"};
   const weights=blocks.map(block=>Math.max(1,blockMinutes(block)));
-  const total=weights.reduce((a,b)=>a+b,0);
-  const raw=weights.map(weight=>target*weight/total);
-  const values=raw.map(value=>Math.max(1,Math.floor(value)));
+  const weightTotal=weights.reduce((a,b)=>a+b,0),remaining=target-minimumTotal;
+  const raw=weights.map(weight=>remaining*weight/weightTotal);
+  const values=raw.map((value,index)=>minimums[index]+Math.floor(value));
   let difference=target-values.reduce((a,b)=>a+b,0);
-  const fractions=raw.map((value,index)=>({index,fraction:value-Math.floor(value)}));
-  if(difference>0){
-    fractions.sort((a,b)=>b.fraction-a.fraction);
-    for(let i=0;difference>0;i++,difference--)values[fractions[i%fractions.length].index]++;
-  }else if(difference<0){
-    fractions.sort((a,b)=>a.fraction-b.fraction);
-    while(difference<0){
-      let changed=false;
-      for(const item of fractions){
-        if(values[item.index]>1){values[item.index]--;difference++;changed=true;if(difference===0)break;}
-      }
-      if(!changed)break;
-    }
-  }
+  const fractions=raw.map((value,index)=>({index,fraction:value-Math.floor(value)})).sort((a,b)=>b.fraction-a.fraction);
+  for(let i=0;difference>0;i++,difference--)values[fractions[i%fractions.length].index]++;
   remember();
-  blocks.forEach((block,index)=>block.minutes=values[index]);
+  blocks.forEach((block,index)=>{
+    if(block.kind==="station")fitStationLanes(block,values[index]);
+    else block.minutes=values[index];
+  });
   save();return {ok:true,total:values.reduce((a,b)=>a+b,0),target};
 }
 export function startLive(plan=activePlan()){
@@ -73,9 +66,11 @@ export function addScheduledDrill(drill,plan=activePlan(),laneId=null){
   if(!drill||!plan)return false;
   remember();
   if(laneId){
-    const lane=plan.blocks.flatMap(block=>block.kind==="station"?block.lanes:[]).find(item=>item.id===laneId);
+    const station=plan.blocks.find(block=>block.kind==="station"&&block.lanes.some(lane=>lane.id===laneId));
+    const lane=station?.lanes.find(item=>item.id===laneId);
     if(!lane)return false;
     lane.drills.push(drill);
+    fitStationLanes(station,station.minutes);
   } else plan.blocks.push(drill);
   save();return true;
 }
@@ -90,7 +85,7 @@ export function removeScheduledDrill(drillId,plan=activePlan()){
     if(block.kind==="station")for(const lane of block.lanes){
       const index=lane.drills.findIndex(item=>item.id===drillId);
       if(index>=0){
-        remember();lane.drills.splice(index,1);
+        remember();lane.drills.splice(index,1);fitStationLanes(block,block.minutes);
         plan.completedIds=plan.completedIds.filter(id=>id!==drillId);plan.skippedIds=plan.skippedIds.filter(id=>id!==drillId);
         save();return true;
       }
@@ -112,17 +107,21 @@ export function moveScheduledDrill(drillId,targetLaneId=null,beforeDrillId=null,
   if(!plan)return false;
   let source=null;
   for(const block of plan.blocks){
-    if(block.kind==="drill"&&block.id===drillId)source={list:plan.blocks,drill:block};
-    if(block.kind==="station")for(const lane of block.lanes)if(lane.drills.some(d=>d.id===drillId))source={list:lane.drills,drill:lane.drills.find(d=>d.id===drillId)};
+    if(block.kind==="drill"&&block.id===drillId)source={list:plan.blocks,drill:block,block:null};
+    if(block.kind==="station")for(const lane of block.lanes)if(lane.drills.some(d=>d.id===drillId))source={list:lane.drills,drill:lane.drills.find(d=>d.id===drillId),block};
   }
   if(!source)return false;
-  const target=targetLaneId?plan.blocks.flatMap(b=>b.kind==="station"?b.lanes:[]).find(l=>l.id===targetLaneId)?.drills:plan.blocks;
+  const targetStation=targetLaneId?plan.blocks.find(b=>b.kind==="station"&&b.lanes.some(l=>l.id===targetLaneId)):null;
+  const target=targetLaneId?targetStation?.lanes.find(l=>l.id===targetLaneId)?.drills:plan.blocks;
   if(!target)return false;
   const oldIndex=source.list.findIndex(d=>d.id===drillId),beforeIndex=beforeDrillId?target.findIndex(d=>d.id===beforeDrillId):-1;
   if(source.list===target&&(beforeIndex===oldIndex||beforeIndex===oldIndex+1))return false;
   remember();source.list.splice(oldIndex,1);
   const index=beforeDrillId?target.findIndex(d=>d.id===beforeDrillId):-1;
-  target.splice(index<0?target.length:index,0,source.drill);save();return true;
+  target.splice(index<0?target.length:index,0,source.drill);
+  if(source.block)fitStationLanes(source.block,source.block.minutes);
+  if(targetStation&&targetStation!==source.block)fitStationLanes(targetStation,targetStation.minutes);
+  save();return true;
 }
 export function reorderScheduledBlock(blockId,beforeId=null,plan=activePlan()){
   if(!plan||blockId===beforeId)return false;

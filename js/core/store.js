@@ -60,6 +60,27 @@ function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
  const drills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x,"",catalog)):hasDrill?[normalizeDrill({...raw,minutes:raw.minutes||raw.duration||10},"",catalog)]:[];
  return {id:String(input.id||uid("lane")),name:String(input.name||input.label||"Lane "+(index+1)),drills};
 }
+function distributeLaneMinutes(lane,target) {
+ const drills=lane?.drills||[];
+ if(!drills.length)return;
+ const total=Math.max(drills.length,Math.round(Number(target)||drills.length));
+ const weights=drills.map(d=>Math.max(1,Number(d.minutes)||1));
+ const weightTotal=weights.reduce((a,b)=>a+b,0);
+ const raw=weights.map(w=>(total-drills.length)*w/weightTotal);
+ const values=raw.map(v=>1+Math.floor(v));
+ let remainder=total-values.reduce((a,b)=>a+b,0);
+ const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);
+ for(let i=0;remainder>0;i++,remainder--)values[order[i%order.length].i]++;
+ drills.forEach((d,i)=>d.minutes=values[i]);
+}
+export function fitStationLanes(block,target=block?.minutes) {
+ if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));
+ const minimum=Math.max(1,...(block.lanes||[]).map(l=>l.drills?.length||0));
+ const minutes=Math.max(minimum,Math.round(Number(target)||block.minutes||15));
+ for(const lane of block.lanes||[])distributeLaneMinutes(lane,minutes);
+ block.minutes=minutes;
+ return minutes;
+}
 export function normalizeBlock(input={},catalog=oldEquipmentCatalog) {
  if(input.kind==="station"||input.type==="station"){
   let lanes;
@@ -69,7 +90,9 @@ export function normalizeBlock(input={},catalog=oldEquipmentCatalog) {
    return {id:String(s?.id||uid("lane")),name:String(s?.label||"Lane "+(i+1)),drills:empty?[]:[normalizeDrill({...s,minutes:s.minutes||s.duration||10},"",catalog)]};
   });
   const implicit=Math.max(0,...lanes.map(l=>l.drills.reduce((n,d)=>n+d.minutes,0)));
-  return {kind:"station",id:String(input.id||input.schedId||uid("station")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),lanes};
+  const block={kind:"station",id:String(input.id||input.schedId||uid("station")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),lanes};
+  fitStationLanes(block,block.minutes);
+  return block;
  }
  return normalizeDrill(input,"",catalog);
 }
@@ -81,9 +104,14 @@ export function normalizePlan(input={},teamId="",catalog=oldEquipmentCatalog){
   equipmentChecked:{...(input.equipmentChecked||{})},createdAt:input.createdAt||new Date().toISOString()};
 }
 function normalizePlayer(p,i=0){
- if(p&&typeof p==="object")return {id:String(p.id||uid("player")),name:String(p.name||"Player "+(i+1))};
- const raw=String(p||"").trim(),match=raw.match(/^#?\s*\d{1,3}\s+(.+)$/);
- return {id:uid("player"),name:match?match[1].trim():raw||"Player "+(i+1)};
+ if(p&&typeof p==="object"){
+  const player={id:String(p.id||uid("player")),name:String(p.name||"Player "+(i+1))};
+  const number=p.number??p.jerseyNumber??p.jersey;
+  if(number!==undefined&&number!==null&&String(number).trim()!=="")player.number=String(number).replace(/^#/,"");
+  return player;
+ }
+ const raw=String(p||"").trim(),match=raw.match(/^#?\s*(\d{1,3})\s+(.+)$/);
+ return {id:uid("player"),...(match?{number:match[1]}:{}),name:match?match[2].trim():raw||"Player "+(i+1)};
 }
 function normalizeTeam(t={},i=0){const roster=Array.isArray(t.players)?t.players:(t.roster||[]);return {id:String(t.id||uid("team")),name:String(t.name||"Team "+(i+1)),players:roster.map(normalizePlayer).filter(p=>p.name)};}
 function bankMerge(saved,catalog=oldEquipmentCatalog){
