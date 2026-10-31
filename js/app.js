@@ -41,6 +41,24 @@ function duplicateCurrentPlan(runAgain=false){
  state.planDetailOpen=true;state.view="plans";persist();renderApp();
  if(runAgain)startLive();else toast("Plan duplicated.");
 }
+
+function duplicatePlan(runAgain=false){
+ const source=activePlan();if(!source)return;
+ const list=state.plansByTeam[source.teamId]||[];
+ remember();const copy=clone(source);copy.id=uid("plan");
+ copy.name=source.name+(runAgain?" (run again)":" (copy)");
+ if(runAgain)copy.date=localDate();
+ copy.completedIds=[];copy.skippedIds=[];copy.equipmentChecked={};copy.createdAt=new Date().toISOString();
+ const resetDrill=drill=>{drill.id=uid("drill");for(const group of drill.grouping?.groups||[])group.id=uid("group");};
+ for(const block of copy.blocks){
+  block.id=uid(block.kind==="station"?"station":"drill");
+  if(block.kind==="station")for(const lane of block.lanes){lane.id=uid("lane");lane.drills.forEach(resetDrill);}
+  else resetDrill(block);
+ }
+ list.unshift(copy);state.plansByTeam[source.teamId]=list;setActivePlan(copy.id);
+ state.planDetailOpen=true;state.view="plans";persist();renderApp();
+ toast(runAgain?"Practice copied for a new run.":"Plan duplicated.");
+}
 function practicePlanObject(teamId){
  return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};
 }
@@ -406,6 +424,7 @@ function registerEvents(){
  $("floating-add").addEventListener("click",()=>openBank(null));
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
+ $("plan-duplicate").addEventListener("click",()=>duplicatePlan(false));$("plan-run-again").addEventListener("click",()=>duplicatePlan(true));
  $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
  $("run-again").addEventListener("click",()=>duplicateCurrentPlan(true));
  $("live-start").addEventListener("click",startLive);
@@ -444,6 +463,7 @@ function registerEvents(){
  document.addEventListener("pointerup",groupPointerUp);document.addEventListener("pointercancel",groupPointerUp);
  $("drill-group-board").addEventListener("change",e=>{const input=e.target.closest("[data-group-name]");if(input)renameGroup(input.dataset.groupName,input.value);});
  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
+ $("stats-start-date").addEventListener("change",renderApp);$("stats-end-date").addEventListener("change",renderApp);$("stats-range-clear").addEventListener("click",()=>{$("stats-start-date").value="";$("stats-end-date").value="";renderApp();});
  $("stats-from").addEventListener("change",renderApp);$("stats-to").addEventListener("change",renderApp);
  $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
