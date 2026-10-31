@@ -1,6 +1,13 @@
 import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
 export {fitStationLanes};
 function uniqueIds(block){return drillsInBlock(block).map(drill=>drill.id);}
+export function ensureStationFits(plan=activePlan()){
+  if(!plan)return;
+  for(const block of plan.blocks||[])if(block.kind==="station"){
+    const longest=Math.max(1,...(block.lanes||[]).map(lane=>lane.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0)));
+    if(longest>block.minutes)block.minutes=longest;
+  }
+}
 function setBlockStatus(plan,block,status){
   const ids=uniqueIds(block);
   plan.completedIds=plan.completedIds.filter(id=>!ids.includes(id));
