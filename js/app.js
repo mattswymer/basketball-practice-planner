@@ -28,6 +28,19 @@ function createPlan(){
  state.planDetailOpen=true;state.view="plans";persist();renderApp();
  $("plan-name").focus();$("plan-name").select();
 }
+function duplicateCurrentPlan(runAgain=false){
+ const source=activePlan();if(!source)return toast("Open a plan first.");
+ const copy=clone(source);
+ copy.id=uid("plan");copy.teamId=source.teamId;
+ copy.name=source.name+(runAgain?" (repeat)":" (copy)");
+ copy.date=runAgain?localDate():source.date;
+ copy.completedIds=[];copy.skippedIds=[];copy.equipmentChecked={};
+ copy.createdAt=new Date().toISOString();
+ remember();
+ state.plansByTeam[source.teamId].unshift(copy);setActivePlan(copy.id);
+ state.planDetailOpen=true;state.view="plans";persist();renderApp();
+ if(runAgain)startLive();else toast("Plan duplicated.");
+}
 function practicePlanObject(teamId){
  return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};
 }
@@ -393,6 +406,8 @@ function registerEvents(){
  $("floating-add").addEventListener("click",()=>openBank(null));
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
+ $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
+ $("run-again").addEventListener("click",()=>duplicateCurrentPlan(true));
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",()=>advanceLive("complete"));
  $("live-skip").addEventListener("click",()=>advanceLive("skip"));
@@ -429,6 +444,8 @@ function registerEvents(){
  document.addEventListener("pointerup",groupPointerUp);document.addEventListener("pointercancel",groupPointerUp);
  $("drill-group-board").addEventListener("change",e=>{const input=e.target.closest("[data-group-name]");if(input)renameGroup(input.dataset.groupName,input.value);});
  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
+ $("stats-from").addEventListener("change",renderApp);$("stats-to").addEventListener("change",renderApp);
+ $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
  document.querySelectorAll("dialog").forEach(dialog=>{
   const grabber=dialog.querySelector(".sheet-grabber");

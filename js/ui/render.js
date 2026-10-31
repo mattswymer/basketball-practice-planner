@@ -166,7 +166,9 @@ function renderTeams() {
 function renderStats() {
   const team=state.teams.find(t=>t.id===state.statsTeamId)||activeTeam();
   $("stats-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?"selected":""}>${esc(t.name)}</option>`).join("");
-  const plans=plansForTeam(team?.id),skills=new Map();let planned=0,completed=0;
+  const from=$("stats-from").value,to=$("stats-to").value;
+  const plans=plansForTeam(team?.id).filter(plan=>(!from||plan.date>=from)&&(!to||plan.date<=to));
+  const skills=new Map();let planned=0,completed=0;
   for(const plan of plans){
     planned+=totalPracticeMinutes(plan);
     for(const block of plan.blocks){
