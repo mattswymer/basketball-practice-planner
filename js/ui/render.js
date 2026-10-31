@@ -103,6 +103,7 @@ function renderPlanDetail() {
   $("plan-completed-count").textContent=done;
   $("plan-blocks").innerHTML=renderPlanBlocks(plan);
   const live=state.live.active&&state.live.planId===plan.id;
+  document.body.classList.toggle("live-active",live);
   $("live-bar").hidden=!live;$("live-start").hidden=live;
   if(live) {
     const index=plan.blocks.findIndex(b=>b.id===state.live.currentBlockId);
@@ -163,6 +164,7 @@ function renderTeams() {
     <button class="player-delete" data-delete-player="${esc(player.id)}" aria-label="Delete ${esc(player.name)}">×</button>
   </div>`).join("")||'<div class="empty-roster">No players yet.</div>';
 }
+function skillTime(minutes){return (Math.round(minutes*10)/10)+"m";}
 function renderStats() {
   const team=state.teams.find(t=>t.id===state.statsTeamId)||activeTeam();
   $("stats-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?"selected":""}>${esc(t.name)}</option>`).join("");
@@ -196,7 +198,7 @@ function renderStats() {
   $("stats-team-label").textContent=team?.name||"";
   const max=Math.max(1,...[...skills.values()].map(x=>x.planned));
   $("skill-stats").innerHTML=[...skills.entries()].sort((a,b)=>b[1].planned-a[1].planned).map(([skill,v])=>`<div class="skill-stat-row">
-    <div class="skill-stat-label"><span class="skill-dot" style="background:${skillColor(skill)}"></span><strong>${esc(skill)}</strong><span>${durationLabel(v.planned)} planned · ${durationLabel(v.completed)} done${v.skipped?" · "+durationLabel(v.skipped)+" skipped":""}</span></div>
+    <div class="skill-stat-label"><span class="skill-dot" style="background:${skillColor(skill)}"></span><strong>${esc(skill)}</strong><span>${skillTime(v.planned)} planned · ${skillTime(v.completed)} done${v.skipped?" · "+skillTime(v.skipped)+" skipped":""}</span></div>
     <div class="stat-track"><i style="width:${Math.max(1,Math.round(v.planned/max*100))}%;background:${skillColor(skill)}"></i><b style="width:${Math.max(0,Math.round(v.completed/max*100))}%"></b></div>
   </div>`).join("")||'<div class="empty-state">Add skills to drills to see skill stats.</div>';
   $("stats-history").innerHTML=plans.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(plan=>{
