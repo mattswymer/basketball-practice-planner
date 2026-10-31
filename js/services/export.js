@@ -1,4 +1,4 @@
-import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals } from "../core/store.js";
+import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals, clockLabel, blockMinutes } from "../core/store.js";
 function colorHex(hex) {
   const value=String(hex||"#52758a").replace("#","");
   return [0,2,4].map(i=>parseInt(value.slice(i,i+2),16)||80);
@@ -23,89 +23,166 @@ function collectEntries(plan) {
 }
 export function exportPracticePDF() {
   const plan=activePlan(),team=activeTeam();
-  if(!plan){return {ok:false,message:"Open a practice plan first."};}
+  if(!plan)return {ok:false,message:"Open a practice plan first."};
   const PDF=window.jspdf?.jsPDF;
-  if(!PDF) return {ok:false,message:"The PDF library did not load. Reopen the app while online once."};
-  let doc=new PDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
-  let width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
-  const margin=8,gap=5;
-  let colWidth=(width-margin*2-gap)/2,bodyTop=35,bodyBottom=height-9,available=bodyBottom-bodyTop,format="a4";
-  const entries=collectEntries(plan);
-  const rosterCount=Math.max(1,team?.players?.length||0);
-  const equipment=equipmentTotals(plan).map(x=>x.name+" × "+x.quantity).join("   ·   ");
-  function measure(scale) {
-    const cols=[[],[]],ys=[bodyTop,bodyTop];
-    const layouts=[];
-    for(const item of entries) {
-      const drill=item.drill,col=ys[0]<=ys[1]?0:1,x=margin+col*(colWidth+gap),pad=3*scale;
-      const title=(item.station?item.station+" / "+item.lane+" · ":item.lane?item.lane+" · ":"")+drill.name;
-      const titleSize=9*scale,bodySize=7.1*scale,smallSize=6.2*scale;
-      doc.setFont("helvetica","bold");doc.setFontSize(titleSize);
-      const titleLines=doc.splitTextToSize(title,colWidth-pad*2-21);
-      const titleH=titleLines.length*(titleSize*.42);
-      doc.setFont("helvetica","normal");doc.setFontSize(smallSize);
-      const gear=(drill.equipment||[]).map(x=>x.name+" × "+(x.quantity*(x.perPlayer?rosterCount:1))).join(", ");
-      const gearLines=gear?doc.splitTextToSize("Gear: "+gear,colWidth-pad*2):[];
-      const gearH=gearLines.length*(smallSize*.48);
-      doc.setFontSize(bodySize);
-      const steps=[];
-      (drill.steps||[]).forEach((s,i)=>{
-        const wrapped=doc.splitTextToSize((i+1)+". "+s,colWidth-pad*2-2);
-        steps.push({text:wrapped,number:i+1});
-      });
-      const stepsH=steps.reduce((n,x)=>n+x.text.length*(bodySize*.47)+.5*scale,0);
-      const h=pad+Math.max(6*scale,titleH+1*scale)+ (gearLines.length?gearH+1*scale:0)+stepsH+pad+1.5*scale;
-      const y=ys[col];ys[col]+=h;
-      layouts.push({x,y,w:colWidth,h,drill,title,titleLines,titleSize,bodySize,smallSize,gearLines,steps,col});
+  if(!PDF)return {ok:false,message:"The PDF library did not load. Reopen the app while online once."};
+
+  // Preserve the practice's sequence. Stations remain grouped by station and lane.
+  const items=[];
+  let elapsed=0,sequence=0;
+  for(const block of plan.blocks||[]){
+    const duration=blockMinutes(block),start=clockLabel(plan.start,elapsed),end=clockLabel(plan.start,elapsed+duration);
+    if(block.kind==="station"){
+      items.push({kind:"station",station:block.name||"Station",start,end,duration:duration,stationContext:block.name||"Station"});
+      for(const lane of block.lanes||[]){
+        items.push({kind:"lane",lane:lane.name||"Lane",stationContext:block.name||"Station"});
+        let laneElapsed=elapsed;
+        for(const drill of lane.drills||[]){
+          const drillStart=clockLabel(plan.start,laneElapsed);
+          laneElapsed+=Math.max(1,Number(drill.minutes)||1);
+          items.push({kind:"drill",number:++sequence,drill,start:drillStart,end:clockLabel(plan.start,laneElapsed),stationContext:block.name||"Station",laneContext:lane.name||"Lane"});
+        }
+      }
+    } else {
+      items.push({kind:"drill",number:++sequence,drill:block,start,end,stationContext:"",laneContext:""});
     }
-    return {layouts,ys,max:Math.max(...ys)-bodyTop};
+    elapsed+=duration;
   }
-  let scale=1,layout=measure(scale);
-  while(layout.max>available && scale>.12){scale*=.92;layout=measure(scale);}
-  if(layout.max>available || scale<.45) {
-    // A3 is still a single printable sheet, with more room for plans containing many detailed drills.
-    format="a3";
-    doc=new PDF({orientation:"landscape",unit:"mm",format:"a3",compress:true});
+
+  const rosterCount=Math.max(1,team?.players?.length||0);
+  const gearSummary=equipmentTotals(plan).map(item=>item.name+" × "+item.quantity).join("   ·   ");
+  const margin=8,gap=5,bodyTop=35,minFont=7.2,titleFont=10.2;
+  let format="a4";
+  function createDoc(fmt){return new PDF({orientation:"landscape",unit:"mm",format:fmt,compress:true});}
+  let doc=createDoc("a4");
+  let width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
+  let colWidth=(width-margin*2-gap)/2,bodyBottom=height-8,available=bodyBottom-bodyTop;
+
+  function layoutItem(item,w){
+    if(item.kind==="station")return {item,h:10};
+    if(item.kind==="lane")return {item,h:7};
+    const drill=item.drill;
+    doc.setFont("helvetica","bold");doc.setFontSize(7.1);
+    const meta="#"+String(item.number).padStart(2,"0")+"  "+item.start+"–"+item.end+"  ·  "+drill.minutes+" MIN  ·  "+((drill.tags||[]).join(" / ")||"NO SKILL").toUpperCase();
+    const metaLines=doc.splitTextToSize(meta,w-8);
+    doc.setFont("helvetica","bold");doc.setFontSize(titleFont);
+    const titleLines=doc.splitTextToSize(drill.name||"Untitled drill",w-8);
+    doc.setFont("helvetica","normal");doc.setFontSize(7.1);
+    const gear=(drill.equipment||[]).map(x=>x.name+" × "+(x.quantity*(x.perPlayer?rosterCount:1))).join(", ");
+    const gearLines=gear?doc.splitTextToSize("Gear: "+gear,w-8):[];
+    const steps=(drill.steps||[]).map((step,index)=>doc.splitTextToSize((index+1)+". "+step,w-9));
+    const metaH=metaLines.length*3.1,titleH=titleLines.length*4.1,gearH=gearLines.length*3.1;
+    const stepsH=steps.reduce((sum,lines)=>sum+lines.length*3.15+.5,0);
+    const h=2.8+metaH+1.1+titleH+(gearLines.length?gearH+1:0)+stepsH+2.8;
+    return {item,h,metaLines,titleLines,gearLines,steps};
+  }
+
+  function planPages(w,bodyEnd){
+    const colW=(width-margin*2-gap)/2,pages=[];
+    let page={columns:[[],[]],ys:[bodyTop,bodyTop]},col=0,y=bodyTop;
+    const maxH=bodyEnd-bodyTop;
+    function nextColumn(){
+      if(col===0){col=1;y=bodyTop;}
+      else{pages.push(page);page={columns:[[],[]],ys:[bodyTop,bodyTop]};col=0;y=bodyTop;}
+    }
+    function add(item,context=false){
+      const measured=layoutItem(item,colW);
+      if(measured.h>maxH)return false;
+      if(y+measured.h>bodyEnd)nextColumn();
+      const x=margin+col*(colW+gap);
+      page.columns[col].push({...measured,x,y,w:colW});
+      y+=measured.h+2.2;
+      page.ys[col]=y;
+      return true;
+    }
+    for(const item of items){
+      if(!add(item)){
+        // A single unusually long drill is retained at the minimum readable font and flagged.
+        const measured=layoutItem(item,colW);
+        nextColumn();
+        const x=margin+col*(colW+gap);
+        page.columns[col].push({...measured,x,y,w:colW,overflow:true});
+        y+=measured.h+2.2;page.ys[col]=y;
+      }
+    }
+    if(page.columns[0].length||page.columns[1].length)pages.push(page);
+    return pages.length?pages:[{columns:[[],[]],ys:[bodyTop,bodyTop]}];
+  }
+
+  // Prefer A3 before reducing legibility. Pages are added only when A3 is still dense.
+  let pages=planPages(colWidth,bodyBottom);
+  const a4Capacity=2*(bodyBottom-bodyTop);
+  const totalHeight=items.reduce((sum,item)=>sum+layoutItem(item,(297-margin*2-gap)/2).h+2.2,0);
+  if(totalHeight>a4Capacity*0.82){
+    format="a3";doc=createDoc("a3");
     width=doc.internal.pageSize.getWidth();height=doc.internal.pageSize.getHeight();
-    colWidth=(width-margin*2-gap)/2;bodyBottom=height-9;available=bodyBottom-bodyTop;
-    scale=1;layout=measure(scale);
-    while(layout.max>available && scale>.08){scale*=.92;layout=measure(scale);}
+    colWidth=(width-margin*2-gap)/2;bodyBottom=height-8;available=bodyBottom-bodyTop;
+    pages=planPages(colWidth,bodyBottom);
   }
-  const compact=scale<.55,overflow=layout.max>available;
-  doc.setFillColor(16,43,63);doc.roundedRect(0,0,width,31,0,0,"F");
-  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
-  doc.text(team?.name||"Basketball",margin,9.4);
-  doc.setFontSize(10);doc.setFont("helvetica","normal");
-  doc.text(plan.name||"Practice plan",margin,16);
-  doc.setFontSize(8);doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||""),margin,21);
-  doc.setFont("helvetica","bold");doc.setFontSize(9);
-  doc.text(durationLabel(totalPracticeMinutes(plan))+" court time  ·  "+entries.length+" drills",width-margin,11,{align:"right"});
-  doc.setFont("helvetica","normal");doc.setFontSize(6.5);
-  const gearSummary=equipment?"GEAR: "+equipment:"GEAR: —";
-  doc.text(doc.splitTextToSize(gearSummary,width-margin*2),margin,27);
-  if(layout.max>available) {
-    doc.setFontSize(6);doc.text("Condensed to one page",width-margin,19,{align:"right"});
+
+  function header(pageIndex){
+    doc.setFillColor(16,43,63);doc.rect(0,0,width,31,"F");
+    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(16);
+    doc.text(team?.name||"Basketball",margin,9.5);
+    doc.setFont("helvetica","normal");doc.setFontSize(10);
+    doc.text(plan.name||"Practice plan",margin,16.2);
+    doc.setFontSize(8);
+    doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||""),margin,21.1);
+    doc.setFont("helvetica","bold");doc.setFontSize(9);
+    doc.text(durationLabel(totalPracticeMinutes(plan))+" court time  ·  "+sequence+" drills",width-margin,10,{align:"right"});
+    doc.setFont("helvetica","normal");doc.setFontSize(6.8);
+    const gearLines=gearSummary?doc.splitTextToSize("EQUIPMENT: "+gearSummary,width-margin*2):["EQUIPMENT: —"];
+    doc.text(gearLines.slice(0,2),margin,27);
+    doc.setFontSize(7);doc.text("PAGE "+(pageIndex+1)+" / "+pages.length,width-margin,21,{align:"right"});
   }
-  layout.layouts.forEach(item=>{
-    const combinedColor=colorForTags(item.drill.tags),c=colorHex(combinedColor),bg=pale(combinedColor,.88);
-    doc.setFillColor(...bg);doc.roundedRect(item.x,item.y,item.w,item.h,2,2,"F");
-    doc.setFillColor(...c);doc.roundedRect(item.x,item.y,1.5,item.h,.6,.6,"F");
-    let y=item.y+2.8*scale;
-    doc.setTextColor(...c);doc.setFont("helvetica","bold");doc.setFontSize(6.1*scale);
-    doc.text(String((item.drill.tags||[]).join(" / ")||"NO SKILL").toUpperCase()+"  ·  "+item.drill.minutes+" MIN",item.x+4,y);y+=3.1*scale;
-    doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(item.titleSize);
-    doc.text(item.titleLines,item.x+4,y);y+=item.titleLines.length*(item.titleSize*.42)+.8*scale;
-    doc.setFont("helvetica","normal");doc.setFontSize(item.smallSize);doc.setTextColor(80,99,110);
-    if(item.gearLines.length){doc.text(item.gearLines,item.x+4,y);y+=item.gearLines.length*(item.smallSize*.48)+.8*scale;}
-    doc.setFont("helvetica","normal");doc.setFontSize(item.bodySize);doc.setTextColor(40,55,66);
-    item.steps.forEach(step=>{
-      doc.text(step.text,item.x+4,y);
-      y+=step.text.length*(item.bodySize*.47)+.5*scale;
+  function drawItem(layout){
+    const item=layout.item,x=layout.x,y=layout.y,w=layout.w;
+    if(item.kind==="station"){
+      doc.setFillColor(216,230,235);doc.roundedRect(x,y,w,layout.h,1.6,1.6,"F");
+      doc.setTextColor(26,66,84);doc.setFont("helvetica","bold");doc.setFontSize(8.5);
+      doc.text("STATION ROTATION  ·  "+String(item.station).toUpperCase(),x+3,y+4);
+      doc.setFont("helvetica","normal");doc.setFontSize(7);
+      doc.text(item.start+"–"+item.end+"  ·  "+item.duration+" MIN",x+3,y+7.6);
+      return;
+    }
+    if(item.kind==="lane"){
+      doc.setFillColor(239,243,245);doc.roundedRect(x,y,w,layout.h,1.2,1.2,"F");
+      doc.setTextColor(52,83,98);doc.setFont("helvetica","bold");doc.setFontSize(7.2);
+      doc.text(String(item.lane).toUpperCase(),x+3,y+4.7);
+      return;
+    }
+    const drill=item.drill,tags=[...new Set(drill.tags||[])],colors=tags.map(skillColor);
+    const first=colors[0]||"#52758a",rgb=first.replace("#","");
+    const color=[0,2,4].map(index=>parseInt(rgb.slice(index,index+2),16)||82);
+    doc.setFillColor(249,251,252);doc.roundedRect(x,y,w,layout.h,1.5,1.5,"F");
+    // One segment per skill; no averaged colors.
+    const stripeWidth=w/Math.max(1,colors.length);
+    (colors.length?colors:["#52758a"]).forEach((value,index)=>{
+      const rgbValue=value.replace("#","");
+      const rgbColor=[0,2,4].map(pos=>parseInt(rgbValue.slice(pos,pos+2),16)||82);
+      doc.setFillColor(...rgbColor);doc.rect(x+index*stripeWidth,y,stripeWidth+.08,1.8,"F");
     });
+    let yy=y+4.3;
+    doc.setTextColor(76,91,101);doc.setFont("helvetica","bold");doc.setFontSize(7.1);
+    doc.text(layout.metaLines,x+3,yy);yy+=layout.metaLines.length*3.1+1.1;
+    doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(titleFont);
+    doc.text(layout.titleLines,x+3,yy);yy+=layout.titleLines.length*4.1+1;
+    doc.setTextColor(80,99,110);doc.setFont("helvetica","normal");doc.setFontSize(7.1);
+    if(layout.gearLines.length){doc.text(layout.gearLines,x+3,yy);yy+=layout.gearLines.length*3.1+1;}
+    doc.setTextColor(40,55,66);
+    layout.steps.forEach(lines=>{
+      doc.text(lines,x+3,yy);yy+=lines.length*3.15+.5;
+    });
+  }
+
+  pages.forEach((page,index)=>{
+    if(index)doc.addPage(format,"landscape");
+    header(index);
+    page.columns.forEach(column=>column.forEach(drawItem));
   });
   const safeName=value=>String(value||"").normalize("NFKD").replace(/[^a-z0-9_-]+/gi,"_").replace(/^_+|_+$/g,"");
   doc.save((safeName(team?.name)||"Team")+"_"+(safeName(plan.date)||"No-Date")+".pdf");
-  return {ok:true,scale,compact,overflow,format};
+  return {ok:true,scale:1,compact:false,overflow:pages.some(page=>page.columns.some(column=>column.some(item=>item.overflow))),pages:pages.length,format};
 }
 export function exportBackup() {
   const data={app:"basketball-practice-planner",version:2,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:state.skills,skillColors:state.skillColors};
