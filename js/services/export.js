@@ -37,13 +37,11 @@ export function exportPracticePDF() {
     const minutes=Math.max(1,Math.round(Number(block.minutes)||1));
     const blockStart=clock(plan.start,elapsed);
     if(block.kind==="station"){
-      for(const [laneIndex,lane] of (block.lanes||[]).entries()){
-        entries.push({type:"station",name:block.name||"Station",lane:lane.name||"Lane "+(laneIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes:block.minutes||minutes});
-        let laneOffset=0;
-        for(const drill of lane.drills||[]){
-          const duration=Math.max(1,Math.round(Number(drill.minutes)||1));
-          entries.push({type:"drill",drill,number:++sequence,lane:lane.name||"Lane "+(laneIndex+1),station:block.name||"Station",start:clock(plan.start,elapsed+laneOffset),end:clock(plan.start,elapsed+laneOffset+duration)});
-          laneOffset+=duration;
+      for(const [stationIndex,station] of (block.lanes||[]).entries()){
+        entries.push({type:"station",name:block.name||"Station rotation",lane:station.name||"Station "+(stationIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes:block.minutes||minutes});
+        for(const [groupIndex,group] of (station.groups||[]).entries()){
+          let groupOffset=0;
+          for(const drill of group.drills||[]){const duration=Math.max(1,Math.round(Number(drill.minutes)||1));entries.push({type:"drill",drill,number:++sequence,lane:station.name||"Station "+(stationIndex+1),group:group.name||"Group "+(groupIndex+1),station:block.name||"Station rotation",start:clock(plan.start,elapsed+groupOffset),end:clock(plan.start,elapsed+groupOffset+duration)});groupOffset+=duration;}
         }
       }
     }else{
