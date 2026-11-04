@@ -79,10 +79,17 @@
             <div><p class="eyebrow">PRACTICE FLOW</p><h2>Schedule</h2></div>
             <div class="plan-actions"><button class="small-btn" id="fit-practice">Adjust practice to length</button><button class="small-btn" id="add-station">+ Station</button></div>
           </div>
-          <div id="plan-blocks" class="plan-blocks" data-drop-root>
-            <div class="empty-state">Your plan is empty. Add a drill to get started.</div>
+          <div class="practice-workspace">
+            <div class="practice-schedule">
+              <div id="plan-blocks" class="plan-blocks" data-drop-root><div class="empty-state">Your plan is empty. Add a drill to get started.</div></div>
+              <button class="add-drill-wide" id="add-drill-to-plan"><span>+</span> Add drill</button>
+            </div>
+            <aside id="practice-bank-panel" class="practice-bank-panel">
+              <div class="practice-bank-head"><div><p class="eyebrow">DRILL BANK</p><h3>Add from library</h3></div><span>Drag into schedule</span></div>
+              <input id="practice-bank-search" type="search" placeholder="Find a drill" aria-label="Search drill bank">
+              <div id="practice-bank-list" class="practice-bank-list"></div>
+            </aside>
           </div>
-          <button class="add-drill-wide" id="add-drill-to-plan"><span>+</span> Add drill</button>
         </section>
       </section>
 
