@@ -20,12 +20,9 @@
   <div class="app-shell">
     <header class="app-header">
       <button class="brand-mark" id="brand-home" aria-label="Basketball Practice Planner">
-        <span class="brand-ball" aria-hidden="true">B</span><span>Practice</span>
+        <span aria-hidden="true">🏀</span><span>Practice Planner</span>
       </button>
       <div class="header-actions" id="header-actions">
-        <button class="icon-btn" id="header-pdf" aria-label="Download practice PDF" title="PDF" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M9 13h7M9 17h7"/></svg>
-        </button>
         <button class="icon-btn" id="header-menu" aria-label="Backup and restore" title="Backup">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
         </button>
@@ -71,21 +68,21 @@
           <div class="plan-overview">
             <div><strong id="plan-drill-count">0</strong><span>DRILLS</span></div>
             <div><strong id="plan-total-time">0m</strong><span>COURT TIME</span></div>
-            <div><strong id="plan-completed-count">0</strong><span>DONE</span></div>
+            
             <button class="live-start-btn" id="live-start">Start practice <span aria-hidden="true">→</span></button>
           </div>
           <div id="live-bar" class="live-bar" hidden>
             <div><span class="live-dot"></span><strong>LIVE</strong><span id="live-position">1 / 1</span></div>
             <div class="live-actions">
               <button class="small-btn" id="live-previous" aria-label="Previous drill">←</button>
-              <button class="small-btn live-skip" id="live-skip">Skip</button>
-              <button class="small-btn live-next" id="live-next">Done · Next</button>
+              
+              <button class="small-btn live-next" id="live-next">Next</button>
               <button class="small-btn" id="live-exit">End</button>
             </div>
           </div>
           <div class="schedule-heading">
             <div><p class="eyebrow">PRACTICE FLOW</p><h2>Schedule</h2></div>
-            <div class="plan-actions"><button class="small-btn" id="fit-practice">Fit time</button><button class="small-btn" id="add-station">+ Station</button><button class="small-btn" id="run-again">Run again</button></div>
+            <div class="plan-actions"><button class="small-btn" id="fit-practice">Adjust practice to length</button><button class="small-btn" id="add-station">+ Station</button></div>
           </div>
           <div id="plan-blocks" class="plan-blocks" data-drop-root>
             <div class="empty-state">Your plan is empty. Add a drill to get started.</div>
@@ -220,7 +217,7 @@
   <dialog id="equipment-sheet" class="sheet">
     <div class="sheet-grabber"></div>
     <div class="sheet-head"><div><p class="eyebrow">BEFORE PRACTICE</p><h2>Equipment</h2></div><button class="close-sheet" data-close="equipment-sheet" aria-label="Close">×</button></div>
-    <p class="sheet-subtitle">Check off what’s ready. Counts show the maximum needed at once.</p>
+    <p class="sheet-subtitle">Counts show the maximum needed at once.</p>
     <div id="equipment-checklist" class="equipment-checklist"></div>
     <div class="sheet-actions"><span></span><button type="button" class="primary-btn" id="equipment-done">Done</button></div>
   </dialog>
