@@ -4,7 +4,7 @@ export function ensureStationFits(plan=activePlan()){
   if(!plan)return;
   for(const block of plan.blocks||[])if(block.kind==="station"){
     const longest=Math.max(1,...(block.lanes||[]).flatMap(station=>(station.groups||[]).map(group=>group.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0))));
-    if(longest>block.minutes)block.minutes=longest;
+    if(longest>block.minutes)fitStationLanes(block,longest);
   }
 }
 export function fitPractice(plan=activePlan()){
