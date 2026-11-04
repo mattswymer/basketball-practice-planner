@@ -14,7 +14,7 @@ import {skills} from "./features/skills.js";
 const $=id=>document.getElementById(id);
 const show=id=>{const dialog=$(id);if(dialog&&!dialog.open)dialog.showModal();};
 const close=id=>{const dialog=$(id);if(dialog?.open)dialog.close();};
-let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null,pendingLiveStart=false,skillDropdownBackdropDismiss=false;
+let editing=null,pendingStationId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null,pendingLiveStart=false,skillDropdownBackdropDismiss=false;
 function toast(message,undoable=false){
  $("toast-message").textContent=message;$("toast-undo").hidden=!undoable;$("toast").classList.add("show");
  clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),undoable?12000:4200);
@@ -28,37 +28,9 @@ function createPlan(){
  state.planDetailOpen=true;state.view="plans";persist();renderApp();
  $("plan-name").focus();$("plan-name").select();
 }
-function duplicateCurrentPlan(runAgain=false){
- const source=activePlan();if(!source)return toast("Open a plan first.");
- const copy=clone(source);
- copy.id=uid("plan");copy.teamId=source.teamId;
- copy.name=source.name+(runAgain?" (repeat)":" (copy)");
- copy.date=runAgain?localDate():source.date;
- copy.equipmentChecked={};
- copy.createdAt=new Date().toISOString();
- remember();
- state.plansByTeam[source.teamId].unshift(copy);setActivePlan(copy.id);
- state.planDetailOpen=true;state.view="plans";persist();renderApp();
- if(runAgain)startLive();else toast("Plan duplicated.");
-}
-
-function duplicatePlan(runAgain=false){
- const source=activePlan();if(!source)return;
- const list=state.plansByTeam[source.teamId]||[];
- remember();const copy=clone(source);copy.id=uid("plan");
- copy.name=source.name+(runAgain?" (run again)":" (copy)");
- if(runAgain)copy.date=localDate();
- copy.equipmentChecked={};copy.createdAt=new Date().toISOString();
- const resetDrill=drill=>{drill.id=uid("drill");for(const group of drill.grouping?.groups||[])group.id=uid("group");};
- for(const block of copy.blocks){
-  block.id=uid(block.kind==="station"?"station":"drill");
-  if(block.kind==="station")for(const station of block.lanes){station.id=uid("station");for(const group of station.groups||[]){group.id=uid("group");group.drills.forEach(resetDrill);}}
-  else resetDrill(block);
- }
- list.unshift(copy);state.plansByTeam[source.teamId]=list;setActivePlan(copy.id);
- state.planDetailOpen=true;state.view="plans";persist();renderApp();
- toast(runAgain?"Practice copied for a new run.":"Plan duplicated.");
-}
+let pendingExitView=null;
+function openDuplicate(){const source=activePlan();if(!source)return;const select=$("duplicate-team-select");select.innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===source.teamId?"selected":""}>${esc(t.name)}</option>`).join("");show("duplicate-sheet");}
+function duplicatePractice(targetTeamId){const source=activePlan();if(!source||!targetTeamId)return;const copy=clone(source),sameTeam=targetTeamId===source.teamId;copy.id=uid("plan");copy.teamId=targetTeamId;copy.name="Copy of "+source.name;copy.createdAt=new Date().toISOString();copy.equipmentChecked={};for(const block of copy.blocks){block.id=uid(block.kind==="station"?"rotation":"drill");if(block.kind==="station"){for(const station of block.stations||[]){station.id=uid("station");for(const drill of station.drills||[]){drill.id=uid("drill");for(const group of drill.grouping?.groups||[]){group.id=uid("group");if(!sameTeam)group.playerIds=[];}}}}else{block.id=uid("drill");for(const group of block.grouping?.groups||[]){group.id=uid("group");if(!sameTeam)group.playerIds=[];}}}remember();state.plansByTeam[targetTeamId]||=[];state.plansByTeam[targetTeamId].unshift(copy);setActiveTeam(targetTeamId);setActivePlan(copy.id);state.planDetailOpen=true;state.view="plans";close("duplicate-sheet");persist();renderApp();toast("Practice duplicated to "+(state.teams.find(t=>t.id===targetTeamId)?.name||"team")+".");}
 function practicePlanObject(teamId){
  return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],equipmentChecked:{},createdAt:new Date().toISOString()};
 }
@@ -67,17 +39,17 @@ function deletePlan(id){
  remember();const [removed]=list.splice(index,1);
  if(!list.length)list.push(practicePlanObject(state.activeTeamId));
  if(state.activePlanId===id){setActivePlan(list[Math.min(index,list.length-1)].id);state.planDetailOpen=false;}
- if(state.live.planId===id)endLive(false);
+ if(state.live.planId===id)endLiveSession(false);
  persist();renderApp();toast(removed.name+" deleted.",true);
 }
 function switchTeam(id){
- if(state.live.active)endLive(false);
+ if(state.live.active){practice.stopLive();releaseWakeLock();}
  setActiveTeam(id);state.selectedTeamId=id;state.statsTeamId=id;state.planDetailOpen=false;renderApp();
 }
-function changeView(view){state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
-function openBank(laneId=null){
+function changeView(view){if(state.live.active&&view!=="plans"){pendingExitView=view;show("exit-live-sheet");return;}state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
+function openBank(stationId=null){
  if(!activePlan())return toast("Create a practice plan first.");
- pendingLaneId=laneId;$("bank-search").value="";$("bank-tag-options").querySelectorAll("input").forEach(x=>x.checked=false);$("bank-sort").value="name";renderBankPicker();show("bank-sheet");
+ pendingStationId=stationId;$("bank-search").value="";$("bank-tag-options").querySelectorAll("input").forEach(x=>x.checked=false);$("bank-sort").value="name";renderBankPicker();show("bank-sheet");
 }
 function openDrillEditor(type,id=null){
  const plan=activePlan();
@@ -90,7 +62,7 @@ function openDrillEditor(type,id=null){
  $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;$("edit-notes").value=item.notes||"";
  renderEditorTags(item.tags||[]);renderEditorEquipment(clone(item.equipment||[]));renderEditorSteps(clone(item.steps||[]));
  $("delete-drill").hidden=type==="new"||type==="new-from-bank";$("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
- $("update-bank-row").hidden=type!=="plan"||!item.bankId||!getBankDrill(item.bankId);$("update-drill-bank").checked=false;
+ $("save-bank-row").hidden=type!=="plan";$("save-to-bank").textContent=item.bankId&&getBankDrill(item.bankId)?"Update Drill Bank Entry":"Save to Drill Bank";$("save-bank-note").textContent=item.bankId?"This scheduled drill is linked to a bank entry.":"This scheduled drill is not linked to a bank entry.";
  show("drill-sheet");
 }
 function editorEquipment(includeBlank=false){
@@ -106,17 +78,19 @@ function editorSteps(includeBlank=false){
  const result=[...$("edit-steps").querySelectorAll("[data-step-index]")].map(el=>el.value.trim());
  return includeBlank?result:result.filter(Boolean);
 }
+function editorData(){return {name:$("edit-name").value.trim(),minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps(),notes:$("edit-notes").value.trim()};}
 function saveDrill(event){
- event.preventDefault();if(!editing)return;
- const name=$("edit-name").value.trim();if(!name){$("edit-name").focus();return;}
- const data={name,minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),
-  tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps(),notes:$("edit-notes").value.trim()};
- const updateBank=editing.type==="plan"&&$("update-drill-bank")?.checked&&!!editing.bankId;
- remember();
- if(editing.type==="new"||editing.type==="new-from-bank"){const item={...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(item);if(editing.type==="new-from-bank")practice.addScheduledDrill(copyDrill(item),activePlan(),pendingLaneId);}
+ event.preventDefault();if(!editing)return;const data=editorData();if(!data.name){$("edit-name").focus();return;}remember();
+ if(editing.type==="new"||editing.type==="new-from-bank"){const item={...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(item);if(editing.type==="new-from-bank")practice.addScheduledDrill(copyDrill(item),activePlan(),pendingStationId);}
  else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
- else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);if(updateBank&&item.bankId){const bank=getBankDrill(item.bankId);if(bank)Object.assign(bank,data);}practice.ensureStationFits(activePlan());}}
- persist();close("drill-sheet");editing=null;renderApp();toast(updateBank?"Drill and bank updated.":"Drill saved.");
+ else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);practice.ensureStationFits(activePlan());}}
+ persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
+}
+function saveToBank(){
+ if(!editing||editing.type!=="plan")return;const data=editorData();if(!data.name){$("edit-name").focus();return;}const scheduled=findPlanDrill(activePlan(),editing.id);if(!scheduled)return;
+ if(scheduled.bankId&&getBankDrill(scheduled.bankId)){if(!window.confirm("Replace the existing drill bank entry with these edits?"))return;remember();Object.assign(getBankDrill(scheduled.bankId),data);toast("Drill bank entry updated.");}
+ else{remember();const bank={...data,id:uid("drill"),kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(bank);scheduled.bankId=bank.id;toast("Drill saved to bank.");}
+ persist();$("save-to-bank").textContent="Update Drill Bank Entry";$("save-bank-note").textContent="This scheduled drill is linked to a bank entry.";renderApp();
 }
 function deleteEditorDrill(){
  if(!editing)return;
@@ -128,20 +102,15 @@ function deleteEditorDrill(){
  }
 }
 function removePlanDrill(id){
- const found=locatePlanDrill(activePlan(),id);if(!found)return;
- practice.removeScheduledDrill(id);
- const plan=activePlan();
- if(found.laneId){
-  const station=plan.blocks.find(block=>block.kind==="station"&&block.lanes.some(l=>l.id===found.laneId));
-  if(station&&station.lanes.every(item=>(item.groups||[]).every(group=>!group.drills.length)))plan.blocks=plan.blocks.filter(block=>block.id!==station.id);
- }
- if(state.live.active&&!flattenDrills(plan).some(drill=>drill.id===state.live.currentBlockId)){const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else practice.stopLive();}
+ const found=locatePlanDrill(activePlan(),id);if(!found)return;practice.removeScheduledDrill(id);const plan=activePlan();
+ if(found.stationId){const rotation=plan.blocks.find(b=>b.kind==="station"&&b.stations.some(s=>s.id===found.stationId));if(rotation&&rotation.stations.every(s=>!s.drills.length))plan.blocks=plan.blocks.filter(b=>b.id!==rotation.id);}
+ if(state.live.active&&!flattenDrills(plan).some(d=>d.id===state.live.currentBlockId)){const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else endLiveSession(false);}
  persist();renderApp();toast("Drill removed.",true);
 }
 function addBankDrill(id){
  const bank=getBankDrill(id);if(!bank)return;
- practice.addScheduledDrill(copyDrill(bank),activePlan(),pendingLaneId);
- pendingLaneId=null;close("bank-sheet");renderApp();toast("Added "+bank.name+".");
+ practice.addScheduledDrill(copyDrill(bank),activePlan(),pendingStationId);
+ pendingStationId=null;close("bank-sheet");renderApp();toast("Added "+bank.name+".");
 }
 function openStation(id=null){
  const plan=activePlan();if(!plan)return toast("Create a practice plan first.");
@@ -150,22 +119,10 @@ function openStation(id=null){
  stationDraft=existing?clone(existing):practice.createStation();
  $("delete-station").hidden=!existing;renderStationEditor(stationDraft);show("station-sheet");
 }
-function captureLaneNames(){
- if(!stationDraft)return;
- stationDraft.lanes.forEach(station=>{const el=$("station-lanes-editor").querySelector('[data-lane-name="'+station.id+'"]');if(el)station.name=el.value.trim()||station.name;for(const group of station.groups||[]){const input=$("station-lanes-editor").querySelector('[data-group-name="'+group.id+'"]');if(input)group.name=input.value.trim()||group.name;}});
-}
-function addLane(){
- if(!stationDraft)return;captureLaneNames();
- stationDraft.lanes.push({id:uid("station"),name:"Station "+(stationDraft.lanes.length+1),groups:[{id:uid("group"),name:"Group 1",drills:[]}]});renderStationEditor(stationDraft);
-}
-function removeLane(id){
- if(!stationDraft||stationDraft.lanes.length<=1)return toast("A station rotation needs at least one station.");
- captureLaneNames();const station=stationDraft.lanes.find(x=>x.id===id);
- if(station?.groups?.some(group=>group.drills.length))return toast("Move the drills out of this station first.");
- stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
-}
-function addStationGroup(stationId){captureLaneNames();const station=stationDraft?.lanes.find(item=>item.id===stationId);if(!station)return;station.groups.push({id:uid("group"),name:"Group "+(station.groups.length+1),drills:[]});renderStationEditor(stationDraft);}
-function removeStationGroup(groupId){captureLaneNames();for(const station of stationDraft?.lanes||[]){const group=station.groups.find(item=>item.id===groupId);if(!group)continue;if(station.groups.length<=1)return toast("Each station needs at least one group.");if(group.drills.length)return toast("Move the drills out of this group first.");station.groups=station.groups.filter(item=>item.id!==groupId);renderStationEditor(stationDraft);return;}}
+function captureLaneNames(){if(!stationDraft)return;stationDraft.stations.forEach(station=>{const el=$("station-lanes-editor").querySelector('[data-station-name="'+station.id+'"]');if(el)station.name=el.value.trim()||station.name;});}
+function addLane(){if(!stationDraft)return;captureLaneNames();stationDraft.stations.push({id:uid("station"),name:"Station "+(stationDraft.stations.length+1),drills:[]});renderStationEditor(stationDraft);}
+function removeLane(id){if(!stationDraft||stationDraft.stations.length<=1)return toast("A rotation needs at least one station.");captureLaneNames();const station=stationDraft.stations.find(s=>s.id===id);if(station?.drills.length)return toast("Move the drills out of this station first.");stationDraft.stations=stationDraft.stations.filter(s=>s.id!==id);renderStationEditor(stationDraft);}
+function removeStationFromPlan(rotationId,stationId){const rotation=activePlan()?.blocks.find(b=>b.id===rotationId&&b.kind==="station");if(!rotation||rotation.stations.length<=1)return toast("A rotation needs at least one station.");const station=rotation.stations.find(s=>s.id===stationId);if(station?.drills.length)return toast("Move the drills out of this station first.");remember();rotation.stations=rotation.stations.filter(s=>s.id!==stationId);persist();renderApp();toast("Station removed.");}
 function saveStation(event){
  event.preventDefault();if(!stationDraft)return;
  captureLaneNames();stationDraft.name=$("station-name").value.trim()||"Station rotation";
@@ -182,8 +139,8 @@ function deleteStation(){
  practice.removeScheduledBlock(id);renderApp();toast("Station removed.",true);
 }
 function removeBlock(id){practice.removeScheduledBlock(id);renderApp();toast("Removed from practice.",true);}
-function moveDrill(id,laneId,beforeId){if(practice.moveScheduledDrill(id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
-function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.laneId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
+function moveDrill(id,stationId,beforeId){if(practice.moveScheduledDrill(id,stationId,beforeId)){renderApp();toast("Drill moved.");}}
+function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.stationId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
 function fitCurrentPlan(){
  const result=practice.fitPractice();
  if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"The practice window is too short. Reduce the number of drills or extend the end time.");
@@ -205,7 +162,7 @@ function requestWakeLock(){
  navigator.wakeLock.request("screen").then(lock=>{wakeLock=lock;lock.addEventListener("release",()=>wakeLock=null);}).catch(()=>{});
 }
 async function releaseWakeLock(){try{await wakeLock?.release();}catch{}wakeLock=null;}
-function endLive(showToast=true){practice.stopLive();releaseWakeLock();renderApp();if(showToast)toast("Practice ended.");}
+function endLiveSession(showToast=true){practice.stopLive();releaseWakeLock();renderApp();if(showToast)toast("Practice ended.");}
 function advanceLive(){
  const outcome=practice.advanceLive();
  if(!outcome.ok)return;
@@ -319,7 +276,7 @@ function checkEquipment(key,value){
  plan.equipmentChecked[key]=value;persist();
  document.querySelector('[data-equipment-checked="'+CSS.escape(key)+'"]')?.closest(".equipment-check-row")?.classList.toggle("is-checked",value);
 }
-function updatePlan(field,value){const plan=activePlan();if(!plan)return;plan[field]=value;persist();renderOnePlan();}
+function updatePlan(field,value){const plan=activePlan();if(!plan||plan[field]===value)return;remember();plan[field]=value;persist();renderOnePlan();}
 function backupRestore(event){
  const file=event.target.files?.[0];if(!file)return;
  if(!window.confirm("Restore this backup? It will replace all teams, plans, drills, and skill settings currently stored on this device.")){event.target.value="";return;}
@@ -337,12 +294,12 @@ function handleClick(event){
  const editPlan=target.closest("[data-edit-plan-drill]");if(editPlan){openDrillEditor("plan",editPlan.dataset.editPlanDrill);return;}
  const editBank=target.closest("[data-edit-bank-drill]");if(editBank){openDrillEditor("bank",editBank.dataset.editBankDrill);return;}
  const addBank=target.closest("[data-add-bank-drill]");if(addBank){addBankDrill(addBank.dataset.addBankDrill);return;}
- const addLaneDrill=target.closest("[data-add-to-group]");if(addLaneDrill){openBank(addLaneDrill.dataset.addToGroup);return;}
+ const addStationDrill=target.closest("[data-add-to-station]");if(addStationDrill){openBank(addStationDrill.dataset.addToStation);return;}
  const editStation=target.closest("[data-edit-station]");if(editStation){openStation(editStation.dataset.editStation);return;}
  const addLaneInline=target.closest("[data-add-lane-inline]");if(addLaneInline){openStation(addLaneInline.dataset.addLaneInline);return;}
  const deleteLane=target.closest("[data-remove-lane]");if(deleteLane){removeLane(deleteLane.dataset.removeLane);return;}
- const addStationGroupButton=target.closest("[data-add-station-group]");if(addStationGroupButton){addStationGroup(addStationGroupButton.dataset.addStationGroup);return;}
- const removeStationGroupButton=target.closest("[data-remove-station-group]");if(removeStationGroupButton){removeStationGroup(removeStationGroupButton.dataset.removeStationGroup);return;}
+ const deleteStation=target.closest("[data-remove-station]");if(deleteStation){removeStationFromPlan(deleteStation.dataset.removeStation,deleteStation.dataset.stationId);return;}
+
  const removeDrill=target.closest("[data-remove-drill]");if(removeDrill){removePlanDrill(removeDrill.dataset.removeDrill);return;}
  const moveToRoot=target.closest("[data-move-to-plan]");if(moveToRoot){moveToMainPlan(moveToRoot.dataset.moveToPlan);return;}
  const deleteBlock=target.closest("[data-delete-block]");if(deleteBlock){removeBlock(deleteBlock.dataset.deleteBlock);return;}
@@ -355,15 +312,8 @@ function handleClick(event){
 }
 function beginPlanDrag(event){
  const handle=event.target.closest("[data-drag-kind]");if(!handle)return;
- drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
- drag.timer=setTimeout(()=>{
-  if(!drag)return;
-  drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);
-  const source=handle.closest("[data-drill-card],[data-block-id]")||handle;
-  const rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);
-  ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";
-  document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;
- },230);
+ drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,rotationId:handle.dataset.rotationId||null,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
+ drag.timer=setTimeout(()=>{if(!drag)return;drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);const source=handle.closest("[data-drill-card],[data-block-id],[data-station-id],[data-library-card]")||handle,rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;},event.pointerType==="mouse"?110:230);
 }
 function movePlanDrag(event){
  if(!drag)return;
@@ -375,35 +325,28 @@ function movePlanDrag(event){
  if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
  document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
  const target=document.elementFromPoint(event.clientX,event.clientY);
- const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-group]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
+ const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-station]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
  drag.target=dest||null;
- const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]");
- if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");
- else if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");
- else dest?.classList.add("drop-target");
+ const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]"),station=dest?.closest("[data-drop-station]");
+ if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");else if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");else if(drag.kind==="station"&&station&&station.dataset.dropStation!==drag.id)station.classList.add("drop-before");else dest?.classList.add("drop-target");
 }
 function endPlanDrag(){
- if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");
- item.ghost?.remove();
- document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));
- if(!item.active||!item.target)return;
- const target=item.target;
- if(item.kind==="block"){
-  const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){remember();practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;
- }
- const card=target.closest("[data-drill-card]"),group=target.closest("[data-drop-group]");
- const groupId=group?.dataset.dropGroup||card?.dataset.parentGroup||null;
- const beforeId=card?.dataset.drillCard||null;
- if(item.id!==beforeId){if(practice.moveScheduledDrill(item.id,groupId,beforeId)){renderApp();toast("Drill moved.");}}
+ if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");item.ghost?.remove();document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));if(!item.active||!item.target)return;const target=item.target;
+ if(item.kind==="bank-drill"){const station=target.closest("[data-drop-station]"),bank=getBankDrill(item.id);if(bank){practice.addScheduledDrill(copyDrill(bank),activePlan(),station?.dataset.dropStation||null);renderApp();toast("Added "+bank.name+".");}return;}
+ if(item.kind==="block"){const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;}
+ if(item.kind==="station"){const station=target.closest("[data-drop-station]");if(station&&station.dataset.dropStation!==item.id){practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);renderApp();}return;}
+ const card=target.closest("[data-drill-card]"),station=target.closest("[data-drop-station]"),stationId=station?.dataset.dropStation||card?.dataset.parentStation||null,beforeId=card?.dataset.drillCard||null;
+ if(item.id!==beforeId&&practice.moveScheduledDrill(item.id,stationId,beforeId)){renderApp();toast("Drill moved.");}
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
- document.addEventListener("pointerdown",event=>{const dialog=$("drill-sheet"),dropdown=dialog.querySelector(".skill-picker-dropdown");skillDropdownBackdropDismiss=false;if(dropdown?.open&&!dropdown.contains(event.target)){dropdown.open=false;if(event.target===dialog)skillDropdownBackdropDismiss=true;}});
+ document.addEventListener("click",event=>{document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>{if(!dropdown.contains(event.target))dropdown.open=false;});});
+ document.addEventListener("keydown",event=>{if(event.key==="Escape")document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>dropdown.open=false);});
  $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
  $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
- $("back-to-plans").addEventListener("click",()=>{state.planDetailOpen=false;if(state.live.active)endLive(false);renderApp();});
+ $("back-to-plans").addEventListener("click",()=>{if(state.live.active){show("exit-live-sheet");pendingExitView="plans-list";return;}state.planDetailOpen=false;renderApp();});
  $("plan-name").addEventListener("change",e=>updatePlan("name",e.target.value.trim()||"Practice plan"));
  $("plan-date").addEventListener("change",e=>updatePlan("date",e.target.value));
  $("plan-start").addEventListener("change",e=>updatePlan("start",e.target.value));
@@ -412,7 +355,12 @@ function registerEvents(){
  $("floating-add").addEventListener("click",()=>openBank(null));
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
- $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
+ $("duplicate-plan").addEventListener("click",openDuplicate);
+ $("confirm-duplicate").addEventListener("click",()=>duplicatePractice($("duplicate-team-select").value));
+ $("save-to-bank").addEventListener("click",saveToBank);
+ $("live-exit").addEventListener("click",()=>show("exit-live-sheet"));
+ $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;endLiveSession();if(next){state.view=next;renderApp();}});
+ $("exit-live-sheet").addEventListener("close",()=>{pendingExitView=null;});
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",advanceLive);
  $("live-previous").addEventListener("click",previousLive);
@@ -444,7 +392,7 @@ function registerEvents(){
  $("edit-steps").addEventListener("dragend",()=>{stepDrag=null;});
  $("add-lane").addEventListener("click",addLane);$("station-form").addEventListener("submit",saveStation);$("delete-station").addEventListener("click",deleteStation);
 
- $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
+ $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);$("drill-library").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
  $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
