@@ -14,7 +14,7 @@ import {skills} from "./features/skills.js";
 const $=id=>document.getElementById(id);
 const show=id=>{const dialog=$(id);if(dialog&&!dialog.open)dialog.showModal();};
 const close=id=>{const dialog=$(id);if(dialog?.open)dialog.close();};
-let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null,pendingLiveStart=false;
+let editing=null,pendingLaneId=null,stationDraft=null,stationEditingId=null,drag=null,groupDrag=null,toastTimer=null,wakeLock=null,pendingLiveStart=false,skillDropdownBackdropDismiss=false;
 function toast(message,undoable=false){
  $("toast-message").textContent=message;$("toast-undo").hidden=!undoable;$("toast").classList.add("show");
  clearTimeout(toastTimer);toastTimer=setTimeout(()=>$("toast").classList.remove("show"),undoable?12000:4200);
@@ -398,7 +398,7 @@ function endPlanDrag(){
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
- document.addEventListener("pointerdown",event=>{const dropdown=$("drill-sheet").querySelector(".skill-picker-dropdown");if(dropdown?.open&&!dropdown.contains(event.target))dropdown.open=false;});
+ document.addEventListener("pointerdown",event=>{const dialog=$("drill-sheet"),dropdown=dialog.querySelector(".skill-picker-dropdown");skillDropdownBackdropDismiss=false;if(dropdown?.open&&!dropdown.contains(event.target)){dropdown.open=false;if(event.target===dialog)skillDropdownBackdropDismiss=true;}});
  $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
@@ -460,7 +460,7 @@ function registerEvents(){
  $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
  document.querySelectorAll("dialog").forEach(dialog=>{
-  dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});
+  dialog.addEventListener("click",event=>{if(event.target===dialog){if(dialog.id==="drill-sheet"&&skillDropdownBackdropDismiss){skillDropdownBackdropDismiss=false;return;}dialog.close();}});
   const grabber=dialog.querySelector(".sheet-grabber");
   if(grabber){
    let startY=null;
