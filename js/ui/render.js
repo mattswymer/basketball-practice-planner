@@ -101,7 +101,7 @@ function renderPlanDetail() {
   const drills=flattenDrills(plan),done=drills.filter(d=>plan.completedIds.includes(d.id)).length;
   $("plan-drill-count").textContent=drills.length;
   $("plan-total-time").textContent=durationLabel(totalPracticeMinutes(plan));
-  $("plan-completed-count").textContent=done;
+  
   $("plan-blocks").innerHTML=renderPlanBlocks(plan);
   const live=state.live.active&&state.live.planId===plan.id;
   document.body.classList.toggle("live-active",live);
@@ -113,7 +113,7 @@ function renderPlanDetail() {
     $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Done";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
-  $("fit-practice").textContent=planned===windowM?"Fitted":"Fit time";
+  $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned<=windowM;
   const warning=$("practice-time-warning");warning.hidden=over<=0;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:"";
 }
 function practiceWindow(plan) {
@@ -127,8 +127,8 @@ function renderPlanView() {
 }
 function drillCardForBank(drill,pick=false) {
   return `<article class="library-card" style="${skillStyle(drill.tags)}">
-    <button class="library-main" data-edit-bank-drill="${esc(drill.id)}"><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>
-    ${pick?`<button class="add-circle bank-add" data-add-bank-drill="${esc(drill.id)}" aria-label="Add ${esc(drill.name)}">+</button>`:`<button class="mini-icon" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit drill">···</button>`}
+    <button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}"`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>
+    ${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:`<button class="mini-icon" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit drill">✎</button>`}
   </article>`;
 }
 function filteredBank(searchId,filterId,sortId) {
