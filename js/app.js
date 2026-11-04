@@ -345,11 +345,11 @@ function registerEvents(){
  document.addEventListener("pointerdown",event=>{const dialog=$("drill-sheet"),dropdown=dialog.querySelector(".skill-picker-dropdown");skillDropdownBackdropDismiss=false;if(dropdown?.open&&!dropdown.contains(event.target)){dropdown.open=false;if(event.target===dialog)skillDropdownBackdropDismiss=true;}});
  document.addEventListener("click",event=>{document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>{if(!dropdown.contains(event.target))dropdown.open=false;});});
  document.addEventListener("keydown",event=>{if(event.key==="Escape"){const open=[...document.querySelectorAll("details.tag-filter[open]")];if(open.length){open.forEach(dropdown=>dropdown.open=false);event.preventDefault();event.stopPropagation();}}});
- $("brand-home").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.view="plans";state.planDetailOpen=false;renderApp();});
+ $("brand-home").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";pendingExitTeamId=null;show("exit-live-sheet");return;}state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
  $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
- $("back-to-plans").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.planDetailOpen=false;renderApp();});
+ $("back-to-plans").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";pendingExitTeamId=null;show("exit-live-sheet");return;}state.planDetailOpen=false;renderApp();});
  $("plan-name").addEventListener("change",e=>updatePlan("name",e.target.value.trim()||"Practice plan"));
  $("plan-date").addEventListener("change",e=>updatePlan("date",e.target.value));
  $("plan-start").addEventListener("change",e=>updatePlan("start",e.target.value));
