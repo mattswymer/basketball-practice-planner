@@ -357,7 +357,7 @@ function beginPlanDrag(event){
   drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);
   const source=handle.closest("[data-drill-card],[data-block-id]")||handle;
   const rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);
-  ghost.classList.add("drag-ghost");ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";
+  ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";
   document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;
  },230);
 }
