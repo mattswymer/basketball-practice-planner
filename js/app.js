@@ -111,11 +111,12 @@ function saveDrill(event){
  const name=$("edit-name").value.trim();if(!name){$("edit-name").focus();return;}
  const data={name,minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),
   tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps(),notes:$("edit-notes").value.trim()};
+ const updateBank=editing.type==="plan"&&$("update-drill-bank")?.checked&&!!editing.bankId;
  remember();
  if(editing.type==="new"||editing.type==="new-from-bank"){const item={...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(item);if(editing.type==="new-from-bank")practice.addScheduledDrill(copyDrill(item),activePlan(),pendingLaneId);}
  else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
- else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);if($("update-drill-bank")?.checked&&item.bankId){const bank=getBankDrill(item.bankId);if(bank)Object.assign(bank,data);}practice.ensureStationFits(activePlan());}}
- persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
+ else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);if(updateBank&&item.bankId){const bank=getBankDrill(item.bankId);if(bank)Object.assign(bank,data);}practice.ensureStationFits(activePlan());}}
+ persist();close("drill-sheet");editing=null;renderApp();toast(updateBank?"Drill and bank updated.":"Drill saved.");
 }
 function deleteEditorDrill(){
  if(!editing)return;
