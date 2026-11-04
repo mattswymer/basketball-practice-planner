@@ -296,6 +296,7 @@ function handleClick(event){
  const editPlan=target.closest("[data-edit-plan-drill]");if(editPlan){openDrillEditor("plan",editPlan.dataset.editPlanDrill);return;}
  const editBank=target.closest("[data-edit-bank-drill]");if(editBank){openDrillEditor("bank",editBank.dataset.editBankDrill);return;}
  const addBank=target.closest("[data-add-bank-drill]");if(addBank){addBankDrill(addBank.dataset.addBankDrill);return;}
+ const appendBank=target.closest("[data-append-bank-drill]");if(appendBank){pendingStationId=null;addBankDrill(appendBank.dataset.appendBankDrill);return;}
  const addStationDrill=target.closest("[data-add-to-station]");if(addStationDrill){openBank(addStationDrill.dataset.addToStation);return;}
  const editStation=target.closest("[data-edit-station]");if(editStation){openStation(editStation.dataset.editStation);return;}
  const addLaneInline=target.closest("[data-add-lane-inline]");if(addLaneInline){openStation(addLaneInline.dataset.addLaneInline);return;}
