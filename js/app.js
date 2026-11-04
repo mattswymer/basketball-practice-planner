@@ -106,7 +106,7 @@ function deleteEditorDrill(){
 function removePlanDrill(id){
  const found=locatePlanDrill(activePlan(),id);if(!found)return;practice.removeScheduledDrill(id);const plan=activePlan();
  if(found.stationId){const rotation=plan.blocks.find(b=>b.kind==="station"&&b.stations.some(s=>s.id===found.stationId));if(rotation&&rotation.stations.every(s=>!s.drills.length))plan.blocks=plan.blocks.filter(b=>b.id!==rotation.id);}
- if(state.live.active&&!flattenDrills(plan).some(d=>d.id===state.live.currentBlockId)){const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else endLiveSession(false);}
+ if(state.live.active){practice.refreshLive(plan);if(!state.live.active)releaseWakeLock();}
  persist();renderApp();toast("Drill removed.",true);
 }
 function addBankDrill(id){
@@ -155,8 +155,8 @@ function startLive(){
 function beginLive(){
  const result=practice.startLive();if(!result.ok)return toast("Add a drill or station first.");
  state.planDetailOpen=true;state.view="plans";renderApp();requestWakeLock();
- const drill=flattenDrills(activePlan())[result.index];
- setTimeout(()=>document.querySelector('[data-drill-card="'+drill.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),40);
+ const drillId=result.drillIds?.[0];
+ if(drillId)setTimeout(()=>document.querySelector('[data-drill-card="'+drillId+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),40);
  toast("Practice is live.");
 }
 function requestWakeLock(){
@@ -170,9 +170,9 @@ function advanceLive(){
  if(!outcome.ok)return;
  if(outcome.finished){releaseWakeLock();renderApp();toast("Practice finished.");return;}
  renderOnePlan();
- document.querySelector('[data-drill-card="'+outcome.next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
+ const nextId=outcome.next.activeDrillIds?.[0];if(nextId)document.querySelector('[data-drill-card="'+nextId+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
 }
-function previousLive(){if(practice.moveLive(-1)){renderOnePlan();const drill=flattenDrills(activePlan()).find(item=>item.id===state.live.currentBlockId);document.querySelector('[data-drill-card="'+drill.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});}}
+function previousLive(){if(practice.moveLive(-1)){renderOnePlan();const drillId=state.live.currentDrillIds?.[0];if(drillId)document.querySelector('[data-drill-card="'+drillId+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});}}
 function openGroups(drillId){
  if(!grouping.openDrillGroups(drillId))return;
  renderGroupBoard();show("group-sheet");
