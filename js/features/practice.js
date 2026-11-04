@@ -72,8 +72,8 @@ export function removeScheduledBlock(blockId,plan=activePlan()){
   if(!plan)return false;
   const block=plan.blocks.find(item=>item.id===blockId);if(!block)return false;
   remember();plan.blocks=plan.blocks.filter(item=>item.id!==blockId);
-  if(state.live.active&&state.live.currentBlockId===blockId){
-    const next=plan.blocks[0];if(next)state.live.currentBlockId=next.id;else stopLive();
+  if(state.live.active&&!flattenDrills(plan).some(drill=>drill.id===state.live.currentBlockId)){
+    const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else stopLive();
   }
   save();return true;
 }
