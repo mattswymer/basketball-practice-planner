@@ -14,5 +14,14 @@ export function addScheduledDrill(drill,plan=activePlan(),stationId=null,beforeI
  if(station){const rotation=rotationForStation(plan,stationId);fitStationLanes(rotation,rotation.minutes);}save();return true;
 }
 export function reorderScheduledBlock(id,beforeId=null,plan=activePlan()){if(!plan||id===beforeId)return false;const from=plan.blocks.findIndex(b=>b.id===id);if(from<0)return false;const to=beforeId?plan.blocks.findIndex(b=>b.id===beforeId):-1;if(to===from||to===from+1)return false;remember();const [block]=plan.blocks.splice(from,1),dest=beforeId?plan.blocks.findIndex(b=>b.id===beforeId):-1;plan.blocks.splice(dest<0?plan.blocks.length:dest,0,block);save();return true;}
+export function moveStationToSchedule(rotationId,stationId,beforeBlockId=null,plan=activePlan()){
+ const rotationIndex=plan?.blocks.findIndex(b=>b.id===rotationId&&b.kind==="station");if(rotationIndex===undefined||rotationIndex<0)return false;
+ const rotation=plan.blocks[rotationIndex],stationIndex=rotation.stations.findIndex(s=>s.id===stationId);if(stationIndex<0)return false;
+ const station=rotation.stations[stationIndex];if(!station.drills.length)return false;remember();const drills=station.drills.slice();rotation.stations.splice(stationIndex,1);
+ let insertAt=beforeBlockId&&beforeBlockId!==rotationId?plan.blocks.findIndex(b=>b.id===beforeBlockId):-1;
+ if(!rotation.stations.length){plan.blocks.splice(rotationIndex,1);if(insertAt<0)insertAt=rotationIndex;else if(insertAt>rotationIndex)insertAt--;}
+ else if(insertAt<0)insertAt=rotationIndex+1;
+ plan.blocks.splice(insertAt,0,...drills);save();return true;
+}
 export function reorderStation(rotationId,stationId,beforeId=null,plan=activePlan()){const rotation=plan?.blocks.find(b=>b.id===rotationId&&b.kind==="station");if(!rotation||stationId===beforeId)return false;const from=rotation.stations.findIndex(s=>s.id===stationId),to=beforeId?rotation.stations.findIndex(s=>s.id===beforeId):-1;if(from<0||to===from||to===from+1)return false;remember();const [station]=rotation.stations.splice(from,1),dest=beforeId?rotation.stations.findIndex(s=>s.id===beforeId):-1;rotation.stations.splice(dest<0?rotation.stations.length:dest,0,station);save();return true;}
 export function createStation(name="Station rotation",minutes=15){return {kind:"station",id:uid("rotation"),name,minutes:Math.max(1,Math.round(Number(minutes)||15)),stations:[{id:uid("station"),name:"Station 1",drills:[]},{id:uid("station"),name:"Station 2",drills:[]}]};}
