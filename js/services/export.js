@@ -77,10 +77,12 @@ export function exportPracticePDF() {
       const skillLines=skills?doc.splitTextToSize("SKILLS  "+skills.toUpperCase(),colWidth-10):[];
       const gear=(drill.equipment||[]).map(x=>x.name+" × "+(x.quantity*(x.perPlayer?rosterCount:1))).join(", ");
       const gearLines=gear?doc.splitTextToSize("GEAR  "+gear,colWidth-10):[];
+      doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);
+      const noteLines=drill.notes?doc.splitTextToSize("NOTES  "+drill.notes,colWidth-10):[];
       doc.setFont("helvetica","normal");doc.setFontSize(fonts.body);
       const steps=(drill.steps||[]).map((step,i)=>doc.splitTextToSize((i+1)+". "+step,colWidth-12));
-      const h=3+2+skillLines.length*(fonts.small*.46)+titleLines.length*(fonts.title*.44)+gearLines.length*(fonts.small*.46)+steps.reduce((sum,lines)=>sum+lines.length*(fonts.body*.48)+.7,0)+3;
-      return {...atom,meta,skillLines,titleLines,gearLines,steps,h};
+      const h=3+2+skillLines.length*(fonts.small*.46)+titleLines.length*(fonts.title*.44)+gearLines.length*(fonts.small*.46)+noteLines.length*(fonts.small*.46)+steps.reduce((sum,lines)=>sum+lines.length*(fonts.body*.48)+.7,0)+3;
+      return {...atom,meta,skillLines,titleLines,gearLines,noteLines,steps,h};
     }
     const atoms=entries.map(layout);
     const pages=[];
@@ -122,6 +124,7 @@ export function exportPracticePDF() {
           if(atom.skillLines.length){doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);doc.text(atom.skillLines,x+3,cursor);cursor+=atom.skillLines.length*(fonts.small*.46)+.8;}
           doc.setTextColor(28,50,64);doc.setFont("helvetica","bold");doc.setFontSize(fonts.title);doc.text(atom.titleLines,x+3,cursor);cursor+=atom.titleLines.length*(fonts.title*.44)+.8;
           if(atom.gearLines.length){doc.setTextColor(80,99,110);doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);doc.text(atom.gearLines,x+3,cursor);cursor+=atom.gearLines.length*(fonts.small*.46)+.8;}
+          if(atom.noteLines.length){doc.setTextColor(75,91,99);doc.setFont("helvetica","italic");doc.setFontSize(fonts.small);doc.text(atom.noteLines,x+3,cursor);cursor+=atom.noteLines.length*(fonts.small*.46)+.8;}
           doc.setTextColor(40,55,66);doc.setFont("helvetica","normal");doc.setFontSize(fonts.body);
           atom.steps.forEach(lines=>{doc.text(lines,x+3,cursor);cursor+=lines.length*(fonts.body*.48)+.7;});
         });
