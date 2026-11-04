@@ -101,7 +101,7 @@ function renderPlanDetail() {
     $("live-next").textContent=index===drills.length-1?"Finish":"Next";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
-  $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned===windowM;
+  $("fit-practice").textContent="Adjust to practice length";$("fit-practice").disabled=planned===windowM;
   const warning=$("practice-time-warning");warning.hidden=planned===windowM;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:`${durationLabel(windowM-planned)} available · ${durationLabel(planned)} planned.`;
 }
 function practiceWindow(plan) {
