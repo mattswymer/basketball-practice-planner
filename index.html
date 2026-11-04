@@ -67,6 +67,7 @@
             <label><span>START</span><input type="time" id="plan-start" value="18:00"></label>
             <label><span>END</span><input type="time" id="plan-end" value="19:30"></label>
           </div>
+          <div id="practice-time-warning" class="practice-time-warning" hidden></div>
           <div class="plan-overview">
             <div><strong id="plan-drill-count">0</strong><span>DRILLS</span></div>
             <div><strong id="plan-total-time">0m</strong><span>COURT TIME</span></div>
@@ -102,7 +103,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6"/><path d="m16 16 5 5"/></svg>
           <input id="drill-search" type="search" placeholder="Find a drill" aria-label="Search drills">
         </div>
-        <div class="filter-row"><select id="drill-skill-filter" aria-label="Filter by skill"><option value="">All skills</option></select><span id="drill-count"></span></div>
+        <div class="filter-row drill-filters"><details class="tag-filter"><summary id="drill-filter-summary">All skills</summary><div id="drill-tag-options" class="tag-filter-options"></div></details><select id="drill-sort"><option value="name">Name A–Z</option><option value="time-asc">Shortest time</option><option value="time-desc">Longest time</option><option value="players">Players</option><option value="equipment">Equipment</option></select><span id="drill-count"></span></div>
         <div id="drill-library" class="drill-library"></div>
       </section>
 
@@ -166,7 +167,7 @@
   <dialog id="bank-sheet" class="sheet">
     <div class="sheet-grabber"></div>
     <div class="sheet-head"><div><p class="eyebrow">DRILL BANK</p><h2>Add a drill</h2></div><button class="close-sheet" data-close="bank-sheet" aria-label="Close">×</button></div>
-    <div class="sheet-tools"><input type="search" id="bank-search" placeholder="Find a drill"><select id="bank-skill-filter" aria-label="Filter by skill"><option value="">All skills</option></select></div>
+    <div class="sheet-tools"><input type="search" id="bank-search" placeholder="Find a drill"><button type="button" class="secondary-btn" id="bank-new-drill">+ New drill</button></div><div class="bank-filter-row"><details class="tag-filter"><summary id="bank-filter-summary">All skills</summary><div id="bank-tag-options" class="tag-filter-options"></div></details><select id="bank-sort"><option value="name">Name A–Z</option><option value="time-asc">Shortest time</option><option value="time-desc">Longest time</option><option value="players">Players</option><option value="equipment">Equipment</option></select></div>
     <div id="bank-pick-list" class="bank-pick-list"></div>
   </dialog>
 
@@ -182,6 +183,9 @@
       <div class="editor-section">
         <div class="editor-section-head"><h3>Equipment</h3><button type="button" class="text-btn" id="add-equipment-row">+ Add</button></div>
         <div id="edit-equipment-rows"></div>
+      </div>
+      <div class="editor-section">
+        <label class="full-field">NOTES / FOCUS<textarea id="edit-notes" rows="3" maxlength="1200" placeholder="Setup, court layout, coaching emphasis, or focus"></textarea></label>
       </div>
       <div class="editor-section">
         <div class="editor-section-head"><h3>Instructions</h3><button type="button" class="text-btn" id="add-step">+ Step</button></div>
