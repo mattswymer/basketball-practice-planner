@@ -44,7 +44,6 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&(state.live.currentDrillIds||[]).includes(drill.id);
   const expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-station="${esc(stationId||"")}" style="${skillStyle(drill.tags)}">
-    <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
       <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
@@ -105,13 +104,13 @@ function renderPlanView() {
   hidden("plans-list-view",detail);hidden("plan-detail-view",!detail);
   if(detail)renderPlanDetail();else renderPlansList();
 }
-function drillCardForBank(drill,pick=false) {return `<article class="library-card" data-library-card="${esc(drill.id)}" style="${skillStyle(drill.tags)}"><span class="drag-handle bank-drag-handle" data-drag-kind="bank-drill" data-drag-id="${esc(drill.id)}" aria-label="Drag drill into practice">${grip}</span><button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}</article>`;}
-export function renderPracticeBankPanel(){const q=$("practice-bank-search")?.value?.trim().toLowerCase()||"",list=state.drillBank.filter(d=>!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")).toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));$("practice-bank-list").innerHTML=list.map(d=>drillCardForBank(d)).join("")||'<div class="empty-state">No drills found.</div>';}
+function drillCardForBank(drill,pick=false) {return `<article class="library-card" data-library-card="${esc(drill.id)}" style="${skillStyle(drill.tags)}"><button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}"}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}</article>`;}
+export function renderPracticeBankPanel(){renderTagFilters("practice-bank-tag-options","practice-bank-filter-summary");const list=filteredBank("practice-bank-search","practice-bank-tag-options","practice-bank-sort");$("practice-bank-list").innerHTML=list.map(d=>drillCardForBank(d)).join("")||'<div class="empty-state">No drills found.</div>';}
 function filteredBank(searchId,filterId,sortId) {
   const q=$(searchId)?.value?.trim().toLowerCase()||"",selected=[...($(filterId)?.querySelectorAll("input:checked")||[])].map(x=>x.value),sort=$(sortId)?.value||"name";
   const list=state.drillBank.filter(d=>selected.every(t=>(d.tags||[]).includes(t))&&(!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")+" "+(d.equipment||[]).map(x=>x.name).join(" ")).toLowerCase().includes(q)));
   const players=d=>(d.equipment||[]).filter(x=>x.perPlayer).reduce((n,x)=>n+x.quantity,0);
-  return list.sort((a,b)=>sort==="time-asc"?a.minutes-b.minutes:sort==="time-desc"?b.minutes-a.minutes:sort==="players"?players(b)-players(a):sort==="equipment"?(b.equipment||[]).length-(a.equipment||[]).length:a.name.localeCompare(b.name));
+  return list.sort((a,b)=>sort==="name-desc"?b.name.localeCompare(a.name):sort==="time-asc"?a.minutes-b.minutes:sort==="time-desc"?b.minutes-a.minutes:a.name.localeCompare(b.name));
 }
 function fillSkillSelect(id,all=false) {
   const element=$(id);if(!element)return;
