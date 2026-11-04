@@ -140,3 +140,6 @@
 .bank-edit{min-width:44px;min-height:44px;font-size:18px;touch-action:manipulation}.library-main{touch-action:pan-y}
 
 .drag-handle{touch-action:none;user-select:none;-webkit-user-select:none}.drag-ghost{pointer-events:none!important}.bank-edit{touch-action:manipulation}
+
+/* Drill editor and practice focus refinements */
+.skill-picker-dropdown{width:100%}.skill-picker-dropdown .tag-filter-options{position:relative;top:auto;left:auto;width:100%;max-height:220px;box-shadow:none;margin-top:6px}.skill-picker-dropdown[open]{z-index:30}.skill-picker .tag-option{margin:0}.update-bank-option{display:flex!important;align-items:center;gap:9px!important;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px!important;letter-spacing:0!important;color:var(--ink)!important}.update-bank-option input{width:18px;height:18px;min-height:18px}.station-lanes{grid-template-columns:1fr!important}.station-lane{width:100%;min-width:0}.station-lane .lane-drills{display:grid;gap:8px}.drill-card.current-popout{transform:translateY(-3px) scale(1.012);box-shadow:0 18px 42px #173d5540;transition:transform .32s cubic-bezier(.2,.8,.2,1),box-shadow .32s}
