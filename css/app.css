@@ -152,3 +152,5 @@
 .equipment-check-row{grid-template-columns:minmax(0,1fr) auto}.equipment-check-row .equipment-check-name{grid-column:1}
 
 .station-group .drill-card{grid-template-columns:44px minmax(0,1fr) auto}.station-group .drill-card-actions{min-width:0}
+
+.live-skills,.live-equipment,.live-player-groups{display:grid;gap:5px;margin-bottom:9px}.live-skills>strong,.live-equipment>strong,.live-player-groups>strong{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#6f838d}.live-skills>span{display:flex;gap:5px;flex-wrap:wrap}.live-player-groups>span{font-size:12px;line-height:1.45;color:#405966}
