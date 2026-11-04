@@ -132,7 +132,7 @@ function removePlanDrill(id){
  const plan=activePlan();
  if(found.laneId){
   const station=plan.blocks.find(block=>block.kind==="station"&&block.lanes.some(l=>l.id===found.laneId));
-  if(station&&station.lanes.every(l=>!l.drills.length))plan.blocks=plan.blocks.filter(block=>block.id!==station.id);
+  if(station&&station.lanes.every(item=>(item.groups||[]).every(group=>!group.drills.length)))plan.blocks=plan.blocks.filter(block=>block.id!==station.id);
  }
  if(state.live.active&&!plan.blocks.some(block=>block.id===state.live.currentBlockId))practice.stopLive();
  persist();renderApp();toast("Drill removed.",true);
@@ -151,18 +151,20 @@ function openStation(id=null){
 }
 function captureLaneNames(){
  if(!stationDraft)return;
- stationDraft.lanes.forEach(lane=>{const el=$("station-lanes-editor").querySelector('[data-lane-name="'+lane.id+'"]');if(el)lane.name=el.value.trim()||lane.name;});
+ stationDraft.lanes.forEach(station=>{const el=$("station-lanes-editor").querySelector('[data-lane-name="'+station.id+'"]');if(el)station.name=el.value.trim()||station.name;for(const group of station.groups||[]){const input=$("station-lanes-editor").querySelector('[data-group-name="'+group.id+'"]');if(input)group.name=input.value.trim()||group.name;}});
 }
 function addLane(){
  if(!stationDraft)return;captureLaneNames();
- stationDraft.lanes.push({id:uid("lane"),name:"Station "+(stationDraft.lanes.length+1),drills:[]});renderStationEditor(stationDraft);
+ stationDraft.lanes.push({id:uid("station"),name:"Station "+(stationDraft.lanes.length+1),groups:[{id:uid("group"),name:"Group 1",drills:[]}]});renderStationEditor(stationDraft);
 }
 function removeLane(id){
  if(!stationDraft||stationDraft.lanes.length<=1)return toast("A station rotation needs at least one station.");
- captureLaneNames();const lane=stationDraft.lanes.find(x=>x.id===id);
- if(lane?.drills.length)return toast("Move the drills out of this station first.");
+ captureLaneNames();const station=stationDraft.lanes.find(x=>x.id===id);
+ if(station?.groups?.some(group=>group.drills.length))return toast("Move the drills out of this station first.");
  stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
 }
+function addStationGroup(stationId){captureLaneNames();const station=stationDraft?.lanes.find(item=>item.id===stationId);if(!station)return;station.groups.push({id:uid("group"),name:"Group "+(station.groups.length+1),drills:[]});renderStationEditor(stationDraft);}
+function removeStationGroup(groupId){captureLaneNames();for(const station of stationDraft?.lanes||[]){const group=station.groups.find(item=>item.id===groupId);if(!group)continue;if(station.groups.length<=1)return toast("Each station needs at least one group.");if(group.drills.length)return toast("Move the drills out of this group first.");station.groups=station.groups.filter(item=>item.id!==groupId);renderStationEditor(stationDraft);return;}}
 function saveStation(event){
  event.preventDefault();if(!stationDraft)return;
  captureLaneNames();stationDraft.name=$("station-name").value.trim()||"Station rotation";
@@ -334,10 +336,12 @@ function handleClick(event){
  const editPlan=target.closest("[data-edit-plan-drill]");if(editPlan){openDrillEditor("plan",editPlan.dataset.editPlanDrill);return;}
  const editBank=target.closest("[data-edit-bank-drill]");if(editBank){openDrillEditor("bank",editBank.dataset.editBankDrill);return;}
  const addBank=target.closest("[data-add-bank-drill]");if(addBank){addBankDrill(addBank.dataset.addBankDrill);return;}
- const addLaneDrill=target.closest("[data-add-to-lane]");if(addLaneDrill){openBank(addLaneDrill.dataset.addToLane);return;}
+ const addLaneDrill=target.closest("[data-add-to-group]");if(addLaneDrill){openBank(addLaneDrill.dataset.addToGroup);return;}
  const editStation=target.closest("[data-edit-station]");if(editStation){openStation(editStation.dataset.editStation);return;}
  const addLaneInline=target.closest("[data-add-lane-inline]");if(addLaneInline){openStation(addLaneInline.dataset.addLaneInline);return;}
  const deleteLane=target.closest("[data-remove-lane]");if(deleteLane){removeLane(deleteLane.dataset.removeLane);return;}
+ const addStationGroupButton=target.closest("[data-add-station-group]");if(addStationGroupButton){addStationGroup(addStationGroupButton.dataset.addStationGroup);return;}
+ const removeStationGroupButton=target.closest("[data-remove-station-group]");if(removeStationGroupButton){removeStationGroup(removeStationGroupButton.dataset.removeStationGroup);return;}
  const removeDrill=target.closest("[data-remove-drill]");if(removeDrill){removePlanDrill(removeDrill.dataset.removeDrill);return;}
  const moveToRoot=target.closest("[data-move-to-plan]");if(moveToRoot){moveToMainPlan(moveToRoot.dataset.moveToPlan);return;}
  const deleteBlock=target.closest("[data-delete-block]");if(deleteBlock){removeBlock(deleteBlock.dataset.deleteBlock);return;}
@@ -370,7 +374,7 @@ function movePlanDrag(event){
  if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
  document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
  const target=document.elementFromPoint(event.clientX,event.clientY);
- const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-lane]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
+ const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-group]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
  drag.target=dest||null;
  const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]");
  if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");
@@ -386,10 +390,10 @@ function endPlanDrag(){
  if(item.kind==="block"){
   const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){remember();practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;
  }
- const card=target.closest("[data-drill-card]"),lane=target.closest("[data-drop-lane]");
- const laneId=lane?.dataset.dropLane||card?.dataset.parentLane||null;
+ const card=target.closest("[data-drill-card]"),group=target.closest("[data-drop-group]");
+ const groupId=group?.dataset.dropGroup||card?.dataset.parentGroup||null;
  const beforeId=card?.dataset.drillCard||null;
- if(item.id!==beforeId){if(practice.moveScheduledDrill(item.id,laneId,beforeId)){renderApp();toast("Drill moved.");}}
+ if(item.id!==beforeId){if(practice.moveScheduledDrill(item.id,groupId,beforeId)){renderApp();toast("Drill moved.");}}
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
