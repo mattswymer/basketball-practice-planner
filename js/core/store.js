@@ -52,7 +52,7 @@ export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentC
  return {kind:"drill",id:String(input.id||input.schedId||uid("drill")),bankId:input.bankId||input.drillId||null,
   name:String(input.name||"Untitled drill").trim()||"Untitled drill",minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
   tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment),catalog),
-  steps:stepsOf(input.steps??input.notes),grouping:groupingOf(input.grouping),source:input.source||"custom"};
+  steps:stepsOf(input.steps??input.instructions),notes:String(input.coachNotes??input.notesText??input.setupNotes??input.focus??"").trim(),grouping:groupingOf(input.grouping),source:input.source||"custom"};
 }
 function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
  const raw=input.drill||input;
@@ -215,13 +215,13 @@ export function undo(){
  const old=history.pop();if(!old)return false;Object.assign(state,old);SKILLS.splice(0,SKILLS.length,...old.skills);state.skills=SKILLS;state.live={active:false,currentBlockId:null,planId:null};save();return true;
 }
 export function canUndo(){return history.length>0;}
-export function addSkill(name,color){const value=String(name||"").trim();if(!value||SKILLS.some(x=>x.toLowerCase()===value.toLowerCase()))return false;remember();SKILLS.push(value);state.skillColors[value]=color||PALETTE[(SKILLS.length-1)%PALETTE.length];save();return true;}
+export function addSkill(name,color){const value=String(name||"").trim();if(!value||SKILLS.some(x=>x.toLowerCase()===value.toLowerCase()))return false;remember();SKILLS.push(value);SKILLS.sort((a,b)=>a.localeCompare(b));state.skillColors[value]=color||PALETTE[(SKILLS.length-1)%PALETTE.length];save();return true;}
 export function renameSkill(oldName,newName,color){
  const value=String(newName||"").trim();if(!SKILLS.includes(oldName)||!value||SKILLS.some(x=>x!==oldName&&x.toLowerCase()===value.toLowerCase()))return false;
- remember();SKILLS.splice(SKILLS.indexOf(oldName),1,value);if(oldName!==value){state.skillColors[value]=state.skillColors[oldName];delete state.skillColors[oldName];}if(color)state.skillColors[value]=color;
+ remember();SKILLS.splice(SKILLS.indexOf(oldName),1,value);SKILLS.sort((a,b)=>a.localeCompare(b));if(oldName!==value){state.skillColors[value]=state.skillColors[oldName];delete state.skillColors[oldName];}if(color)state.skillColors[value]=color;
  const update=d=>d.tags=[...new Set(d.tags.map(x=>x===oldName?value:x))];state.drillBank.forEach(update);Object.values(state.plansByTeam).flat().forEach(p=>flattenDrills(p).forEach(update));save();return true;
 }
 export function deleteSkill(name){
- if(!SKILLS.includes(name))return false;remember();SKILLS.splice(SKILLS.indexOf(name),1);delete state.skillColors[name];
+ if(!SKILLS.includes(name))return false;remember();SKILLS.splice(SKILLS.indexOf(name),1);SKILLS.sort((a,b)=>a.localeCompare(b));delete state.skillColors[name];
  const update=d=>d.tags=d.tags.filter(x=>x!==name);state.drillBank.forEach(update);Object.values(state.plansByTeam).flat().forEach(p=>flattenDrills(p).forEach(update));save();return true;
 }
