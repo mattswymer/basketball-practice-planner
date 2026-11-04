@@ -8,9 +8,7 @@ function skillStyle(tags=[]) {
   const stripe=colors.length>1?"linear-gradient(90deg,"+colors.map((value,index)=>value+" "+(index/colors.length*100)+"% "+((index+1)/colors.length*100)+"%").join(",")+")":color;
   return `--skill:${color};--skill-soft:${color}18;--skill-mid:${color}34;--skill-strip:${stripe}`;
 }
-function skillLabels(tags=[]) {
-  return tags.map(tag=>`<span class="skill-chip" style="--chip:${skillColor(tag)}">${esc(tag)}</span>`).join("");
-}
+function skillLabels(tags=[]) {return tags.map(tag=>`<span class="skill-chip" title="${esc(tag)}" style="--chip:${skillColor(tag)}">${esc(tag)}</span>`).join("");}
 function equipmentText(drill) {
   const players=Math.max(1,activeTeam()?.players?.length||0);
   return (drill.equipment||[]).map(item=>`${item.name} × ${item.quantity*(item.perPlayer?players:1)}${item.perPlayer?" / player":""}`).join(" · ");
@@ -84,7 +82,7 @@ function renderPlanDetail() {
   $("plan-drill-count").textContent=drills.length;
   $("plan-total-time").textContent=durationLabel(totalPracticeMinutes(plan));
   
-  $("plan-blocks").innerHTML=renderPlanBlocks(plan);
+  $("plan-blocks").innerHTML=renderPlanBlocks(plan);renderPracticeBankPanel();
   const live=state.live.active&&state.live.planId===plan.id;
   document.body.classList.toggle("live-active",live);
   $("live-bar").hidden=!live;$("live-start").hidden=live;
@@ -108,6 +106,7 @@ function renderPlanView() {
   if(detail)renderPlanDetail();else renderPlansList();
 }
 function drillCardForBank(drill,pick=false) {return `<article class="library-card" data-library-card="${esc(drill.id)}" style="${skillStyle(drill.tags)}"><span class="drag-handle bank-drag-handle" data-drag-kind="bank-drill" data-drag-id="${esc(drill.id)}" aria-label="Drag drill into practice">${grip}</span><button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}</article>`;}
+export function renderPracticeBankPanel(){const q=$("practice-bank-search")?.value?.trim().toLowerCase()||"",list=state.drillBank.filter(d=>!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")).toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));$("practice-bank-list").innerHTML=list.map(d=>drillCardForBank(d)).join("")||'<div class="empty-state">No drills found.</div>';}
 function filteredBank(searchId,filterId,sortId) {
   const q=$(searchId)?.value?.trim().toLowerCase()||"",selected=[...($(filterId)?.querySelectorAll("input:checked")||[])].map(x=>x.value),sort=$(sortId)?.value||"name";
   const list=state.drillBank.filter(d=>selected.every(t=>(d.tags||[]).includes(t))&&(!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")+" "+(d.equipment||[]).map(x=>x.name).join(" ")).toLowerCase().includes(q)));
