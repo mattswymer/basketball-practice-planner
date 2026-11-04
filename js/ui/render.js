@@ -35,6 +35,7 @@ function details(drill) {
   const gear=equipmentText(drill);
   return `<div class="live-drill-details">
     ${gear?`<div class="live-equipment"><strong>Gear</strong><span>${esc(gear)}</span></div>`:""}
+    ${drill.notes?`<div class="drill-notes"><strong>Notes / focus</strong><span>${esc(drill.notes)}</span></div>`:""}
     ${drill.steps?.length?`<ol class="live-steps">${drill.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:'<p class="no-steps">No instructions yet.</p>'}
   </div>`;
 }
@@ -111,8 +112,9 @@ function renderPlanDetail() {
     $("live-previous").disabled=index<=0;
     $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Done";
   }
-  const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan);
+  const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
   $("fit-practice").textContent=planned===windowM?"Fitted":"Fit time";
+  const warning=$("practice-time-warning");warning.hidden=over<=0;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:"";
 }
 function practiceWindow(plan) {
   const [h1,m1]=(plan.start||"18:00").split(":").map(Number),[h2,m2]=(plan.end||"19:30").split(":").map(Number);
@@ -129,9 +131,11 @@ function drillCardForBank(drill,pick=false) {
     ${pick?`<button class="add-circle bank-add" data-add-bank-drill="${esc(drill.id)}" aria-label="Add ${esc(drill.name)}">+</button>`:`<button class="mini-icon" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit drill">···</button>`}
   </article>`;
 }
-function filteredBank(searchId,filterId) {
-  const q=$(searchId)?.value?.trim().toLowerCase()||"",skill=$(filterId)?.value||"";
-  return state.drillBank.filter(d=>(!skill||d.tags.includes(skill))&&(!q||(d.name+" "+d.tags.join(" ")+" "+d.steps.join(" ")+" "+d.equipment.map(x=>x.name).join(" ")).toLowerCase().includes(q)));
+function filteredBank(searchId,filterId,sortId) {
+  const q=$(searchId)?.value?.trim().toLowerCase()||"",selected=[...($(filterId)?.querySelectorAll("input:checked")||[])].map(x=>x.value),sort=$(sortId)?.value||"name";
+  const list=state.drillBank.filter(d=>selected.every(t=>(d.tags||[]).includes(t))&&(!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")+" "+(d.equipment||[]).map(x=>x.name).join(" ")).toLowerCase().includes(q)));
+  const players=d=>(d.equipment||[]).filter(x=>x.perPlayer).reduce((n,x)=>n+x.quantity,0);
+  return list.sort((a,b)=>sort==="time-asc"?a.minutes-b.minutes:sort==="time-desc"?b.minutes-a.minutes:sort==="players"?players(b)-players(a):sort==="equipment"?(b.equipment||[]).length-(a.equipment||[]).length:a.name.localeCompare(b.name));
 }
 function fillSkillSelect(id,all=false) {
   const element=$(id);if(!element)return;
@@ -139,15 +143,20 @@ function fillSkillSelect(id,all=false) {
   element.innerHTML=(all?'<option value="">All skills</option>':"")+SKILLS.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
   if([...element.options].some(x=>x.value===old))element.value=old;
 }
+function renderTagFilters(id,summaryId) {
+  const selected=[...($(id)?.querySelectorAll("input:checked")||[])].map(x=>x.value);
+  $(id).innerHTML=SKILLS.map(s=>`<label><input type="checkbox" value="${esc(s)}" ${selected.includes(s)?"checked":""}><span>${esc(s)}</span></label>`).join("");
+  $(summaryId).textContent=selected.length?selected.length+" skills selected":"All skills";
+}
 function renderDrillLibrary() {
-  fillSkillSelect("drill-skill-filter",true);
-  const list=filteredBank("drill-search","drill-skill-filter");
+  renderTagFilters("drill-tag-options","drill-filter-summary");
+  const list=filteredBank("drill-search","drill-tag-options","drill-sort");
   $("drill-count").textContent=list.length+" / "+state.drillBank.length;
   $("drill-library").innerHTML=list.map(d=>drillCardForBank(d)).join("")||'<div class="empty-state">No drills found.</div>';
 }
 function renderBankSheet() {
-  fillSkillSelect("bank-skill-filter",true);
-  const list=filteredBank("bank-search","bank-skill-filter");
+  renderTagFilters("bank-tag-options","bank-filter-summary");
+  const list=filteredBank("bank-search","bank-tag-options","bank-sort");
   $("bank-pick-list").innerHTML=list.map(d=>drillCardForBank(d,true)).join("")||'<div class="empty-state">No drills found.</div>';
 }
 function renderTeams() {
@@ -229,7 +238,7 @@ export function renderGroupBoard() {
   $("group-sheet-title").textContent=drill.name;
 }
 export function renderSkillManager() {
-  $("skill-list").innerHTML=SKILLS.map(skill=>`<div class="skill-edit-row">
+  $("skill-list").innerHTML=[...SKILLS].sort((a,b)=>a.localeCompare(b)).map(skill=>`<div class="skill-edit-row">
     <input data-skill-name="${esc(skill)}" value="${esc(skill)}" maxlength="40" aria-label="Skill name">
     <input data-skill-color="${esc(skill)}" type="color" value="${skillColor(skill)}" aria-label="Skill color">
     <button class="mini-icon" data-save-skill="${esc(skill)}" aria-label="Save skill">✓</button>
