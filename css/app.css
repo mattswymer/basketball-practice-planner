@@ -190,3 +190,12 @@
 .drop-before{outline:3px solid #177fa2!important;outline-offset:2px!important;box-shadow:inset 0 0 0 3px #177fa233!important}
 .drop-before:before{content:"DROP HERE";position:absolute;left:8px;right:8px;top:-11px;height:20px;display:grid;place-items:center;border-radius:6px;background:#177fa2;color:#fff;font-size:9px;font-weight:900;letter-spacing:.1em;z-index:25}
 .drop-target{outline:3px dashed #177fa2!important;outline-offset:3px!important;background:#e8f4f7!important}
+
+
+/* Keep live practice controls reachable while the schedule scrolls. */
+.live-bar{position:fixed!important;left:50%!important;right:auto!important;top:auto!important;bottom:calc(70px + env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:min(calc(100% - 20px),1280px)!important;max-width:1280px!important;margin:0!important;z-index:100!important;display:flex!important;align-items:center!important;justify-content:space-between!important;box-sizing:border-box!important;}
+.live-bar[hidden]{display:none!important}
+.live-active #main-content,#main-content:has(#live-bar:not([hidden])){padding-bottom:calc(155px + env(safe-area-inset-bottom))!important}
+.bank-add-plan{flex:0 0 42px;width:42px;height:42px;min-width:42px;border-radius:11px;background:#e5eef2;color:#19485f;font-size:25px;font-weight:500;line-height:1}
+.library-card .library-main{padding-right:5px}
+@media(min-width:900px){.live-bar{width:min(calc(100% - 60px),1280px)!important}}
