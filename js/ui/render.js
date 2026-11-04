@@ -61,7 +61,7 @@ function renderStation(block,start,end,plan,offset) {
   const lanes=(block.lanes||[]).map((lane,i)=>{
     const laneTime=lane.drills.reduce((n,d)=>n+d.minutes,0);
     return `<section class="station-lane" data-drop-lane="${esc(lane.id)}">
-      <div class="lane-heading"><span>${esc(lane.name||"Lane "+(i+1))}</span><small>${durationLabel(laneTime)}</small></div>
+      <div class="lane-heading"><span>${esc(lane.name||"Station "+(i+1))}</span><small>${durationLabel(laneTime)}</small></div>
       <div class="lane-drills">${lane.drills.map((drill,index)=>{const offsetBefore=lane.drills.slice(0,index).reduce((n,item)=>n+item.minutes,0);const drillStart=clockLabel(plan.start,offset+offsetBefore),drillEnd=clockLabel(plan.start,offset+offsetBefore+drill.minutes);return renderDrillCard(drill,{laneId:lane.id,stationLive:live,timeRange:drillStart+"–"+drillEnd});}).join("")||'<div class="lane-empty">Drop a drill here</div>'}</div>
       <button class="lane-add" data-add-to-lane="${esc(lane.id)}">+ Add drill</button>
     </section>`;
@@ -69,12 +69,12 @@ function renderStation(block,start,end,plan,offset) {
   return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}" style="--station-skill:#51788c">
     <div class="station-heading">
       <span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station">${grip}</span>
-      <button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">CONCURRENT STATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button>
+      <button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button>
       <button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station">···</button>
       <button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station">×</button>
     </div>
     <div class="station-lanes">${lanes}</div>
-    <button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Lane</button>
+    <button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button>
   </section>`;
 }
 function renderPlanBlocks(plan) {
@@ -106,8 +106,8 @@ function renderPlanDetail() {
     $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Next";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
-  $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned<=windowM;
-  const warning=$("practice-time-warning");warning.hidden=over<=0;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:"";
+  $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned===windowM;
+  const warning=$("practice-time-warning");warning.hidden=planned===windowM;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:`${durationLabel(windowM-planned)} available · ${durationLabel(planned)} planned.`;
 }
 function practiceWindow(plan) {
   const [h1,m1]=(plan.start||"18:00").split(":").map(Number),[h2,m2]=(plan.end||"19:30").split(":").map(Number);
@@ -246,5 +246,5 @@ export function renderEditorSteps(steps=[]) {
 }
 export function renderStationEditor(block) {
   $("station-name").value=block.name;$("station-minutes").value=block.minutes||15;
-  $("station-lanes-editor").innerHTML=block.lanes.map(lane=>`<div class="station-lane-edit"><input data-lane-name="${esc(lane.id)}" value="${esc(lane.name)}" maxlength="50" aria-label="Lane name"><span>${lane.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(lane.id)}" type="button" aria-label="Remove lane">×</button></div>`).join("");
+  $("station-lanes-editor").innerHTML=block.lanes.map(lane=>`<div class="station-lane-edit"><input data-lane-name="${esc(lane.id)}" value="${esc(lane.name)}" maxlength="50" aria-label="Station name"><span>${lane.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(lane.id)}" type="button" aria-label="Remove station">×</button></div>`).join("");
 }
