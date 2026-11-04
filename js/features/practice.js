@@ -1,110 +1,21 @@
-import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
+import {state,activePlan,flattenDrills,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
 export {fitStationLanes};
-export function ensureStationFits(plan=activePlan()){
-  if(!plan)return;
-  for(const block of plan.blocks||[])if(block.kind==="station"){
-    const longest=Math.max(1,...(block.lanes||[]).flatMap(station=>(station.groups||[]).map(group=>group.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0))));
-    if(longest>block.minutes)fitStationLanes(block,longest);
-  }
-}
-export function fitPractice(plan=activePlan()){
-  if(!plan||!plan.blocks.length)return {ok:false,reason:"empty"};
-  const target=timeWindow(plan),blocks=plan.blocks;
-  const minimums=blocks.map(block=>block.kind==="station"?Math.max(1,...(block.lanes||[]).flatMap(station=>(station.groups||[]).map(group=>group.drills?.length||0))):1);
-  const minimumTotal=minimums.reduce((a,b)=>a+b,0);
-  if(target<minimumTotal)return {ok:false,reason:"too-many-blocks"};
-  const weights=blocks.map(block=>Math.max(1,blockMinutes(block)));
-  const weightTotal=weights.reduce((a,b)=>a+b,0),remaining=target-minimumTotal;
-  const raw=weights.map(weight=>remaining*weight/weightTotal);
-  const values=raw.map((value,index)=>minimums[index]+Math.floor(value));
-  let difference=target-values.reduce((a,b)=>a+b,0);
-  const fractions=raw.map((value,index)=>({index,fraction:value-Math.floor(value)})).sort((a,b)=>b.fraction-a.fraction);
-  for(let i=0;difference>0;i++,difference--)values[fractions[i%fractions.length].index]++;
-  remember();
-  blocks.forEach((block,index)=>{
-    if(block.kind==="station")fitStationLanes(block,values[index]);
-    else block.minutes=values[index];
-  });
-  save();return {ok:true,total:values.reduce((a,b)=>a+b,0),target};
-}
-export function startLive(plan=activePlan()){
-  const drills=flattenDrills(plan);if(!drills.length)return {ok:false,reason:"empty"};
-  state.live={active:true,planId:plan.id,currentBlockId:drills[0].id};return {ok:true,index:0};
-}
-export function liveIndex(plan=activePlan()){
-  return plan?flattenDrills(plan).findIndex(drill=>drill.id===state.live.currentBlockId):-1;
-}
-export function moveLive(direction,plan=activePlan()){
-  if(!plan||!state.live.active)return false;
-  const drills=flattenDrills(plan),next=drills[liveIndex(plan)+direction];if(!next)return false;
-  state.live.currentBlockId=next.id;save();return true;
-}
-export function advanceLive(plan=activePlan()){
-  if(!plan||!state.live.active)return {ok:false};
-  const drills=flattenDrills(plan),index=liveIndex(plan);if(index<0)return {ok:false};
-  const next=drills[index+1];if(next){state.live.currentBlockId=next.id;save();return {ok:true,finished:false,next};}
-  state.live={active:false,currentBlockId:null,planId:null};save();return {ok:true,finished:true};
-}
+export function ensureStationFits(plan=activePlan()){if(!plan)return;for(const block of plan.blocks||[])if(block.kind==="station"){const longest=Math.max(1,...(block.stations||[]).map(s=>(s.drills||[]).reduce((n,d)=>n+Math.max(1,Number(d.minutes)||1),0)));if(longest>block.minutes)fitStationLanes(block,longest);}}
+export function fitPractice(plan=activePlan()){if(!plan||!plan.blocks.length)return {ok:false,reason:"empty"};const target=timeWindow(plan),blocks=plan.blocks,minimums=blocks.map(b=>b.kind==="station"?Math.max(1,...(b.stations||[]).map(s=>s.drills?.length||0)):1),minimumTotal=minimums.reduce((a,b)=>a+b,0);if(target<minimumTotal)return {ok:false,reason:"too-many-blocks"};const weights=blocks.map(b=>Math.max(1,blockMinutes(b))),sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>(target-minimumTotal)*w/sum),values=raw.map((v,i)=>minimums[i]+Math.floor(v));let rem=target-values.reduce((a,b)=>a+b,0);const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);for(let i=0;rem>0;i++,rem--)values[order[i%order.length].i]++;remember();blocks.forEach((b,i)=>b.kind==="station"?fitStationLanes(b,values[i]):b.minutes=values[i]);save();return {ok:true,total:target,target};}
+export function startLive(plan=activePlan()){const drills=flattenDrills(plan);if(!drills.length)return {ok:false,reason:"empty"};state.live={active:true,planId:plan.id,currentBlockId:drills[0].id};save();return {ok:true,index:0};}
+export function liveIndex(plan=activePlan()){return plan?flattenDrills(plan).findIndex(d=>d.id===state.live.currentBlockId):-1;}
+export function moveLive(dir,plan=activePlan()){if(!plan||!state.live.active)return false;const next=flattenDrills(plan)[liveIndex(plan)+dir];if(!next)return false;state.live.currentBlockId=next.id;save();return true;}
+export function advanceLive(plan=activePlan()){if(!plan||!state.live.active)return {ok:false};const drills=flattenDrills(plan),i=liveIndex(plan);if(i<0)return {ok:false};const next=drills[i+1];if(next){state.live.currentBlockId=next.id;save();return {ok:true,finished:false,next};}stopLive();return {ok:true,finished:true};}
 export function stopLive(){state.live={active:false,currentBlockId:null,planId:null};save();}
-export function addScheduledDrill(drill,plan=activePlan(),groupId=null){
-  if(!drill||!plan)return false;
-  let target=null,station=null;
-  if(groupId)for(const block of plan.blocks)if(block.kind==="station")for(const item of block.lanes)for(const group of item.groups||[])if(group.id===groupId){target=group;station=block;}
-  if(groupId&&!target)return false;
-  remember();if(target){target.drills.push(drill);fitStationLanes(station,station.minutes);}else plan.blocks.push(drill);
-  save();return true;
+function rotationForStation(plan,id){return plan.blocks.find(b=>b.kind==="station"&&(b.stations||[]).some(s=>s.id===id));}
+export function addScheduledDrill(drill,plan=activePlan(),stationId=null){if(!drill||!plan)return false;const station=stationId?plan.blocks.filter(b=>b.kind==="station").flatMap(b=>b.stations||[]).find(s=>s.id===stationId):null;if(stationId&&!station)return false;remember();if(station){station.drills.push(drill);const rotation=rotationForStation(plan,stationId);fitStationLanes(rotation,rotation.minutes);}else plan.blocks.push(drill);save();return true;}
+export function removeScheduledDrill(id,plan=activePlan()){if(!plan)return false;for(const block of plan.blocks){if(block.kind==="drill"&&block.id===id){remember();plan.blocks=plan.blocks.filter(b=>b.id!==id);save();return true;}if(block.kind==="station")for(const station of block.stations||[]){const i=station.drills.findIndex(d=>d.id===id);if(i>=0){remember();station.drills.splice(i,1);fitStationLanes(block,block.minutes);save();return true;}}}return false;}
+export function removeScheduledBlock(id,plan=activePlan()){if(!plan)return false;const block=plan.blocks.find(b=>b.id===id);if(!block)return false;remember();plan.blocks=plan.blocks.filter(b=>b.id!==id);if(state.live.active&&!flattenDrills(plan).some(d=>d.id===state.live.currentBlockId)){const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else stopLive();}save();return true;}
+export function moveScheduledDrill(id,targetStationId=null,beforeId=null,plan=activePlan()){
+ if(!plan)return false;let source=null;for(const block of plan.blocks){if(block.kind==="drill"&&block.id===id)source={list:plan.blocks,drill:block,rotation:null};if(block.kind==="station")for(const station of block.stations||[])if(station.drills.some(d=>d.id===id))source={list:station.drills,drill:station.drills.find(d=>d.id===id),rotation:block};}
+ if(!source)return false;const targetStation=targetStationId?plan.blocks.filter(b=>b.kind==="station").flatMap(b=>b.stations||[]).find(s=>s.id===targetStationId):null;if(targetStationId&&!targetStation)return false;const target=targetStation?targetStation.drills:plan.blocks,old=source.list.findIndex(d=>d.id===id),before=beforeId?target.findIndex(d=>d.id===beforeId):-1;if(source.list===target&&(before===old||before===old+1))return false;
+ remember();source.list.splice(old,1);const at=beforeId?target.findIndex(d=>d.id===beforeId):-1;target.splice(at<0?target.length:at,0,source.drill);if(source.rotation)fitStationLanes(source.rotation,source.rotation.minutes);const targetRotation=targetStation?rotationForStation(plan,targetStation.id):null;if(targetRotation&&targetRotation!==source.rotation)fitStationLanes(targetRotation,targetRotation.minutes);save();return true;
 }
-export function removeScheduledDrill(drillId,plan=activePlan()){
-  if(!plan)return false;
-  for(const block of plan.blocks){
-    if(block.kind==="drill"&&block.id===drillId){
-      remember();plan.blocks=plan.blocks.filter(item=>item.id!==drillId);
-      save();return true;
-    }
-    if(block.kind==="station")for(const station of block.lanes)for(const group of station.groups||[]){
-      const index=group.drills.findIndex(item=>item.id===drillId);
-      if(index>=0){remember();group.drills.splice(index,1);fitStationLanes(block,block.minutes);save();return true;}
-    }
-  }
-  return false;
-}
-export function removeScheduledBlock(blockId,plan=activePlan()){
-  if(!plan)return false;
-  const block=plan.blocks.find(item=>item.id===blockId);if(!block)return false;
-  remember();plan.blocks=plan.blocks.filter(item=>item.id!==blockId);
-  if(state.live.active&&!flattenDrills(plan).some(drill=>drill.id===state.live.currentBlockId)){
-    const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else stopLive();
-  }
-  save();return true;
-}
-export function moveScheduledDrill(drillId,targetGroupId=null,beforeDrillId=null,plan=activePlan()){
-  if(!plan)return false;
-  let source=null;
-  for(const block of plan.blocks){
-    if(block.kind==="drill"&&block.id===drillId)source={list:plan.blocks,drill:block,block:null};
-    if(block.kind==="station")for(const station of block.lanes)for(const group of station.groups||[])if(group.drills.some(d=>d.id===drillId))source={list:group.drills,drill:group.drills.find(d=>d.id===drillId),block};
-  }
-  if(!source)return false;
-  const targetStation=targetGroupId?plan.blocks.find(b=>b.kind==="station"&&b.lanes.some(station=>(station.groups||[]).some(g=>g.id===targetGroupId))):null;
-  const target=targetGroupId?targetStation?.lanes.flatMap(station=>station.groups||[]).find(g=>g.id===targetGroupId)?.drills:plan.blocks;
-  if(!target)return false;
-  const oldIndex=source.list.findIndex(d=>d.id===drillId),beforeIndex=beforeDrillId?target.findIndex(d=>d.id===beforeDrillId):-1;
-  if(source.list===target&&(beforeIndex===oldIndex||beforeIndex===oldIndex+1))return false;
-  remember();source.list.splice(oldIndex,1);
-  const index=beforeDrillId?target.findIndex(d=>d.id===beforeDrillId):-1;
-  target.splice(index<0?target.length:index,0,source.drill);
-  if(source.block)fitStationLanes(source.block,source.block.minutes);
-  if(targetStation&&targetStation!==source.block)fitStationLanes(targetStation,targetStation.minutes);
-  save();return true;
-}
-export function reorderScheduledBlock(blockId,beforeId=null,plan=activePlan()){
-  if(!plan||blockId===beforeId)return false;
-  const from=plan.blocks.findIndex(block=>block.id===blockId);if(from<0)return false;
-  const [block]=plan.blocks.splice(from,1),to=beforeId?plan.blocks.findIndex(item=>item.id===beforeId):-1;
-  if(to===from){plan.blocks.splice(from,0,block);return false;}
-  plan.blocks.splice(to<0?plan.blocks.length:to,0,block);save();return true;
-}
-export function createStation(name="Station rotation",minutes=15){
-  return {kind:"station",id:uid("station"),name,minutes:Math.max(1,Math.round(Number(minutes)||15)),
-    lanes:[{id:uid("station"),name:"Station 1",groups:[{id:uid("group"),name:"Group 1",drills:[]}]},{id:uid("station"),name:"Station 2",groups:[{id:uid("group"),name:"Group 1",drills:[]}]}]};
-}
+export function reorderScheduledBlock(id,beforeId=null,plan=activePlan()){if(!plan||id===beforeId)return false;const from=plan.blocks.findIndex(b=>b.id===id);if(from<0)return false;const to=beforeId?plan.blocks.findIndex(b=>b.id===beforeId):-1;if(to===from||to===from+1)return false;remember();const [block]=plan.blocks.splice(from,1),dest=beforeId?plan.blocks.findIndex(b=>b.id===beforeId):-1;plan.blocks.splice(dest<0?plan.blocks.length:dest,0,block);save();return true;}
+export function reorderStation(rotationId,stationId,beforeId=null,plan=activePlan()){const rotation=plan?.blocks.find(b=>b.id===rotationId&&b.kind==="station");if(!rotation||stationId===beforeId)return false;const from=rotation.stations.findIndex(s=>s.id===stationId),to=beforeId?rotation.stations.findIndex(s=>s.id===beforeId):-1;if(from<0||to===from||to===from+1)return false;remember();const [station]=rotation.stations.splice(from,1),dest=beforeId?rotation.stations.findIndex(s=>s.id===beforeId):-1;rotation.stations.splice(dest<0?rotation.stations.length:dest,0,station);save();return true;}
+export function createStation(name="Station rotation",minutes=15){return {kind:"station",id:uid("rotation"),name,minutes:Math.max(1,Math.round(Number(minutes)||15)),stations:[{id:uid("station"),name:"Station 1",drills:[]},{id:uid("station"),name:"Station 2",drills:[]}]};}
