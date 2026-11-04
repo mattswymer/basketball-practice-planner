@@ -177,6 +177,7 @@
         <div class="full-field"><span class="form-label">SKILLS</span><details class="tag-filter skill-picker-dropdown"><summary id="edit-skill-summary">All skills</summary><div id="edit-tags" class="tag-filter-options skill-picker" aria-label="Skills"></div></details></div>
         <label>MINUTES<input id="edit-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
       </div>
+      <div class="editor-section" id="update-bank-row" hidden><label class="update-bank-option"><input type="checkbox" id="update-drill-bank"> Also update this drill in the drill bank</label></div>
       <div class="editor-section">
         <div class="editor-section-head"><h3>Equipment</h3><button type="button" class="text-btn" id="add-equipment-row">+ Add</button></div>
         <div id="edit-equipment-rows"></div>
@@ -198,11 +199,11 @@
 
   <dialog id="station-sheet" class="sheet short-sheet">
     <div class="sheet-grabber"></div>
-    <div class="sheet-head"><div><p class="eyebrow">CONCURRENT WORK</p><h2>Station rotation</h2></div><button class="close-sheet" data-close="station-sheet" aria-label="Close">×</button></div>
+    <div class="sheet-head"><div><p class="eyebrow">PRACTICE STATIONS</p><h2>Station rotation</h2></div><button class="close-sheet" data-close="station-sheet" aria-label="Close">×</button></div>
     <form id="station-form" class="sheet-form">
       <label class="full-field">Name<input id="station-name" maxlength="100" required></label>
       <div class="editor-section">
-        <label class="full-field">TOTAL STATION TIME<input id="station-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
+        <label class="full-field">TOTAL ROTATION TIME<input id="station-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
         <div class="editor-section-head"><h3>Stations</h3><button type="button" class="text-btn" id="add-lane">+ Station</button></div>
         <div id="station-lanes-editor"></div>
       </div>
