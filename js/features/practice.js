@@ -28,25 +28,21 @@ export function fitPractice(plan=activePlan()){
   save();return {ok:true,total:values.reduce((a,b)=>a+b,0),target};
 }
 export function startLive(plan=activePlan()){
-  if(!plan?.blocks.length)return {ok:false,reason:"empty"};
-  let index=0;
-  state.live={active:true,planId:plan.id,currentBlockId:plan.blocks[index].id};
-  return {ok:true,index};
+  const drills=flattenDrills(plan);if(!drills.length)return {ok:false,reason:"empty"};
+  state.live={active:true,planId:plan.id,currentBlockId:drills[0].id};return {ok:true,index:0};
 }
 export function liveIndex(plan=activePlan()){
-  return plan?plan.blocks.findIndex(block=>block.id===state.live.currentBlockId):-1;
+  return plan?flattenDrills(plan).findIndex(drill=>drill.id===state.live.currentBlockId):-1;
 }
 export function moveLive(direction,plan=activePlan()){
   if(!plan||!state.live.active)return false;
-  const index=liveIndex(plan),next=plan.blocks[index+direction];
-  if(!next)return false;
+  const drills=flattenDrills(plan),next=drills[liveIndex(plan)+direction];if(!next)return false;
   state.live.currentBlockId=next.id;save();return true;
 }
 export function advanceLive(plan=activePlan()){
   if(!plan||!state.live.active)return {ok:false};
-  const index=liveIndex(plan),block=plan.blocks[index];if(!block)return {ok:false};
-  const next=plan.blocks[index+1];
-  if(next){state.live.currentBlockId=next.id;save();return {ok:true,finished:false,next};}
+  const drills=flattenDrills(plan),index=liveIndex(plan);if(index<0)return {ok:false};
+  const next=drills[index+1];if(next){state.live.currentBlockId=next.id;save();return {ok:true,finished:false,next};}
   state.live={active:false,currentBlockId:null,planId:null};save();return {ok:true,finished:true};
 }
 export function stopLive(){state.live={active:false,currentBlockId:null,planId:null};save();}
