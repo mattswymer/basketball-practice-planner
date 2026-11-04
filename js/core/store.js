@@ -123,7 +123,7 @@ export function loadApp(){
 }
 export function save(){
  if(state.activeTeamId)state.activePlanIds[state.activeTeamId]=state.activePlanId;
- const data={version:2,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,
+ const data={version:3,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,
   plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:[...SKILLS],skillColors:state.skillColors};
  try{localStorage.setItem(APP_KEY,JSON.stringify(data));const status=document.getElementById("save-status");if(status){status.textContent="Saved";status.title="Changes saved on this device.";status.dataset.state="saved";}}catch(error){console.error("Could not save planner",error);const status=document.getElementById("save-status");if(status){status.textContent="Not saved";status.title="Storage failed. Download a backup before leaving.";status.dataset.state="error";}}
 }
