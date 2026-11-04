@@ -140,3 +140,5 @@
 
 /* Keep drill picker actions distinct and comfortably tappable. */
 .bank-edit{min-width:44px;min-height:44px;font-size:18px;touch-action:manipulation}.library-main{touch-action:pan-y}
+
+.drag-handle{touch-action:none;user-select:none;-webkit-user-select:none}.drag-ghost{pointer-events:none!important}.bank-edit{touch-action:manipulation}
