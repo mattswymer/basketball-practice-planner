@@ -341,7 +341,7 @@ function endPlanDrag(){
 function registerEvents(){
  document.addEventListener("click",handleClick);
  document.addEventListener("click",event=>{document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>{if(!dropdown.contains(event.target))dropdown.open=false;});});
- document.addEventListener("keydown",event=>{if(event.key==="Escape")document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>dropdown.open=false);});
+ document.addEventListener("keydown",event=>{if(event.key==="Escape"){const open=[...document.querySelectorAll("details.tag-filter[open]")];if(open.length){open.forEach(dropdown=>dropdown.open=false);event.preventDefault();event.stopPropagation();}}});
  $("brand-home").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
