@@ -16,13 +16,13 @@ function equipmentText(drill) {
   return (drill.equipment||[]).map(item=>`${item.name} × ${item.quantity*(item.perPlayer?players:1)}${item.perPlayer?" / player":""}`).join(" · ");
 }
 function renderPlanCard(plan) {
-  const drills=flattenDrills(plan),done=drills.filter(d=>plan.completedIds.includes(d.id)).length;
+  const drills=flattenDrills(plan);
   const mins=totalPracticeMinutes(plan),skills=[...new Set(drills.flatMap(d=>d.tags))].slice(0,5);
   const date=plan.date?new Date(plan.date+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"}):"No date";
   return `<article class="plan-card" data-open-plan="${esc(plan.id)}">
     <div class="plan-card-top"><span class="plan-date">${esc(date)}</span><button class="mini-icon danger-text" data-delete-plan="${esc(plan.id)}" aria-label="Delete plan">×</button></div>
     <h3>${esc(plan.name)}</h3>
-    <div class="plan-card-meta"><span>${durationLabel(mins)} planned</span><span>${drills.length} drills</span><span>${done} done</span></div>
+    <div class="plan-card-meta"><span>${durationLabel(mins)} planned</span><span>${drills.length} drills</span></div>
     <div class="plan-color-row">${skills.map(s=>`<i style="background:${skillColor(s)}" title="${esc(s)}"></i>`).join("")}</div>
   </article>`;
 }
@@ -39,15 +39,10 @@ function details(drill) {
     ${drill.steps?.length?`<ol class="live-steps">${drill.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:'<p class="no-steps">No instructions yet.</p>'}
   </div>`;
 }
-function drillStatus(plan,drill) {
-  if(plan.completedIds.includes(drill.id))return "complete";
-  if(plan.skippedIds.includes(drill.id))return "skipped";
-  return "";
-}
 function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) {
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&!stationLive&&state.live.currentBlockId===drill.id;
-  const status=drillStatus(plan,drill),expanded=current||stationLive;
-  return `<article class="drill-card ${current?"current-popout":""} ${status==="complete"?"is-complete":""} ${status==="skipped"?"is-skipped":""}" data-drill-card="${esc(drill.id)}" data-parent-lane="${esc(laneId||"")}" style="${skillStyle(drill.tags)}">
+  const expanded=current||stationLive;
+  return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-lane="${esc(laneId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
@@ -55,7 +50,6 @@ function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) 
     </button>
     <div class="drill-card-actions">
       <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
-      <button class="status-pill ${status||"pending"}" data-drill-status="${esc(drill.id)}" data-next-status="${status?"clear":"complete"}" aria-label="${status?"Clear drill status":"Mark drill done"}">${status==="complete"?"Done · undo":status==="skipped"?"Skipped · undo":"Mark done"}</button>
       ${laneId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
       <button class="mini-icon danger-text" data-remove-drill="${esc(drill.id)}" aria-label="Remove drill">×</button>
     </div>
@@ -88,7 +82,6 @@ function renderPlanBlocks(plan) {
   return plan.blocks.map(block=>{
     const offset=elapsed,start=clockLabel(plan.start,offset),mins=blockMinutes(block),end=clockLabel(plan.start,offset+mins);elapsed+=mins;
     if(block.kind==="station")return renderStation(block,start,end,plan,offset);
-    const status=drillStatus(plan,block);
     return `<div class="plan-block-wrap" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}">
       <div class="plan-time"><strong>${start}</strong><span>to ${end}</span><small>${mins}m</small></div>
       <div class="root-drill-wrap">${renderDrillCard(block)}</div>
@@ -98,7 +91,7 @@ function renderPlanBlocks(plan) {
 function renderPlanDetail() {
   const plan=activePlan();if(!plan)return;
   $("plan-name").value=plan.name;$("plan-date").value=plan.date;$("plan-start").value=plan.start;$("plan-end").value=plan.end;
-  const drills=flattenDrills(plan),done=drills.filter(d=>plan.completedIds.includes(d.id)).length;
+  const drills=flattenDrills(plan);
   $("plan-drill-count").textContent=drills.length;
   $("plan-total-time").textContent=durationLabel(totalPracticeMinutes(plan));
   
@@ -110,7 +103,7 @@ function renderPlanDetail() {
     const index=plan.blocks.findIndex(b=>b.id===state.live.currentBlockId);
     $("live-position").textContent=(index+1)+" / "+plan.blocks.length;
     $("live-previous").disabled=index<=0;
-    $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Done";
+    $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Next";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
   $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned<=windowM;
@@ -128,7 +121,7 @@ function renderPlanView() {
 function drillCardForBank(drill,pick=false) {
   return `<article class="library-card" style="${skillStyle(drill.tags)}">
     <button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}"`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>
-    ${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:`<button class="mini-icon" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit drill">✎</button>`}
+    ${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}
   </article>`;
 }
 function filteredBank(searchId,filterId,sortId) {
@@ -179,40 +172,16 @@ function renderStats() {
   $("stats-team-select").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===team?.id?"selected":""}>${esc(t.name)}</option>`).join("");
   const from=$("stats-from").value,to=$("stats-to").value;
   const plans=plansForTeam(team?.id).filter(plan=>(!from||plan.date>=from)&&(!to||plan.date<=to));
-  const skills=new Map();let planned=0,completed=0;
-  for(const plan of plans){
-    planned+=totalPracticeMinutes(plan);
-    for(const block of plan.blocks){
-      const drills=block.kind==="station"?block.lanes.flatMap(lane=>lane.drills):[block];
-      if(drills.length&&drills.every(drill=>plan.completedIds.includes(drill.id)))completed+=blockMinutes(block);
-    }
-    for(const drill of flattenDrills(plan)){
-      const tags=[...new Set(drill.tags||[])];
-      if(!tags.length)continue;
-      const base=Math.floor(drill.minutes/tags.length),extra=drill.minutes%tags.length;
-      tags.forEach((skill,index)=>{
-        const share=base+(index<extra?1:0);
-        const row=skills.get(skill)||{planned:0,completed:0,skipped:0};
-        row.planned+=share;
-        if(plan.completedIds.includes(drill.id))row.completed+=share;
-        if(plan.skippedIds.includes(drill.id))row.skipped+=share;
-        skills.set(skill,row);
-      });
-    }
-  }
-  $("stats-plan-count").textContent=plans.length;
-  $("stats-planned-total").textContent=durationLabel(planned);
-  $("stats-done-total").textContent=durationLabel(completed);
-  $("stats-team-label").textContent=team?.name||"";
+  const skills=new Map();let planned=0;
+  for(const plan of plans){planned+=totalPracticeMinutes(plan);for(const drill of flattenDrills(plan)){
+    const tags=[...new Set(drill.tags||[])];if(!tags.length)continue;
+    const base=Math.floor(drill.minutes/tags.length),extra=drill.minutes%tags.length;
+    tags.forEach((skill,index)=>{const row=skills.get(skill)||{planned:0};row.planned+=base+(index<extra?1:0);skills.set(skill,row);});
+  }}
+  $("stats-plan-count").textContent=plans.length;$("stats-planned-total").textContent=durationLabel(planned);$("stats-team-label").textContent=team?.name||"";
   const max=Math.max(1,...[...skills.values()].map(x=>x.planned));
-  $("skill-stats").innerHTML=[...skills.entries()].sort((a,b)=>b[1].planned-a[1].planned).map(([skill,v])=>`<div class="skill-stat-row">
-    <div class="skill-stat-label"><span class="skill-dot" style="background:${skillColor(skill)}"></span><strong>${esc(skill)}</strong><span>${skillTime(v.planned)} planned · ${skillTime(v.completed)} done${v.skipped?" · "+skillTime(v.skipped)+" skipped":""}</span></div>
-    <div class="stat-track"><i style="width:${Math.max(1,Math.round(v.planned/max*100))}%;background:${skillColor(skill)}"></i><b style="width:${Math.max(0,Math.round(v.completed/max*100))}%"></b></div>
-  </div>`).join("")||'<div class="empty-state">Add skills to drills to see skill stats.</div>';
-  $("stats-history").innerHTML=plans.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(plan=>{
-    const drills=flattenDrills(plan),done=drills.filter(d=>plan.completedIds.includes(d.id)).length;
-    return `<div class="history-row"><span><strong>${esc(plan.name)}</strong><small>${esc(plan.date||"No date")}</small></span><b>${durationLabel(totalPracticeMinutes(plan))}</b><small>${done}/${drills.length} done</small></div>`;
-  }).join("")||'<div class="empty-state">No practice plans yet.</div>';
+  $("skill-stats").innerHTML=[...skills.entries()].sort((a,b)=>b[1].planned-a[1].planned).map(([skill,v])=>`<div class="skill-stat-row"><div class="skill-stat-label"><span class="skill-dot" style="background:${skillColor(skill)}"></span><strong>${esc(skill)}</strong><span>${skillTime(v.planned)} planned</span></div><div class="stat-track"><i style="width:${Math.max(1,Math.round(v.planned/max*100))}%;background:${skillColor(skill)}"></i></div></div>`).join("")||'<div class="empty-state">Add skills to drills to see skill stats.</div>';
+  $("stats-history").innerHTML=plans.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(plan=>`<div class="history-row"><span><strong>${esc(plan.name)}</strong><small>${esc(plan.date||"No date")}</small></span><b>${durationLabel(totalPracticeMinutes(plan))}</b><small>${flattenDrills(plan).length} drills</small></div>`).join("")||'<div class="empty-state">No practice plans yet.</div>';
 }
 export function renderEquipmentSheet() {
   const plan=activePlan();if(!plan)return;
@@ -261,6 +230,7 @@ export function renderOneTeam(){renderTeams();}
 export function renderEquipment(){renderEquipmentSheet();}
 export function renderEditorTags(selected=[]) {
   $("edit-tags").innerHTML=SKILLS.map(skill=>`<label class="tag-option" style="--chip:${skillColor(skill)}"><input type="checkbox" value="${esc(skill)}" ${selected.includes(skill)?"checked":""}><span>${esc(skill)}</span></label>`).join("")||'<div class="empty-state">Add a skill in the Skills screen.</div>';
+  const summary=$("edit-skill-summary");if(summary)summary.textContent=selected.length?selected.length+" skills selected":"All skills";
 }
 export function renderEditorEquipment(items=[]) {
   $("edit-equipment-rows").innerHTML=items.map((item,i)=>`<div class="edit-equipment-row">
