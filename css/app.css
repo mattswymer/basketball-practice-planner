@@ -148,3 +148,5 @@
 
 /* Practice mode is a focused view of the existing schedule, not a separate screen. */
 .live-bar{position:relative!important;left:auto!important;bottom:auto!important;transform:none!important;width:100%!important;max-width:none!important;margin:12px 0!important;padding:7px 9px!important;border-radius:12px!important;background:#173e56!important;color:#fff!important;box-shadow:0 5px 16px #102b3f20!important}.live-bar button{min-height:40px!important;min-width:42px!important}.live-bar #live-next{min-width:72px!important}.live-bar #live-exit{min-width:48px!important}.live-active #main-content,#main-content:has(#live-bar:not([hidden])){padding-bottom:calc(94px + env(safe-area-inset-bottom))!important}.live-drill-details{animation:focusReveal .28s ease-out}@keyframes focusReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.equipment-check-row{grid-template-columns:minmax(0,1fr) auto}.equipment-check-row .equipment-check-name{grid-column:1}
