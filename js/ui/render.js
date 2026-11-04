@@ -49,7 +49,7 @@ function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeR
       <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
     </button>
     <div class="drill-card-actions">
-      <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign groups" title="Groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
+      <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign players" title="Player groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
       ${laneId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
       <button class="mini-icon danger-text" data-remove-drill="${esc(drill.id)}" aria-label="Remove drill">×</button>
     </div>
