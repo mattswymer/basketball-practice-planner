@@ -170,3 +170,23 @@
 .live-bar[hidden]{display:none!important}
 .add-drill-wide{margin-left:55px!important;width:calc(100% - 55px)!important}
 @media(max-width:520px){.live-bar{bottom:calc(72px + env(safe-area-inset-bottom))!important}}
+
+
+/* Drill cards: white body with skill color only in the top strip. */
+.drill-card,.library-card,.practice-bank-list .library-card{background:#fff!important;border:1px solid #d8e1e5!important}
+.drill-card{grid-template-columns:minmax(0,1fr) auto!important}
+.drill-card-main{padding-top:15px!important}
+.library-card{position:relative;padding-top:12px!important}
+.drill-card.current-popout{background:#fff!important;border:2px solid #6b8997!important;box-shadow:0 8px 22px #173d5520!important;transform:none!important}
+.station-block.current-popout{background:#fff!important;border:2px solid #6b8997!important;box-shadow:0 8px 22px #173d5520!important;transform:none!important}
+.station-block.current-popout .station-heading{background:#f2f6f7!important}
+.station-block.current-popout .station-lane{background:#fff!important}
+.live-bar{position:relative!important;inset:auto!important;transform:none!important;width:100%!important;max-width:none!important;margin:12px 0!important;background:#173e56!important;color:#fff!important;box-shadow:0 4px 12px #102b3f20!important}
+.live-bar[hidden]{display:none!important}
+.live-active #main-content,#main-content:has(#live-bar:not([hidden])){padding-bottom:24px!important}
+.practice-bank-filters{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center;margin-bottom:9px}
+.practice-bank-filters select{height:42px;max-width:130px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:0 8px;font-size:11px}
+.practice-bank-list .library-main{padding-left:4px}
+.drop-before{outline:3px solid #177fa2!important;outline-offset:2px!important;box-shadow:inset 0 0 0 3px #177fa233!important}
+.drop-before:before{content:"DROP HERE";position:absolute;left:8px;right:8px;top:-11px;height:20px;display:grid;place-items:center;border-radius:6px;background:#177fa2;color:#fff;font-size:9px;font-weight:900;letter-spacing:.1em;z-index:25}
+.drop-target{outline:3px dashed #177fa2!important;outline-offset:3px!important;background:#e8f4f7!important}
