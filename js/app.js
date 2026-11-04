@@ -410,7 +410,6 @@ function registerEvents(){
  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
  $("stats-from").addEventListener("change",renderApp);$("stats-to").addEventListener("change",renderApp);
  $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
- $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
  document.querySelectorAll("dialog").forEach(dialog=>{
   dialog.addEventListener("click",event=>{if(event.target===dialog){if(dialog.id==="drill-sheet"&&skillDropdownBackdropDismiss){skillDropdownBackdropDismiss=false;return;}dialog.close();}});
   const grabber=dialog.querySelector(".sheet-grabber");
