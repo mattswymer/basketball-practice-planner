@@ -3,7 +3,7 @@ import {
  setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill
 } from "./core/store.js";
 import {
- renderApp,renderBankPicker,renderOnePlan,renderOneTeam,renderEquipment,renderEditorTags,
+ renderApp,renderBankPicker,renderOnePlan,renderOneTeam,renderEquipment,renderPracticeBankPanel,renderEditorTags,
  renderEditorEquipment,renderEditorSteps,renderStationEditor,renderGroupBoard,renderSkillManager
 } from "./ui/render.js";
 import {exportPracticePDF,exportBackup,importBackup} from "./services/export.js";
@@ -342,11 +342,11 @@ function registerEvents(){
  document.addEventListener("click",handleClick);
  document.addEventListener("click",event=>{document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>{if(!dropdown.contains(event.target))dropdown.open=false;});});
  document.addEventListener("keydown",event=>{if(event.key==="Escape")document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>dropdown.open=false);});
- $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
+ $("brand-home").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
  $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
- $("back-to-plans").addEventListener("click",()=>{if(state.live.active){show("exit-live-sheet");pendingExitView="plans-list";return;}state.planDetailOpen=false;renderApp();});
+ $("back-to-plans").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.planDetailOpen=false;renderApp();});
  $("plan-name").addEventListener("change",e=>updatePlan("name",e.target.value.trim()||"Practice plan"));
  $("plan-date").addEventListener("change",e=>updatePlan("date",e.target.value));
  $("plan-start").addEventListener("change",e=>updatePlan("start",e.target.value));
@@ -359,7 +359,7 @@ function registerEvents(){
  $("confirm-duplicate").addEventListener("click",()=>duplicatePractice($("duplicate-team-select").value));
  $("save-to-bank").addEventListener("click",saveToBank);
  $("live-exit").addEventListener("click",()=>show("exit-live-sheet"));
- $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;endLiveSession();if(next){state.view=next;renderApp();}});
+ $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;endLiveSession(false);if(next==="plans-list"){state.view="plans";state.planDetailOpen=false;}else if(next)state.view=next;renderApp();toast("Practice ended.");});
  $("exit-live-sheet").addEventListener("close",()=>{pendingExitView=null;});
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",advanceLive);
@@ -374,6 +374,7 @@ function registerEvents(){
  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
  $("import-backup").addEventListener("click",()=>$("backup-file").click());
  $("backup-file").addEventListener("change",backupRestore);
+ $("practice-bank-search").addEventListener("input",renderPracticeBankPanel);
  $("drill-search").addEventListener("input",renderApp);$("drill-tag-options").addEventListener("change",renderApp);$("drill-sort").addEventListener("change",renderApp);
  $("bank-search").addEventListener("input",renderBankPicker);$("bank-tag-options").addEventListener("change",renderBankPicker);$("bank-sort").addEventListener("change",renderBankPicker);$("bank-new-drill").addEventListener("click",()=>openDrillEditor("new-from-bank"));
  $("new-bank-drill").addEventListener("click",()=>openDrillEditor("new"));
@@ -392,7 +393,7 @@ function registerEvents(){
  $("edit-steps").addEventListener("dragend",()=>{stepDrag=null;});
  $("add-lane").addEventListener("click",addLane);$("station-form").addEventListener("submit",saveStation);$("delete-station").addEventListener("click",deleteStation);
 
- $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);$("drill-library").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
+ $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);$("drill-library").addEventListener("pointerdown",beginPlanDrag);$("practice-bank-list").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
  $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
