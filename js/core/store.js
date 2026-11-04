@@ -9,7 +9,7 @@ export const SKILLS=[...DEFAULT_SKILLS];
 export const state={teams:[],activeTeamId:null,drillBank:[],plansByTeam:{},activePlanIds:{},activePlanId:null,view:"plans",live:{active:false,currentBlockId:null,planId:null},planDetailOpen:false,selectedTeamId:null,statsTeamId:null,skills:SKILLS,skillColors:{...DEFAULT_COLORS},groupingDrillId:null};
 let history=[];
 export const clone=x=>JSON.parse(JSON.stringify(x));
-export const uid=(p="id")=>p+"-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);
+export const uid=(p="id")=>p+"-"+(crypto.randomUUID?.()||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8));
 export const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const read=(key,fallback)=>{try{const v=localStorage.getItem(key);return v===null?fallback:JSON.parse(v);}catch{return fallback;}};
 export const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
@@ -54,55 +54,10 @@ export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentC
   tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment),catalog),
   steps:stepsOf(input.steps??input.notes??input.instructions),notes:String(input.coachNotes??input.notesText??input.setupNotes??input.focus??"").trim(),grouping:groupingOf(input.grouping),source:input.source||"custom"};
 }
-function normalizeGroup(input={},index=0,catalog=oldEquipmentCatalog){
- const drills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x,"",catalog)):[];
- return {id:String(input.id||uid("group")),name:String(input.name||"Group "+(index+1)),drills};
-}
-function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
- const raw=input.drill||input,hasDrill=!!raw.name&&!/^(choose a drill|station \d+)$/i.test(raw.name);
- const legacyDrills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x,"",catalog)):hasDrill?[normalizeDrill({...raw,minutes:raw.minutes||raw.duration||10},"",catalog)]:[];
- const groups=Array.isArray(input.groups)?input.groups.map((group,i)=>normalizeGroup(group,i,catalog)):[{id:uid("group"),name:"Group 1",drills:legacyDrills}];
- const label=String(input.name||input.label||"");
- const name=/^lane\s*\d+$/i.test(label)?"Station "+(index+1):label||"Station "+(index+1);
- return {id:String(input.id||uid("station")),name,groups};
-}
-function distributeLaneMinutes(lane,target) {
- const drills=lane?.drills||[];
- if(!drills.length)return;
- const total=Math.max(drills.length,Math.round(Number(target)||drills.length));
- const weights=drills.map(d=>Math.max(1,Number(d.minutes)||1));
- const weightTotal=weights.reduce((a,b)=>a+b,0);
- const raw=weights.map(w=>(total-drills.length)*w/weightTotal);
- const values=raw.map(v=>1+Math.floor(v));
- let remainder=total-values.reduce((a,b)=>a+b,0);
- const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);
- for(let i=0;remainder>0;i++,remainder--)values[order[i%order.length].i]++;
- drills.forEach((d,i)=>d.minutes=values[i]);
-}
-export function fitStationLanes(block,target=block?.minutes) {
- if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));
- const groups=(block.lanes||[]).flatMap(station=>station.groups||[]);
- const minimum=Math.max(1,...groups.map(group=>group.drills?.length||0));
- const minutes=Math.max(minimum,Math.round(Number(target)||block.minutes||15));
- for(const group of groups)distributeLaneMinutes(group,minutes);
- block.minutes=minutes;
- return minutes;
-}
-export function normalizeBlock(input={},catalog=oldEquipmentCatalog) {
- if(input.kind==="station"||input.type==="station"){
-  let lanes;
-  if(Array.isArray(input.lanes))lanes=input.lanes.map((lane,index)=>normalizeLane(lane,index,catalog));
-  else lanes=(input.stations||[]).map((s,i)=>{
-   const empty=!s?.name||/^(choose a drill|station \d+)$/i.test(s.name);
-   return {id:String(s?.id||uid("station")),name:String(s?.label||"Station "+(i+1)),groups:[{id:uid("group"),name:"Group 1",drills:empty?[]:[normalizeDrill({...s,minutes:s.minutes||s.duration||10},"",catalog)]}]};
-  });
-  const implicit=Math.max(0,...lanes.flatMap(station=>(station.groups||[]).map(group=>group.drills.reduce((n,d)=>n+d.minutes,0))));
-  const block={kind:"station",id:String(input.id||input.schedId||uid("station")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),lanes};
-  fitStationLanes(block,block.minutes);
-  return block;
- }
- return normalizeDrill(input,"",catalog);
-}
+function normalizeStation(input={},index=0,catalog=oldEquipmentCatalog){return {id:String(input.id||uid("station")),name:String(input.name||"Station "+(index+1)),drills:(input.drills||[]).map(x=>normalizeDrill(x,"",catalog))};}
+function distributeStationMinutes(station,target){const drills=station?.drills||[];if(!drills.length)return;const total=Math.max(drills.length,Math.round(Number(target)||drills.length)),weights=drills.map(d=>Math.max(1,Number(d.minutes)||1)),sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>(total-drills.length)*w/sum),values=raw.map(v=>1+Math.floor(v));let rem=total-values.reduce((a,b)=>a+b,0);const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);for(let i=0;rem>0;i++,rem--)values[order[i%order.length].i]++;drills.forEach((d,i)=>d.minutes=values[i]);}
+export function fitStationLanes(block,target=block?.minutes){if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));const min=Math.max(1,...(block.stations||[]).map(s=>s.drills?.length||0)),minutes=Math.max(min,Math.round(Number(target)||block.minutes||15));for(const station of block.stations||[])distributeStationMinutes(station,minutes);block.minutes=minutes;return minutes;}
+export function normalizeBlock(input={},catalog=oldEquipmentCatalog){if(input.kind==="station"||input.type==="station"){const stations=(input.stations||[]).map((s,i)=>normalizeStation(s,i,catalog)),implicit=Math.max(0,...stations.map(s=>s.drills.reduce((n,d)=>n+d.minutes,0))),block={kind:"station",id:String(input.id||input.schedId||uid("rotation")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),stations};fitStationLanes(block,block.minutes);return block;}return normalizeDrill(input,"",catalog);}
 export function normalizePlan(input={},teamId="",catalog=oldEquipmentCatalog){
  const blocks=Array.isArray(input.blocks)?input.blocks.map(block=>normalizeBlock(block,catalog)):(input.schedule||[]).map(block=>normalizeBlock(block,catalog));
  return {id:String(input.id||uid("plan")),teamId:String(input.teamId||teamId),name:String(input.name||"Practice plan"),
@@ -179,16 +134,10 @@ export function createPlan(teamId=state.activeTeamId,name="New practice"){const 
 export function setActiveTeam(id){if(!state.teams.some(t=>t.id===id))return;state.activeTeamId=id;const list=plansForTeam(id);state.activePlanId=state.activePlanIds[id]&&list.some(p=>p.id===state.activePlanIds[id])?state.activePlanIds[id]:list[0]?.id||null;state.live={active:false,currentBlockId:null,planId:null};save();}
 export function setActivePlan(id){if(!plansForTeam().some(p=>p.id===id))return;state.activePlanId=id;state.activePlanIds[state.activeTeamId]=id;save();}
 export function getBankDrill(id){return state.drillBank.find(d=>d.id===id)||null;}
-export function drillsInBlock(block){return block?.kind==="station"?(block.lanes||[]).flatMap(station=>(station.groups||[]).flatMap(group=>group.drills||[])):block?[block]:[];}
+export function drillsInBlock(block){return block?.kind==="station"?(block.stations||[]).flatMap(s=>s.drills||[]):block?[block]:[];}
 export function flattenDrills(plan){return (plan?.blocks||[]).flatMap(drillsInBlock);}
 export function findPlanDrill(plan,id){return flattenDrills(plan).find(d=>d.id===id)||null;}
-export function locatePlanDrill(plan,id){
- for(const block of plan?.blocks||[]){
-  if(block.kind==="drill"&&block.id===id)return {drill:block,list:plan.blocks,laneId:null,block};
-  if(block.kind==="station")for(const station of block.lanes)for(const group of station.groups||[]){const index=group.drills.findIndex(d=>d.id===id);if(index>=0)return {drill:group.drills[index],list:group.drills,laneId:station.id,groupId:group.id,block};}
- }
- return null;
-}
+export function locatePlanDrill(plan,id){for(const block of plan?.blocks||[]){if(block.kind==="drill"&&block.id===id)return {drill:block,list:plan.blocks,stationId:null,block};if(block.kind==="station")for(const station of block.stations||[]){const index=station.drills.findIndex(d=>d.id===id);if(index>=0)return {drill:station.drills[index],list:station.drills,stationId:station.id,block};}}return null;}
 export function blockMinutes(block){return block?.kind==="station"?Math.max(1,Math.round(Number(block.minutes)||15)):Math.max(1,Math.round(Number(block?.minutes)||1));}
 export function totalPracticeMinutes(plan){return (plan?.blocks||[]).reduce((sum,b)=>sum+blockMinutes(b),0);}
 export function durationLabel(n){n=Math.max(0,Math.round(n||0));return n>=60?Math.floor(n/60)+"h"+(n%60?String(n%60).padStart(2,"0"):""):n+"m";}
@@ -197,22 +146,10 @@ export function clockLabel(start,offset){const [h,m]=(start||"18:00").split(":")
 export function skillColor(skill){return state.skillColors[skill]||PALETTE[Math.max(0,SKILLS.indexOf(skill))%PALETTE.length]||"#55758a";}
 export function copyDrill(drill){return {...clone(drill),kind:"drill",id:uid("drill"),bankId:drill.id,source:"scheduled",grouping:{groups:[]}};}
 export function equipmentTotals(plan){
- const players=Math.max(1,state.teams.find(t=>t.id===plan?.teamId)?.players.length||1),total=x=>x.perPlayerQuantity+x.fixedQuantity;
- const demand=drill=>{
-  const map=new Map();for(const x of drill.equipment||[]){const key=x.name.toLowerCase(),v=map.get(key)||{name:x.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};
-   if(x.perPlayer)v.perPlayerQuantity+=x.quantity*players;else v.fixedQuantity+=x.quantity;v.uses.add(drill.name);map.set(key,v);}return map;
- };
- const peak=new Map(),merge=(target,source)=>{
-  for(const [key,v]of source){if(!target.has(key))target.set(key,{...v,uses:new Set(v.uses)});else{const t=target.get(key);if(total(v)>total(t)){t.perPlayerQuantity=v.perPlayerQuantity;t.fixedQuantity=v.fixedQuantity;}v.uses.forEach(name=>t.uses.add(name));}}
- };
- for(const block of plan?.blocks||[]){
-  const together=new Map();
-  if(block.kind==="drill")merge(together,demand(block));
-  else for(const station of block.lanes){const laneMap=new Map();for(const group of station.groups||[])group.drills.forEach(d=>merge(laneMap,demand(d)));
-   for(const [key,v]of laneMap){if(!together.has(key))together.set(key,{...v,uses:new Set(v.uses)});else{const t=together.get(key);t.perPlayerQuantity=Math.max(t.perPlayerQuantity,v.perPlayerQuantity);t.fixedQuantity+=v.fixedQuantity;v.uses.forEach(n=>t.uses.add(n));}}
-  }
-  merge(peak,together);
- }
+ const players=Math.max(1,state.teams.find(t=>t.id===plan?.teamId)?.players.length||0),total=x=>x.perPlayerQuantity+x.fixedQuantity;
+ const demand=drill=>{const map=new Map();for(const x of drill.equipment||[]){const key=x.name.toLowerCase(),v=map.get(key)||{name:x.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};if(x.perPlayer)v.perPlayerQuantity+=x.quantity*players;else v.fixedQuantity+=x.quantity;v.uses.add(drill.name);map.set(key,v);}return map;};
+ const peak=new Map(),merge=(target,source)=>{for(const [key,v]of source){if(!target.has(key))target.set(key,{...v,uses:new Set(v.uses)});else{const t=target.get(key);if(total(v)>total(t)){t.perPlayerQuantity=v.perPlayerQuantity;t.fixedQuantity=v.fixedQuantity;}v.uses.forEach(n=>t.uses.add(n));}}};
+ for(const block of plan?.blocks||[]){const simultaneous=new Map();if(block.kind==="drill")merge(simultaneous,demand(block));else for(const station of block.stations||[]){const stationDemand=new Map();for(const drill of station.drills||[])merge(stationDemand,demand(drill));for(const [key,v]of stationDemand){if(!simultaneous.has(key))simultaneous.set(key,{...v,uses:new Set(v.uses)});else{const t=simultaneous.get(key);t.perPlayerQuantity=Math.max(t.perPlayerQuantity,v.perPlayerQuantity);t.fixedQuantity+=v.fixedQuantity;v.uses.forEach(n=>t.uses.add(n));}}}merge(peak,simultaneous);}
  return [...peak.values()].map(v=>({name:v.name,quantity:total(v),uses:[...v.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export function remember(){
