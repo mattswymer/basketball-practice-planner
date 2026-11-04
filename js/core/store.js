@@ -100,7 +100,7 @@ export function normalizePlan(input={},teamId="",catalog=oldEquipmentCatalog){
  const blocks=Array.isArray(input.blocks)?input.blocks.map(block=>normalizeBlock(block,catalog)):(input.schedule||[]).map(block=>normalizeBlock(block,catalog));
  return {id:String(input.id||uid("plan")),teamId:String(input.teamId||teamId),name:String(input.name||"Practice plan"),
   date:String(input.date||localDate()),start:String(input.start||input.startTime||"18:00"),end:String(input.end||input.endTime||"19:30"),
-  blocks,completedIds:[...new Set((input.completedIds||[]).map(String))],skippedIds:[...new Set((input.skippedIds||[]).map(String))],
+  blocks,
   equipmentChecked:{...(input.equipmentChecked||{})},createdAt:input.createdAt||new Date().toISOString()};
 }
 function normalizePlayer(p,i=0){
@@ -120,7 +120,7 @@ function bankMerge(saved,catalog=oldEquipmentCatalog){
  const names=new Set(seeds.map(x=>x.name.toLowerCase()));
  return result.concat(old.filter(x=>x&&x.source==="custom"&&!names.has(String(x.name||"").toLowerCase())).map(drill=>normalizeDrill(drill,"",catalog)));
 }
-function emptyPlan(teamId,name="Practice plan"){return {id:uid("plan"),teamId,name,date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};}
+function emptyPlan(teamId,name="Practice plan"){return {id:uid("plan"),teamId,name,date:localDate(),start:"18:00",end:"19:30",blocks:[],equipmentChecked:{},createdAt:new Date().toISOString()};}
 function migratePlans(teams,activeId,catalog=oldEquipmentCatalog){
  const plans=read(OLD.schedules,{}),meta=read(OLD.meta,{}),old=read(OLD.oldSchedule,[]),result={};
  for(const team of teams){
