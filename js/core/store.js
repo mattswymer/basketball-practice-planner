@@ -62,7 +62,9 @@ function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
  const raw=input.drill||input,hasDrill=!!raw.name&&!/^(choose a drill|station \d+)$/i.test(raw.name);
  const legacyDrills=Array.isArray(input.drills)?input.drills.map(x=>normalizeDrill(x,"",catalog)):hasDrill?[normalizeDrill({...raw,minutes:raw.minutes||raw.duration||10},"",catalog)]:[];
  const groups=Array.isArray(input.groups)?input.groups.map((group,i)=>normalizeGroup(group,i,catalog)):[{id:uid("group"),name:"Group 1",drills:legacyDrills}];
- return {id:String(input.id||uid("station")),name:String(input.name||input.label||"Station "+(index+1)),groups};
+ const label=String(input.name||input.label||"");
+ const name=/^lane\\s*\\d+$/i.test(label)?"Station "+(index+1):label||"Station "+(index+1);
+ return {id:String(input.id||uid("station")),name,groups};
 }
 function distributeLaneMinutes(lane,target) {
  const drills=lane?.drills||[];
