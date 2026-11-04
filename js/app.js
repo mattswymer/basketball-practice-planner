@@ -395,6 +395,7 @@ function endPlanDrag(){
 function registerEvents(){
  document.addEventListener("click",handleClick);
  $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
+ $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
  $("plans-team-select").addEventListener("change",e=>switchTeam(e.target.value));
  $("back-to-plans").addEventListener("click",()=>{state.planDetailOpen=false;if(state.live.active)endLive(false);renderApp();});
@@ -407,17 +408,15 @@ function registerEvents(){
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
  $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
- $("run-again").addEventListener("click",()=>duplicateCurrentPlan(true));
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",()=>advanceLive("complete"));
- $("live-skip").addEventListener("click",()=>advanceLive("skip"));
  $("live-previous").addEventListener("click",previousLive);
  $("live-exit").addEventListener("click",()=>endLive());
  $("plan-equipment").addEventListener("click",openEquipment);
  $("equipment-done").addEventListener("click",()=>{const shouldStart=pendingLiveStart;pendingLiveStart=false;close("equipment-sheet");if(shouldStart)beginLive();});
  $("equipment-sheet").addEventListener("close",()=>{pendingLiveStart=false;$("equipment-done").textContent="Done";});
  const pdf=()=>{const result=exportPracticePDF();if(!result.ok)toast(result.message);else if(result.overflow)toast("PDF saved, but a drill’s instructions may exceed the printable area. Shorten that drill’s notes.");else toast("PDF saved · "+result.pages+" page"+(result.pages===1?"":"s"));};
- $("plan-pdf").addEventListener("click",pdf);$("header-pdf").addEventListener("click",pdf);
+ $("plan-pdf").addEventListener("click",pdf);
  $("header-menu").addEventListener("click",()=>show("backup-sheet"));
  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
  $("import-backup").addEventListener("click",()=>$("backup-file").click());
