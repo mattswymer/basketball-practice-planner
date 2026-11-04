@@ -151,3 +151,12 @@
 .station-group .drill-card{grid-template-columns:44px minmax(0,1fr) auto}.station-group .drill-card-actions{min-width:0}
 
 .live-skills,.live-equipment,.live-player-groups{display:grid;gap:5px;margin-bottom:9px}.live-skills>strong,.live-equipment>strong,.live-player-groups>strong{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#6f838d}.live-skills>span{display:flex;gap:5px;flex-wrap:wrap}.live-player-groups>span{font-size:12px;line-height:1.45;color:#405966}
+
+/* Updated station rotation layout and desktop workspace. */
+.station-lanes{display:grid;grid-template-columns:1fr;gap:10px}.station-lane{display:grid;gap:8px;width:100%;padding:10px;border:1px solid #d5e0e4;border-radius:13px;background:#fff}.station-drills{display:grid;gap:7px;min-height:40px}.station-lane .lane-heading{display:flex;align-items:center;gap:8px}.station-lane .lane-heading strong{flex:1}.station-grip,.bank-drag-handle{display:grid;place-items:center;min-width:36px;min-height:40px;cursor:grab;touch-action:none}.station-grip svg,.bank-drag-handle svg{width:17px;height:20px;fill:#718792}.bank-drag-handle{min-width:34px;min-height:44px}.station-editor-card{padding:9px;border:1px solid var(--line);border-radius:11px;background:white}
+.save-status{font-size:10px;color:#668078;font-weight:700;white-space:nowrap}
+.live-bar{position:fixed!important;left:50%!important;bottom:calc(72px + env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;width:min(calc(100% - 20px),1280px)!important;max-width:none!important;margin:0!important;padding:9px 12px!important;border-radius:14px!important;background:#173e56!important;color:#fff!important;box-shadow:0 8px 24px #102b3f40!important}
+.live-bar .live-actions{display:flex;align-items:center;gap:7px;flex-wrap:nowrap}.live-bar .live-exit{background:#e7eef1;color:#264858}
+.root-drill-wrap{min-width:0}.add-drill-wide{margin-left:68px;width:calc(100% - 68px);box-sizing:border-box}
+@media(min-width:900px){.app-shell{width:min(100%,1440px)}.view{max-width:1320px}#main-content{padding-left:34px;padding-right:34px}.drill-library{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.plans-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.station-lanes{grid-template-columns:repeat(2,minmax(0,1fr))}.sheet{width:min(100%,900px)}.live-bar{width:min(calc(100% - 60px),1280px)!important}}
+@media(max-width:520px){.live-bar .live-actions{gap:4px}.live-bar .live-actions button{padding:0 7px;font-size:10px}.live-bar .live-exit{min-width:78px}}
