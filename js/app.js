@@ -135,7 +135,7 @@ function removePlanDrill(id){
   const station=plan.blocks.find(block=>block.kind==="station"&&block.lanes.some(l=>l.id===found.laneId));
   if(station&&station.lanes.every(item=>(item.groups||[]).every(group=>!group.drills.length)))plan.blocks=plan.blocks.filter(block=>block.id!==station.id);
  }
- if(state.live.active&&!plan.blocks.some(block=>block.id===state.live.currentBlockId))practice.stopLive();
+ if(state.live.active&&!flattenDrills(plan).some(drill=>drill.id===state.live.currentBlockId)){const next=flattenDrills(plan)[0];if(next)state.live.currentBlockId=next.id;else practice.stopLive();}
  persist();renderApp();toast("Drill removed.",true);
 }
 function addBankDrill(id){
