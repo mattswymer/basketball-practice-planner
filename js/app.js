@@ -77,19 +77,19 @@ function switchTeam(id){
 function changeView(view){state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
 function openBank(laneId=null){
  if(!activePlan())return toast("Create a practice plan first.");
- pendingLaneId=laneId;$("bank-search").value="";$("bank-skill-filter").value="";renderBankPicker();show("bank-sheet");
+ pendingLaneId=laneId;$("bank-search").value="";$("bank-tag-options").querySelectorAll("input").forEach(x=>x.checked=false);$("bank-sort").value="name";renderBankPicker();show("bank-sheet");
 }
 function openDrillEditor(type,id=null){
  const plan=activePlan();
- const item=type==="new"?{id:uid("drill"),name:"",minutes:10,tags:[],equipment:[],steps:[],source:"custom",grouping:{groups:[]}}:
+ const item=type==="new"||type==="new-from-bank"?{id:uid("drill"),name:"",minutes:10,tags:[],equipment:[],steps:[],notes:"",source:"custom",grouping:{groups:[]}}:
   type==="bank"?getBankDrill(id):findPlanDrill(plan,id);
  if(!item)return;
  editing={type,id:item.id};
- $("drill-sheet-title").textContent=type==="new"?"New drill":type==="bank"?"Edit bank drill":"Edit drill";
+ $("drill-sheet-title").textContent=type==="new"||type==="new-from-bank"?"New drill":type==="bank"?"Edit bank drill":"Edit drill";
  $("drill-sheet-eyebrow").textContent=type==="bank"?"DRILL BANK":type==="plan"?"PRACTICE DRILL":"NEW DRILL";
- $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;
+ $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;$("edit-notes").value=item.notes||"";
  renderEditorTags(item.tags||[]);renderEditorEquipment(clone(item.equipment||[]));renderEditorSteps(clone(item.steps||[]));
- $("delete-drill").hidden=type==="new";$("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
+ $("delete-drill").hidden=type==="new"||type==="new-from-bank";$("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
  show("drill-sheet");
 }
 function editorEquipment(includeBlank=false){
@@ -109,9 +109,9 @@ function saveDrill(event){
  event.preventDefault();if(!editing)return;
  const name=$("edit-name").value.trim();if(!name){$("edit-name").focus();return;}
  const data={name,minutes:Math.max(1,Math.min(240,Math.round(Number($("edit-minutes").value)||10))),
-  tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps()};
+  tags:[...$("edit-tags").querySelectorAll("input:checked")].map(el=>el.value),equipment:editorEquipment(),steps:editorSteps(),notes:$("edit-notes").value.trim()};
  remember();
- if(editing.type==="new")state.drillBank.unshift({...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}});
+ if(editing.type==="new"||editing.type==="new-from-bank"){const item={...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(item);if(editing.type==="new-from-bank")practice.addScheduledDrill(copyDrill(item),activePlan(),pendingLaneId);}
  else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
  else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);practice.ensureStationFits(activePlan());}}
  persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
@@ -371,7 +371,7 @@ function movePlanDrag(event){
  if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
  document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
  const target=document.elementFromPoint(event.clientX,event.clientY);
- const dest=target?.closest("[data-drill-card],[data-drop-lane],[data-block-id],[data-drop-root]");
+ const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-lane]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
  drag.target=dest||null;
  const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]");
  if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");
@@ -422,8 +422,8 @@ function registerEvents(){
  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
  $("import-backup").addEventListener("click",()=>$("backup-file").click());
  $("backup-file").addEventListener("change",backupRestore);
- $("drill-search").addEventListener("input",renderApp);$("drill-skill-filter").addEventListener("change",renderApp);
- $("bank-search").addEventListener("input",renderBankPicker);$("bank-skill-filter").addEventListener("change",renderBankPicker);
+ $("drill-search").addEventListener("input",renderApp);$("drill-tag-options").addEventListener("change",renderApp);$("drill-sort").addEventListener("change",renderApp);
+ $("bank-search").addEventListener("input",renderBankPicker);$("bank-tag-options").addEventListener("change",renderBankPicker);$("bank-sort").addEventListener("change",renderBankPicker);$("bank-new-drill").addEventListener("click",()=>openDrillEditor("new-from-bank"));
  $("new-bank-drill").addEventListener("click",()=>openDrillEditor("new"));
  $("drill-form").addEventListener("submit",saveDrill);$("delete-drill").addEventListener("click",deleteEditorDrill);
  $("add-equipment-row").addEventListener("click",()=>{const values=editorEquipment(true);values.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(values);});
@@ -448,6 +448,7 @@ function registerEvents(){
  $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
  document.querySelectorAll("dialog").forEach(dialog=>{
+  dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});
   const grabber=dialog.querySelector(".sheet-grabber");
   if(grabber){
    let startY=null;
