@@ -88,8 +88,10 @@ function saveDrill(event){
 }
 function saveToBank(){
  if(!editing||editing.type!=="plan")return;const data=editorData();if(!data.name){$("edit-name").focus();return;}const scheduled=findPlanDrill(activePlan(),editing.id);if(!scheduled)return;
- if(scheduled.bankId&&getBankDrill(scheduled.bankId)){if(!window.confirm("Replace the existing drill bank entry with these edits?"))return;remember();Object.assign(getBankDrill(scheduled.bankId),data);toast("Drill bank entry updated.");}
- else{remember();const bank={...data,id:uid("drill"),kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(bank);scheduled.bankId=bank.id;toast("Drill saved to bank.");}
+ const linked=scheduled.bankId&&getBankDrill(scheduled.bankId);if(linked&&!window.confirm("Replace the existing drill bank entry with these edits?"))return;
+ remember();Object.assign(scheduled,data);practice.ensureStationFits(activePlan());
+ if(linked){Object.assign(linked,data);toast("Scheduled drill and bank entry updated.");}
+ else{const bank={...data,id:uid("drill"),kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(bank);scheduled.bankId=bank.id;toast("Drill saved to bank.");}
  persist();$("save-to-bank").textContent="Update Drill Bank Entry";$("save-bank-note").textContent="This scheduled drill is linked to a bank entry.";renderApp();
 }
 function deleteEditorDrill(){
@@ -332,7 +334,7 @@ function movePlanDrag(event){
 }
 function endPlanDrag(){
  if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");item.ghost?.remove();document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));if(!item.active||!item.target)return;const target=item.target;
- if(item.kind==="bank-drill"){const station=target.closest("[data-drop-station]"),bank=getBankDrill(item.id);if(bank){practice.addScheduledDrill(copyDrill(bank),activePlan(),station?.dataset.dropStation||null);renderApp();toast("Added "+bank.name+".");}return;}
+ if(item.kind==="bank-drill"){const station=target.closest("[data-drop-station]"),card=target.closest("[data-drill-card]"),bank=getBankDrill(item.id),stationId=station?.dataset.dropStation||card?.dataset.parentStation||null,beforeId=card?.dataset.drillCard||null;if(bank){practice.addScheduledDrill(copyDrill(bank),activePlan(),stationId,beforeId);renderApp();toast("Added "+bank.name+".");}return;}
  if(item.kind==="block"){const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;}
  if(item.kind==="station"){const station=target.closest("[data-drop-station]");if(station&&station.dataset.dropStation!==item.id){practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);renderApp();}return;}
  const card=target.closest("[data-drill-card]"),station=target.closest("[data-drop-station]"),stationId=station?.dataset.dropStation||card?.dataset.parentStation||null,beforeId=card?.dataset.drillCard||null;
