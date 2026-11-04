@@ -28,7 +28,7 @@ function createPlan(){
  state.planDetailOpen=true;state.view="plans";persist();renderApp();
  $("plan-name").focus();$("plan-name").select();
 }
-let pendingExitView=null;
+let pendingExitView=null,pendingExitTeamId=null;
 function openDuplicate(){const source=activePlan();if(!source)return;const select=$("duplicate-team-select");select.innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}" ${t.id===source.teamId?"selected":""}>${esc(t.name)}</option>`).join("");show("duplicate-sheet");}
 function duplicatePractice(targetTeamId){const source=activePlan();if(!source||!targetTeamId)return;const copy=clone(source),sameTeam=targetTeamId===source.teamId;copy.id=uid("plan");copy.teamId=targetTeamId;copy.name="Copy of "+source.name;copy.createdAt=new Date().toISOString();copy.equipmentChecked={};for(const block of copy.blocks){block.id=uid(block.kind==="station"?"rotation":"drill");if(block.kind==="station"){for(const station of block.stations||[]){station.id=uid("station");for(const drill of station.drills||[]){drill.id=uid("drill");for(const group of drill.grouping?.groups||[]){group.id=uid("group");if(!sameTeam)group.playerIds=[];}}}}else{block.id=uid("drill");for(const group of block.grouping?.groups||[]){group.id=uid("group");if(!sameTeam)group.playerIds=[];}}}remember();state.plansByTeam[targetTeamId]||=[];state.plansByTeam[targetTeamId].unshift(copy);setActiveTeam(targetTeamId);setActivePlan(copy.id);state.selectedTeamId=targetTeamId;state.statsTeamId=targetTeamId;state.planDetailOpen=true;state.view="plans";close("duplicate-sheet");persist();renderApp();toast("Practice duplicated to "+(state.teams.find(t=>t.id===targetTeamId)?.name||"team")+".");}
 function practicePlanObject(teamId){
@@ -43,10 +43,10 @@ function deletePlan(id){
  persist();renderApp();toast(removed.name+" deleted.",true);
 }
 function switchTeam(id){
- if(state.live.active){practice.stopLive();releaseWakeLock();}
+ if(state.live.active){pendingExitView="switch-team";pendingExitTeamId=id;show("exit-live-sheet");return;}
  setActiveTeam(id);state.selectedTeamId=id;state.statsTeamId=id;state.planDetailOpen=false;renderApp();
 }
-function changeView(view){if(state.live.active&&view!=="plans"){pendingExitView=view;show("exit-live-sheet");return;}state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
+function changeView(view){if(state.live.active&&view!=="plans"){pendingExitView=view;pendingExitTeamId=null;show("exit-live-sheet");return;}state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
 function openBank(stationId=null){
  if(!activePlan())return toast("Create a practice plan first.");
  pendingStationId=stationId;$("bank-search").value="";$("bank-tag-options").querySelectorAll("input").forEach(x=>x.checked=false);$("bank-sort").value="name";renderBankPicker();show("bank-sheet");
@@ -362,8 +362,8 @@ function registerEvents(){
  $("confirm-duplicate").addEventListener("click",()=>duplicatePractice($("duplicate-team-select").value));
  $("save-to-bank").addEventListener("click",saveToBank);
  $("live-exit").addEventListener("click",()=>show("exit-live-sheet"));
- $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;close("exit-live-sheet");endLiveSession(false);if(next==="plans-list"){state.view="plans";state.planDetailOpen=false;}else if(next)state.view=next;renderApp();toast("Practice ended.");});
- $("exit-live-sheet").addEventListener("close",()=>{pendingExitView=null;});
+ $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView,teamId=pendingExitTeamId;pendingExitView=null;pendingExitTeamId=null;close("exit-live-sheet");endLiveSession(false);if(next==="plans-list"){state.view="plans";state.planDetailOpen=false;}else if(next==="switch-team"&&teamId){setActiveTeam(teamId);state.selectedTeamId=teamId;state.statsTeamId=teamId;state.planDetailOpen=false;}else if(next)state.view=next;renderApp();toast("Practice ended.");});
+ $("exit-live-sheet").addEventListener("close",()=>{pendingExitView=null;pendingExitTeamId=null;});
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",advanceLive);
  $("live-previous").addEventListener("click",previousLive);
