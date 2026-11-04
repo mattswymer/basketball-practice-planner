@@ -1,19 +1,11 @@
 import {state,activePlan,flattenDrills,drillsInBlock,blockMinutes,timeWindow,remember,save,uid,fitStationLanes} from "../core/store.js";
 export {fitStationLanes};
-function uniqueIds(block){return drillsInBlock(block).map(drill=>drill.id);}
 export function ensureStationFits(plan=activePlan()){
   if(!plan)return;
   for(const block of plan.blocks||[])if(block.kind==="station"){
     const longest=Math.max(1,...(block.lanes||[]).map(lane=>lane.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0)));
     if(longest>block.minutes)block.minutes=longest;
   }
-}
-function setBlockStatus(plan,block,status){
-  const ids=uniqueIds(block);
-  plan.completedIds=plan.completedIds.filter(id=>!ids.includes(id));
-  plan.skippedIds=plan.skippedIds.filter(id=>!ids.includes(id));
-  if(status==="complete")plan.completedIds.push(...ids);
-  if(status==="skip")plan.skippedIds.push(...ids);
 }
 export function fitPractice(plan=activePlan()){
   if(!plan||!plan.blocks.length)return {ok:false,reason:"empty"};
@@ -37,8 +29,7 @@ export function fitPractice(plan=activePlan()){
 }
 export function startLive(plan=activePlan()){
   if(!plan?.blocks.length)return {ok:false,reason:"empty"};
-  let index=plan.blocks.findIndex(block=>!uniqueIds(block).every(id=>plan.completedIds.includes(id)||plan.skippedIds.includes(id)));
-  if(index<0)index=0;
+  let index=0;
   state.live={active:true,planId:plan.id,currentBlockId:plan.blocks[index].id};
   return {ok:true,index};
 }
@@ -51,25 +42,14 @@ export function moveLive(direction,plan=activePlan()){
   if(!next)return false;
   state.live.currentBlockId=next.id;save();return true;
 }
-export function advanceLive(status="complete",plan=activePlan()){
+export function advanceLive(plan=activePlan()){
   if(!plan||!state.live.active)return {ok:false};
   const index=liveIndex(plan),block=plan.blocks[index];if(!block)return {ok:false};
-  remember();setBlockStatus(plan,block,status);
   const next=plan.blocks[index+1];
   if(next){state.live.currentBlockId=next.id;save();return {ok:true,finished:false,next};}
   state.live={active:false,currentBlockId:null,planId:null};save();return {ok:true,finished:true};
 }
 export function stopLive(){state.live={active:false,currentBlockId:null,planId:null};save();}
-export function toggleDrillStatus(drillId,status,plan=activePlan()){
-  if(!plan)return;
-  const drill=flattenDrills(plan).find(item=>item.id===drillId);if(!drill)return;
-  remember();
-  plan.completedIds=plan.completedIds.filter(id=>id!==drillId);
-  plan.skippedIds=plan.skippedIds.filter(id=>id!==drillId);
-  if(status==="complete")plan.completedIds.push(drillId);
-  if(status==="skip")plan.skippedIds.push(drillId);
-  save();
-}
 export function addScheduledDrill(drill,plan=activePlan(),laneId=null){
   if(!drill||!plan)return false;
   remember();
@@ -87,15 +67,13 @@ export function removeScheduledDrill(drillId,plan=activePlan()){
   for(const block of plan.blocks){
     if(block.kind==="drill"&&block.id===drillId){
       remember();plan.blocks=plan.blocks.filter(item=>item.id!==drillId);
-      plan.completedIds=plan.completedIds.filter(id=>id!==drillId);plan.skippedIds=plan.skippedIds.filter(id=>id!==drillId);
       save();return true;
     }
     if(block.kind==="station")for(const lane of block.lanes){
       const index=lane.drills.findIndex(item=>item.id===drillId);
       if(index>=0){
         remember();lane.drills.splice(index,1);fitStationLanes(block,block.minutes);
-        plan.completedIds=plan.completedIds.filter(id=>id!==drillId);plan.skippedIds=plan.skippedIds.filter(id=>id!==drillId);
-        save();return true;
+          save();return true;
       }
     }
   }
@@ -105,7 +83,6 @@ export function removeScheduledBlock(blockId,plan=activePlan()){
   if(!plan)return false;
   const block=plan.blocks.find(item=>item.id===blockId);if(!block)return false;
   remember();plan.blocks=plan.blocks.filter(item=>item.id!==blockId);
-  const ids=uniqueIds(block);plan.completedIds=plan.completedIds.filter(id=>!ids.includes(id));plan.skippedIds=plan.skippedIds.filter(id=>!ids.includes(id));
   if(state.live.active&&state.live.currentBlockId===blockId){
     const next=plan.blocks[0];if(next)state.live.currentBlockId=next.id;else stopLive();
   }
