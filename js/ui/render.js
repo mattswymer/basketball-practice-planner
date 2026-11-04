@@ -157,8 +157,8 @@ function renderStats() {
   const skills=new Map();let planned=0;
   for(const plan of plans){planned+=totalPracticeMinutes(plan);for(const drill of flattenDrills(plan)){
     const tags=[...new Set(drill.tags||[])];if(!tags.length)continue;
-    const share=Number(drill.minutes||0)/tags.length;
-    tags.forEach(skill=>{const row=skills.get(skill)||{planned:0};row.planned+=share;skills.set(skill,row);});
+    const minutes=Number(drill.minutes||0);
+    tags.forEach(skill=>{const row=skills.get(skill)||{planned:0};row.planned+=minutes;skills.set(skill,row);});
   }}
   $("stats-plan-count").textContent=plans.length;$("stats-planned-total").textContent=durationLabel(planned);$("stats-team-label").textContent=team?.name||"";
   const max=Math.max(1,...[...skills.values()].map(x=>x.planned));
