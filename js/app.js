@@ -34,7 +34,7 @@ function duplicateCurrentPlan(runAgain=false){
  copy.id=uid("plan");copy.teamId=source.teamId;
  copy.name=source.name+(runAgain?" (repeat)":" (copy)");
  copy.date=runAgain?localDate():source.date;
- copy.completedIds=[];copy.skippedIds=[];copy.equipmentChecked={};
+ copy.equipmentChecked={};
  copy.createdAt=new Date().toISOString();
  remember();
  state.plansByTeam[source.teamId].unshift(copy);setActivePlan(copy.id);
@@ -60,7 +60,7 @@ function duplicatePlan(runAgain=false){
  toast(runAgain?"Practice copied for a new run.":"Plan duplicated.");
 }
 function practicePlanObject(teamId){
- return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],completedIds:[],skippedIds:[],equipmentChecked:{},createdAt:new Date().toISOString()};
+ return {id:uid("plan"),teamId,name:"Practice · "+localDate(),date:localDate(),start:"18:00",end:"19:30",blocks:[],equipmentChecked:{},createdAt:new Date().toISOString()};
 }
 function deletePlan(id){
  const list=plansForTeam(),index=list.findIndex(p=>p.id===id);if(index<0)return;
@@ -84,7 +84,7 @@ function openDrillEditor(type,id=null){
  const item=type==="new"||type==="new-from-bank"?{id:uid("drill"),name:"",minutes:10,tags:[],equipment:[],steps:[],notes:"",source:"custom",grouping:{groups:[]}}:
   type==="bank"?getBankDrill(id):findPlanDrill(plan,id);
  if(!item)return;
- editing={type,id:item.id};
+ editing={type,id:item.id,bankId:item.bankId||null};
  $("drill-sheet-title").textContent=type==="new"||type==="new-from-bank"?"New drill":type==="bank"?"Edit bank drill":"Edit drill";
  $("drill-sheet-eyebrow").textContent=type==="bank"?"DRILL BANK":type==="plan"?"PRACTICE DRILL":"NEW DRILL";
  $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;$("edit-notes").value=item.notes||"";
@@ -113,7 +113,7 @@ function saveDrill(event){
  remember();
  if(editing.type==="new"||editing.type==="new-from-bank"){const item={...data,id:editing.id,kind:"drill",source:"custom",grouping:{groups:[]}};state.drillBank.unshift(item);if(editing.type==="new-from-bank")practice.addScheduledDrill(copyDrill(item),activePlan(),pendingLaneId);}
  else if(editing.type==="bank"){const item=getBankDrill(editing.id);if(item)Object.assign(item,data);}
- else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);practice.ensureStationFits(activePlan());}}
+ else {const item=findPlanDrill(activePlan(),editing.id);if(item){Object.assign(item,data);if($("update-drill-bank")?.checked&&item.bankId){const bank=getBankDrill(item.bankId);if(bank)Object.assign(bank,data);}practice.ensureStationFits(activePlan());}}
  persist();close("drill-sheet");editing=null;renderApp();toast("Drill saved.");
 }
 function deleteEditorDrill(){
@@ -187,7 +187,7 @@ function fitCurrentPlan(){
 }
 function startLive(){
  const plan=activePlan();if(!plan?.blocks.length)return toast("Add a drill or station first.");
- pendingLiveStart=true;renderEquipment();$("equipment-done").textContent="Start practice";show("equipment-sheet");
+ beginLive();
 }
 function beginLive(){
  const result=practice.startLive();if(!result.ok)return toast("Add a drill or station first.");
@@ -202,10 +202,10 @@ function requestWakeLock(){
 }
 async function releaseWakeLock(){try{await wakeLock?.release();}catch{}wakeLock=null;}
 function endLive(showToast=true){practice.stopLive();releaseWakeLock();renderApp();if(showToast)toast("Practice ended.");}
-function advanceLive(result){
- const outcome=practice.advanceLive(result);
+function advanceLive(){
+ const outcome=practice.advanceLive();
  if(!outcome.ok)return;
- if(outcome.finished){releaseWakeLock();renderApp();toast(result==="skip"?"Practice finished.":"Practice finished.");return;}
+ if(outcome.finished){releaseWakeLock();renderApp();toast("Practice finished.");return;}
  renderOnePlan();
  document.querySelector('[data-block-id="'+outcome.next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
 }
@@ -324,8 +324,6 @@ function backupRestore(event){
 function handleClick(event){
  const target=event.target;
  const closeButton=target.closest("[data-close]");if(closeButton){close(closeButton.dataset.close);return;}
- const statusButton=target.closest("[data-drill-status]");
- if(statusButton){practice.toggleDrillStatus(statusButton.dataset.drillStatus,statusButton.dataset.nextStatus==="complete"?"complete":null);renderApp();return;}
  const nav=target.closest("[data-view]");if(nav){changeView(nav.dataset.view);return;}
  const planCard=target.closest("[data-open-plan]");if(planCard&&!target.closest("[data-delete-plan]")){openPlan(planCard.dataset.openPlan);return;}
  const deletePlanButton=target.closest("[data-delete-plan]");if(deletePlanButton){deletePlan(deletePlanButton.dataset.deletePlan);return;}
@@ -409,7 +407,7 @@ function registerEvents(){
  $("fit-practice").addEventListener("click",fitCurrentPlan);
  $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
  $("live-start").addEventListener("click",startLive);
- $("live-next").addEventListener("click",()=>advanceLive("complete"));
+ $("live-next").addEventListener("click",advanceLive);
  $("live-previous").addEventListener("click",previousLive);
  $("live-exit").addEventListener("click",()=>endLive());
  $("plan-equipment").addEventListener("click",openEquipment);
@@ -437,7 +435,7 @@ function registerEvents(){
  $("edit-steps").addEventListener("drop",event=>{const row=event.target.closest("[data-step-row]");if(!row||stepDrag===null)return;event.preventDefault();const values=editorSteps(true),to=Number(row.dataset.stepRow),[value]=values.splice(stepDrag,1);values.splice(to,0,value);stepDrag=null;renderEditorSteps(values);});
  $("edit-steps").addEventListener("dragend",()=>{stepDrag=null;});
  $("add-lane").addEventListener("click",addLane);$("station-form").addEventListener("submit",saveStation);$("delete-station").addEventListener("click",deleteStation);
- $("equipment-checklist").addEventListener("change",event=>{const input=event.target.closest("[data-equipment-checked]");if(input)checkEquipment(input.dataset.equipmentChecked,input.checked);});
+
  $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
