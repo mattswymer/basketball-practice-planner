@@ -313,7 +313,7 @@ function handleClick(event){
  const deleteSkillButton=target.closest("[data-delete-skill]");if(deleteSkillButton){removeSkill(deleteSkillButton.dataset.deleteSkill);return;}
 }
 function beginPlanDrag(event){
- const handle=event.target.closest("[data-drag-kind]");if(!handle)return;
+ const handle=event.target.closest('[data-drag-kind="block"],[data-drag-kind="station"]');if(!handle)return;
  drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,rotationId:handle.dataset.rotationId||null,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
  drag.timer=setTimeout(()=>{if(!drag)return;drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);const source=handle.closest("[data-drill-card],[data-block-id],[data-station-id],[data-library-card]")||handle,rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;},event.pointerType==="mouse"?110:230);
 }
@@ -327,18 +327,16 @@ function movePlanDrag(event){
  if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
  document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
  const target=document.elementFromPoint(event.clientX,event.clientY);
- const dest=target?.closest("[data-drill-card]")||target?.closest("[data-drop-station]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
+ const dest=target?.closest("[data-drop-station]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
  drag.target=dest||null;
- const card=dest?.closest("[data-drill-card]"),block=dest?.closest("[data-block-id]"),station=dest?.closest("[data-drop-station]");
- if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id)card.classList.add("drop-before");else if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");else if(drag.kind==="station"&&station&&station.dataset.dropStation!==drag.id)station.classList.add("drop-before");else dest?.classList.add("drop-target");
+ const block=dest?.closest("[data-block-id]"),station=dest?.closest("[data-drop-station]");
+ if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");else if(drag.kind==="station"&&station&&station.dataset.dropStation!==drag.id)station.classList.add("drop-before");else dest?.classList.add("drop-target");
 }
 function endPlanDrag(){
  if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");item.ghost?.remove();document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));if(!item.active||!item.target)return;const target=item.target;
- if(item.kind==="bank-drill"){const station=target.closest("[data-drop-station]"),card=target.closest("[data-drill-card]"),bank=getBankDrill(item.id),stationId=station?.dataset.dropStation||card?.dataset.parentStation||null,beforeId=card?.dataset.drillCard||null;if(bank){practice.addScheduledDrill(copyDrill(bank),activePlan(),stationId,beforeId);renderApp();toast("Added "+bank.name+".");}return;}
  if(item.kind==="block"){const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;}
  if(item.kind==="station"){const station=target.closest("[data-drop-station]"),block=target.closest("[data-block-id]");if(station&&station.dataset.parentRotation===item.rotationId){if(station.dataset.dropStation!==item.id)practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);}else{const beforeBlockId=station?.dataset.parentRotation||block?.dataset.blockId||null;practice.moveStationToSchedule(item.rotationId,item.id,beforeBlockId);}renderApp();return;}
- const card=target.closest("[data-drill-card]"),station=target.closest("[data-drop-station]"),stationId=station?.dataset.dropStation||card?.dataset.parentStation||null,beforeId=card?.dataset.drillCard||null;
- if(item.id!==beforeId&&practice.moveScheduledDrill(item.id,stationId,beforeId)){renderApp();toast("Drill moved.");}
+
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
@@ -377,7 +375,7 @@ function registerEvents(){
  $("export-backup").addEventListener("click",()=>{exportBackup();close("backup-sheet");toast("Backup downloaded.");});
  $("import-backup").addEventListener("click",()=>$("backup-file").click());
  $("backup-file").addEventListener("change",backupRestore);
- $("practice-bank-search").addEventListener("input",renderPracticeBankPanel);
+ $("practice-bank-search").addEventListener("input",renderPracticeBankPanel);$("practice-bank-tag-options").addEventListener("change",renderPracticeBankPanel);$("practice-bank-sort").addEventListener("change",renderPracticeBankPanel);
  $("drill-search").addEventListener("input",renderApp);$("drill-tag-options").addEventListener("change",renderApp);$("drill-sort").addEventListener("change",renderApp);
  $("bank-search").addEventListener("input",renderBankPicker);$("bank-tag-options").addEventListener("change",renderBankPicker);$("bank-sort").addEventListener("change",renderBankPicker);$("bank-new-drill").addEventListener("click",()=>openDrillEditor("new-from-bank"));
  $("new-bank-drill").addEventListener("click",()=>openDrillEditor("new"));
@@ -396,7 +394,7 @@ function registerEvents(){
  $("edit-steps").addEventListener("dragend",()=>{stepDrag=null;});
  $("add-lane").addEventListener("click",addLane);$("station-form").addEventListener("submit",saveStation);$("delete-station").addEventListener("click",deleteStation);
 
- $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);$("drill-library").addEventListener("pointerdown",beginPlanDrag);$("practice-bank-list").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
+ $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
  $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
