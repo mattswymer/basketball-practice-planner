@@ -11,16 +11,6 @@ function colorForTags(tags=[]) {
   if(!colors.length)return "#52758a";
   return "#"+[0,2,4].map(i=>Math.round(colors.reduce((sum,value)=>sum+parseInt(value.slice(i,i+2),16),0)/colors.length).toString(16).padStart(2,"0")).join("");
 }
-function collectEntries(plan) {
-  const entries=[];
-  for(const block of plan.blocks) {
-    if(block.kind==="drill") entries.push({drill:block,lane:""});
-    else if(block.kind==="station") {
-      for(const station of block.lanes) for(const group of station.groups||[]) for(const drill of group.drills) entries.push({drill,lane:station.name,group:group.name,station:block.name});
-    }
-  }
-  return entries;
-}
 export function exportPracticePDF() {
   const plan=activePlan(),team=activeTeam();
   if(!plan)return {ok:false,message:"Open a practice plan first."};
