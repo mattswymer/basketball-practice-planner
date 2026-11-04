@@ -69,7 +69,7 @@ export function exportPracticePDF() {
       const meta=String(atom.number).padStart(2,"0")+"  ·  "+atom.start+"–"+atom.end+"  ·  "+(drill.minutes||1)+" MIN";
       const skills=(drill.tags||[]).join(" / ");
       const groups=(drill.grouping?.groups||[]).filter(g=>(g.playerIds||[]).length).map(g=>g.name+" ("+g.playerIds.length+")").join(", ");
-      const title=(atom.station?atom.station+" / "+atom.lane+" · ":atom.lane?atom.lane+" · ":"")+drill.name;
+      const title=(atom.station?atom.station+" / "+atom.lane+(atom.group?" / "+atom.group:"")+" · ":atom.lane?atom.lane+(atom.group?" / "+atom.group:"")+" · ":"")+drill.name;
       doc.setFont("helvetica","bold");doc.setFontSize(fonts.title);
       const titleLines=doc.splitTextToSize(title,colWidth-10);
       doc.setFont("helvetica","normal");doc.setFontSize(fonts.small);
