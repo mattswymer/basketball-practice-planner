@@ -42,10 +42,10 @@ function details(drill) {
     ${drill.steps?.length?`<ol class="live-steps">${drill.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:'<p class="no-steps">No instructions yet.</p>'}
   </div>`;
 }
-function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeRange=""}={}) {
+function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={}) {
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&state.live.currentBlockId===drill.id;
   const expanded=current||stationLive;
-  return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-group="${esc(groupId||"")}" style="${skillStyle(drill.tags)}">
+  return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-station="${esc(stationId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
@@ -53,24 +53,18 @@ function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeR
     </button>
     <div class="drill-card-actions">
       <button class="mini-icon group-open" data-open-drill-groups="${esc(drill.id)}" aria-label="Assign players" title="Player groups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></svg></button>
-      ${laneId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
+      ${stationId?`<button class="mini-icon" data-move-to-plan="${esc(drill.id)}" aria-label="Move to main plan">↗</button>`:""}
       <button class="mini-icon danger-text" data-remove-drill="${esc(drill.id)}" aria-label="Remove drill">×</button>
     </div>
     ${expanded?details(drill):""}
   </article>`;
 }
 function renderStation(block,start,end,plan,offset) {
-  const live=state.live.active&&state.live.planId===plan.id&&(block.lanes||[]).some(station=>(station.groups||[]).some(group=>group.drills.some(drill=>drill.id===state.live.currentBlockId)));
-  const stations=(block.lanes||[]).map((station,stationIndex)=>{
-    const groups=(station.groups||[]).map((group,groupIndex)=>{
-      let groupOffset=0;
-      const drills=group.drills.map((drill,index)=>{const startOffset=groupOffset;groupOffset+=drill.minutes;return renderDrillCard(drill,{laneId:station.id,groupId:group.id,timeRange:clockLabel(plan.start,offset+startOffset)+"–"+clockLabel(plan.start,offset+groupOffset)});}).join("");
-      return `<section class="station-group" data-drop-group="${esc(group.id)}"><div class="group-heading"><strong>${esc(group.name||"Group "+(groupIndex+1))}</strong><small>${durationLabel(groupOffset)}</small></div><div class="group-drills">${drills||'<div class="lane-empty">Drop a drill here</div>'}</div><button class="lane-add" data-add-to-group="${esc(group.id)}">+ Add drill</button></section>`;
-    }).join("");
-    const stationTime=Math.max(0,...(station.groups||[]).map(group=>group.drills.reduce((sum,drill)=>sum+drill.minutes,0)));
-    return `<section class="station-lane" data-station-id="${esc(station.id)}"><div class="lane-heading"><span>${esc(station.name||"Station "+(stationIndex+1))}</span><small>${durationLabel(stationTime)}</small></div><div class="station-groups">${groups}</div></section>`;
-  }).join("");
-  return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}" style="--station-skill:#51788c"><div class="station-heading"><span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station rotation">${grip}</span><button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button><button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station rotation">×</button></div><div class="station-lanes">${stations}</div><button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button></section>`;
+ const live=state.live.active&&state.live.planId===plan.id&&(block.stations||[]).some(s=>s.drills.some(d=>d.id===state.live.currentBlockId));
+ const stations=(block.stations||[]).map((station,index)=>{let elapsed=0;const drills=station.drills.map(drill=>{const from=elapsed;elapsed+=drill.minutes;return renderDrillCard(drill,{stationId:station.id,timeRange:clockLabel(plan.start,offset+from)+"–"+clockLabel(plan.start,offset+elapsed)});}).join("");
+  return `<section class="station-lane" data-station-id="${esc(station.id)}" data-drop-station="${esc(station.id)}" data-parent-rotation="${esc(block.id)}"><div class="lane-heading"><span class="drag-handle station-grip" data-drag-kind="station" data-drag-id="${esc(station.id)}" data-rotation-id="${esc(block.id)}" aria-label="Hold and drag station">${grip}</span><strong>${esc(station.name||"Station "+(index+1))}</strong><small>${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="${esc(block.id)}" data-station-id="${esc(station.id)}" aria-label="Remove station">×</button></div><div class="station-drills">${drills||'<div class="lane-empty">Drop a drill here</div>'}</div><button class="lane-add" data-add-to-station="${esc(station.id)}">+ Add drill</button></section>`;
+ }).join("");
+ return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}"><div class="station-heading"><span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station rotation">${grip}</span><button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button><button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station rotation">×</button></div><div class="station-lanes">${stations}</div><button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button></section>`;
 }
 function renderPlanBlocks(plan) {
   let elapsed=0;
@@ -113,12 +107,7 @@ function renderPlanView() {
   hidden("plans-list-view",detail);hidden("plan-detail-view",!detail);
   if(detail)renderPlanDetail();else renderPlansList();
 }
-function drillCardForBank(drill,pick=false) {
-  return `<article class="library-card" style="${skillStyle(drill.tags)}">
-    <button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}"`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>
-    ${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}
-  </article>`;
-}
+function drillCardForBank(drill,pick=false) {return `<article class="library-card" data-library-card="${esc(drill.id)}" style="${skillStyle(drill.tags)}"><span class="drag-handle bank-drag-handle" data-drag-kind="bank-drill" data-drag-id="${esc(drill.id)}" aria-label="Drag drill into practice">${grip}</span><button class="library-main" ${pick?`data-add-bank-drill="${esc(drill.id)}"`:`data-edit-bank-drill="${esc(drill.id)}`}><strong>${esc(drill.name)}</strong><small>${drill.minutes} min · ${skillLabels(drill.tags)}</small></button>${pick?`<button class="mini-icon bank-edit" data-edit-bank-drill="${esc(drill.id)}" aria-label="Edit ${esc(drill.name)}" title="Edit drill">✎</button>`:""}</article>`;}
 function filteredBank(searchId,filterId,sortId) {
   const q=$(searchId)?.value?.trim().toLowerCase()||"",selected=[...($(filterId)?.querySelectorAll("input:checked")||[])].map(x=>x.value),sort=$(sortId)?.value||"name";
   const list=state.drillBank.filter(d=>selected.every(t=>(d.tags||[]).includes(t))&&(!q||(d.name+" "+(d.tags||[]).join(" ")+" "+(d.steps||[]).join(" ")+" "+(d.notes||"")+" "+(d.equipment||[]).map(x=>x.name).join(" ")).toLowerCase().includes(q)));
@@ -236,7 +225,4 @@ export function renderEditorSteps(steps=[]) {
   const values=steps.length?steps:[""];
   $("edit-steps").innerHTML=values.map((step,i)=>`<div class="edit-step-row" draggable="true" data-step-row="${i}"><span class="step-grip" title="Drag to reorder">⠿</span><textarea data-step-index="${i}" rows="2" maxlength="1600" placeholder="Instruction or coaching cue">${esc(step)}</textarea><button class="mini-icon danger-text" type="button" data-remove-step="${i}" aria-label="Remove step">×</button></div>`).join("");
 }
-export function renderStationEditor(block) {
-  $("station-name").value=block.name;$("station-minutes").value=block.minutes||15;
-  $("station-lanes-editor").innerHTML=block.lanes.map((station,index)=>`<section class="station-editor-card"><div class="station-lane-edit"><input data-lane-name="${esc(station.id)}" value="${esc(station.name)}" maxlength="50" aria-label="Station name"><span>${(station.groups||[]).reduce((n,g)=>n+g.drills.length,0)} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(station.id)}" type="button" aria-label="Remove station">×</button></div><div class="station-editor-groups">${(station.groups||[]).map((group,groupIndex)=>`<div class="station-group-edit"><input data-group-name="${esc(group.id)}" value="${esc(group.name)}" maxlength="50" aria-label="Group name"><span>${group.drills.length} drills</span><button class="mini-icon danger-text" data-remove-station-group="${esc(group.id)}" type="button" aria-label="Remove group">×</button></div>`).join("")}<button class="text-btn" type="button" data-add-station-group="${esc(station.id)}">+ Group</button></div></section>`).join("");
-}
+export function renderStationEditor(block) {$("station-name").value=block.name;$("station-minutes").value=block.minutes||15;$("station-lanes-editor").innerHTML=block.stations.map((station,index)=>`<section class="station-editor-card"><div class="station-lane-edit"><input data-station-name="${esc(station.id)}" value="${esc(station.name)}" maxlength="50" aria-label="Station name"><span>${station.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(station.id)}" type="button" aria-label="Remove station">×</button></div></section>`).join("");}
