@@ -124,7 +124,7 @@ function openStation(id=null){
 function captureLaneNames(){if(!stationDraft)return;stationDraft.stations.forEach(station=>{const el=$("station-lanes-editor").querySelector('[data-station-name="'+station.id+'"]');if(el)station.name=el.value.trim()||station.name;});}
 function addLane(){if(!stationDraft)return;captureLaneNames();stationDraft.stations.push({id:uid("station"),name:"Station "+(stationDraft.stations.length+1),drills:[]});renderStationEditor(stationDraft);}
 function removeLane(id){if(!stationDraft||stationDraft.stations.length<=1)return toast("A rotation needs at least one station.");captureLaneNames();const station=stationDraft.stations.find(s=>s.id===id);if(station?.drills.length)return toast("Move the drills out of this station first.");stationDraft.stations=stationDraft.stations.filter(s=>s.id!==id);renderStationEditor(stationDraft);}
-function removeStationFromPlan(rotationId,stationId){const rotation=activePlan()?.blocks.find(b=>b.id===rotationId&&b.kind==="station");if(!rotation||rotation.stations.length<=1)return toast("A rotation needs at least one station.");const station=rotation.stations.find(s=>s.id===stationId);if(station?.drills.length)return toast("Move the drills out of this station first.");remember();rotation.stations=rotation.stations.filter(s=>s.id!==stationId);persist();renderApp();toast("Station removed.");}
+function removeStationFromPlan(rotationId,stationId){const rotation=activePlan()?.blocks.find(b=>b.id===rotationId&&b.kind==="station");if(!rotation||rotation.stations.length<=1)return toast("A rotation needs at least one station.");const station=rotation.stations.find(s=>s.id===stationId);if(station?.drills.length)return toast("Move the drills out of this station first.");remember();rotation.stations=rotation.stations.filter(s=>s.id!==stationId);practice.refreshLive(activePlan());persist();renderApp();toast("Station removed.");}
 function saveStation(event){
  event.preventDefault();if(!stationDraft)return;
  captureLaneNames();stationDraft.name=$("station-name").value.trim()||"Station rotation";
@@ -132,7 +132,7 @@ function saveStation(event){
  stationDraft.minutes=practice.fitStationLanes(stationDraft,requested);
  const plan=activePlan();if(!plan)return;remember();
  const index=plan.blocks.findIndex(b=>b.id===stationEditingId);
- if(index>=0)plan.blocks[index]=stationDraft;else plan.blocks.push(stationDraft);
+ if(index>=0)plan.blocks[index]=stationDraft;else plan.blocks.push(stationDraft);practice.refreshLive(plan,false);
  persist();close("station-sheet");stationDraft=null;stationEditingId=null;renderApp();toast("Station saved.");
 }
 function deleteStation(){
