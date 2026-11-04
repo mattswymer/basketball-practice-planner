@@ -16,7 +16,7 @@ function collectEntries(plan) {
   for(const block of plan.blocks) {
     if(block.kind==="drill") entries.push({drill:block,lane:""});
     else if(block.kind==="station") {
-      for(const lane of block.lanes) for(const drill of lane.drills) entries.push({drill,lane:lane.name,station:block.name});
+      for(const station of block.lanes) for(const group of station.groups||[]) for(const drill of group.drills) entries.push({drill,lane:station.name,group:group.name,station:block.name});
     }
   }
   return entries;
