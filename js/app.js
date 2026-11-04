@@ -406,7 +406,6 @@ function registerEvents(){
  $("floating-add").addEventListener("click",()=>openBank(null));
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
- $("plan-duplicate").addEventListener("click",()=>duplicatePlan(false));$("plan-run-again").addEventListener("click",()=>duplicatePlan(true));
  $("duplicate-plan").addEventListener("click",()=>duplicateCurrentPlan(false));
  $("run-again").addEventListener("click",()=>duplicateCurrentPlan(true));
  $("live-start").addEventListener("click",startLive);
@@ -445,7 +444,6 @@ function registerEvents(){
  document.addEventListener("pointerup",groupPointerUp);document.addEventListener("pointercancel",groupPointerUp);
  $("drill-group-board").addEventListener("change",e=>{const input=e.target.closest("[data-group-name]");if(input)renameGroup(input.dataset.groupName,input.value);});
  $("stats-team-select").addEventListener("change",e=>{state.statsTeamId=e.target.value;renderApp();});
- $("stats-start-date").addEventListener("change",renderApp);$("stats-end-date").addEventListener("change",renderApp);$("stats-range-clear").addEventListener("click",()=>{$("stats-start-date").value="";$("stats-end-date").value="";renderApp();});
  $("stats-from").addEventListener("change",renderApp);$("stats-to").addEventListener("change",renderApp);
  $("stats-clear-range").addEventListener("click",()=>{$("stats-from").value="";$("stats-to").value="";renderApp();});
  $("toast-undo").addEventListener("click",async()=>{await releaseWakeLock();if(undo()){renderApp();toast("Undone.");}});
