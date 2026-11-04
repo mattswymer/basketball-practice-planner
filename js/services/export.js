@@ -57,7 +57,7 @@ export function exportPracticePDF() {
   function build(format){
     const doc=new PDF({orientation:"landscape",unit:"mm",format,compress:true});
     const width=doc.internal.pageSize.getWidth(),height=doc.internal.pageSize.getHeight();
-    const margin=8,gap=5,colWidth=(width-margin*2-gap)/2,top=35,bottom=height-10,available=bottom-top;
+    const margin=12,gap=5,colWidth=(width-margin*2-gap)/2,top=42,bottom=height-12,available=bottom-top;
     const fonts=format==="a4"?{title:7.8,body:6.4,small:5.5,station:9}:{title:8.6,body:7.0,small:6.0,station:10};
     function layout(atom){
       if(atom.type==="station"){
@@ -99,11 +99,11 @@ export function exportPracticePDF() {
     const pageGear=doc.splitTextToSize("EQUIPMENT  "+(equipment||"—"),width-margin*2);
     pages.forEach((pg,pageIndex)=>{
       if(pageIndex)doc.addPage();
-      doc.setFillColor(16,43,63);doc.rect(0,0,width,31,"F");
-      doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text(team?.name||"Basketball",margin,9);
-      doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(plan.name||"Practice plan",margin,16);
-      doc.setFontSize(7.5);doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||"")+"  ·  "+durationLabel(totalPracticeMinutes(plan))+" court time",margin,21);
-      doc.setFontSize(6);doc.text(doc.splitTextToSize(pageGear.join(" "),width-margin*2),margin,27);
+      doc.setFillColor(16,43,63);doc.rect(0,0,width,36,"F");
+      doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text(team?.name||"Basketball",margin,13);
+      doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(plan.name||"Practice plan",margin,20);
+      doc.setFontSize(7.5);doc.text((plan.date||"No date")+"  ·  "+(plan.start||"")+"–"+(plan.end||"")+"  ·  "+durationLabel(totalPracticeMinutes(plan))+" court time",margin,25);
+      doc.setFontSize(6);doc.text(doc.splitTextToSize(pageGear.join(" "),width-margin*2),margin,31);
       if(pageIndex) {doc.setFontSize(6);doc.text("CONTINUED",width-margin,8,{align:"right"});}
       pg.columns.forEach((items,col)=>{
         items.forEach(({atom,x,y,w})=>{
@@ -127,7 +127,7 @@ export function exportPracticePDF() {
         });
       });
       doc.setTextColor(110,124,132);doc.setFont("helvetica","normal");doc.setFontSize(6);
-      doc.text((pageIndex+1)+" / "+pages.length,width-margin,height-4,{align:"right"});
+      doc.text((pageIndex+1)+" / "+pages.length,width-margin,height-7,{align:"right"});
     });
     return {doc,pages:pages.length,format};
   }
