@@ -190,7 +190,6 @@ function renderStats() {
         skills.set(skill,row);
       });
     }
-    }
   }
   $("stats-plan-count").textContent=plans.length;
   $("stats-planned-total").textContent=durationLabel(planned);
