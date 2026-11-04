@@ -340,6 +340,7 @@ function endPlanDrag(){
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
+ document.addEventListener("pointerdown",event=>{const dialog=$("drill-sheet"),dropdown=dialog.querySelector(".skill-picker-dropdown");skillDropdownBackdropDismiss=false;if(dropdown?.open&&!dropdown.contains(event.target)){dropdown.open=false;if(event.target===dialog)skillDropdownBackdropDismiss=true;}});
  document.addEventListener("click",event=>{document.querySelectorAll("details.tag-filter[open]").forEach(dropdown=>{if(!dropdown.contains(event.target))dropdown.open=false;});});
  document.addEventListener("keydown",event=>{if(event.key==="Escape"){const open=[...document.querySelectorAll("details.tag-filter[open]")];if(open.length){open.forEach(dropdown=>dropdown.open=false);event.preventDefault();event.stopPropagation();}}});
  $("brand-home").addEventListener("click",()=>{if(state.live.active){pendingExitView="plans-list";show("exit-live-sheet");return;}state.view="plans";state.planDetailOpen=false;renderApp();});
@@ -359,7 +360,7 @@ function registerEvents(){
  $("confirm-duplicate").addEventListener("click",()=>duplicatePractice($("duplicate-team-select").value));
  $("save-to-bank").addEventListener("click",saveToBank);
  $("live-exit").addEventListener("click",()=>show("exit-live-sheet"));
- $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;endLiveSession(false);if(next==="plans-list"){state.view="plans";state.planDetailOpen=false;}else if(next)state.view=next;renderApp();toast("Practice ended.");});
+ $("confirm-exit-live").addEventListener("click",()=>{const next=pendingExitView;pendingExitView=null;close("exit-live-sheet");endLiveSession(false);if(next==="plans-list"){state.view="plans";state.planDetailOpen=false;}else if(next)state.view=next;renderApp();toast("Practice ended.");});
  $("exit-live-sheet").addEventListener("close",()=>{pendingExitView=null;});
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",advanceLive);
