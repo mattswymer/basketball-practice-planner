@@ -41,6 +41,6 @@ export function renamePlayer(teamId,playerId,name) {
 export function deletePlayer(teamId,playerId) {
   const team=state.teams.find(item=>item.id===teamId);if(!team||!team.players.some(p=>p.id===playerId))return false;
   remember();team.players=team.players.filter(p=>p.id!==playerId);
-  for(const list of Object.values(state.plansByTeam))for(const plan of list)for(const drill of flattenDrills(plan))for(const group of drill.grouping?.groups||[])group.playerIds=group.playerIds.filter(id=>id!==playerId);
+  for(const list of Object.values(state.plansByTeam))for(const plan of list)for(const drill of flattenDrills(plan))for(const group of drill.grouping?.groups||[])group.playerIds=(group.playerIds||[]).filter(id=>id!==playerId);
   save();return true;
 }
