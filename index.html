@@ -22,7 +22,7 @@
       <button class="brand-mark" id="brand-home" aria-label="Basketball Practice Planner">
         <span aria-hidden="true">🏀</span><span>Practice Planner</span>
       </button>
-      <div class="header-actions" id="header-actions">
+      <div class="header-actions" id="header-actions"><span id="save-status" class="save-status" role="status">Saved</span>
         <button class="icon-btn" id="header-menu" aria-label="Backup and restore" title="Backup">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
         </button>
@@ -73,12 +73,7 @@
           </div>
           <div id="live-bar" class="live-bar" hidden>
             <div><span class="live-dot"></span><strong>LIVE</strong><span id="live-position">1 / 1</span></div>
-            <div class="live-actions">
-              <button class="small-btn" id="live-previous" aria-label="Previous drill">←</button>
-              
-              <button class="small-btn live-next" id="live-next">Next</button>
-              
-            </div>
+            <div class="live-actions"><button class="small-btn" id="live-previous">← Previous</button><button class="small-btn live-next" id="live-next">Next →</button><button class="small-btn live-exit" id="live-exit">Exit practice</button></div>
           </div>
           <div class="schedule-heading">
             <div><p class="eyebrow">PRACTICE FLOW</p><h2>Schedule</h2></div>
@@ -177,7 +172,6 @@
         <div class="full-field"><span class="form-label">SKILLS</span><details class="tag-filter skill-picker-dropdown"><summary id="edit-skill-summary">All skills</summary><div id="edit-tags" class="tag-filter-options skill-picker" aria-label="Skills"></div></details></div>
         <label>MINUTES<input id="edit-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
       </div>
-      <div class="editor-section" id="update-bank-row" hidden><label class="update-bank-option"><input type="checkbox" id="update-drill-bank"> Also update this drill in the drill bank</label></div>
       <div class="editor-section">
         <div class="editor-section-head"><h3>Equipment</h3><button type="button" class="text-btn" id="add-equipment-row">+ Add</button></div>
         <div id="edit-equipment-rows"></div>
@@ -189,6 +183,7 @@
         <div class="editor-section-head"><h3>Instructions</h3><button type="button" class="text-btn" id="add-step">+ Step</button></div>
         <div id="edit-steps"></div>
       </div>
+      <div class="editor-section" id="save-bank-row" hidden><button type="button" class="secondary-btn" id="save-to-bank">Save to Drill Bank</button><p class="sheet-subtitle" id="save-bank-note"></p></div>
       <div class="sheet-actions">
         <button type="button" class="text-btn danger-text" id="delete-drill" hidden>Delete</button>
         <span class="action-spacer"></span><button type="button" class="secondary-btn" data-close="drill-sheet">Cancel</button>
@@ -215,6 +210,8 @@
     </form>
   </dialog>
 
+  <dialog id="duplicate-sheet" class="sheet short-sheet"><div class="sheet-grabber"></div><div class="sheet-head"><div><p class="eyebrow">PRACTICE PLAN</p><h2>Duplicate practice</h2></div><button class="close-sheet" data-close="duplicate-sheet" aria-label="Close">×</button></div><label class="full-field">Duplicate to team<select id="duplicate-team-select"></select></label><div class="sheet-actions"><span></span><button type="button" class="secondary-btn" data-close="duplicate-sheet">Cancel</button><button type="button" class="primary-btn" id="confirm-duplicate">Duplicate</button></div></dialog>
+  <dialog id="exit-live-sheet" class="sheet short-sheet"><div class="sheet-grabber"></div><div class="sheet-head"><div><p class="eyebrow">LIVE PRACTICE</p><h2>Exit practice mode?</h2></div><button class="close-sheet" data-close="exit-live-sheet" aria-label="Close">×</button></div><p class="sheet-subtitle">Your practice plan will remain unchanged.</p><div class="sheet-actions"><span></span><button type="button" class="secondary-btn" data-close="exit-live-sheet">Keep practicing</button><button type="button" class="primary-btn" id="confirm-exit-live">Exit practice</button></div></dialog>
   <dialog id="equipment-sheet" class="sheet">
     <div class="sheet-grabber"></div>
     <div class="sheet-head"><div><p class="eyebrow">BEFORE PRACTICE</p><h2>Equipment</h2></div><button class="close-sheet" data-close="equipment-sheet" aria-label="Close">×</button></div>
