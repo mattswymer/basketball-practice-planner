@@ -39,10 +39,10 @@ function details(drill) {
     ${drill.steps?.length?`<ol class="live-steps">${drill.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:'<p class="no-steps">No instructions yet.</p>'}
   </div>`;
 }
-function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) {
+function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeRange=""}={}) {
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&!stationLive&&state.live.currentBlockId===drill.id;
   const expanded=current||stationLive;
-  return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-lane="${esc(laneId||"")}" style="${skillStyle(drill.tags)}">
+  return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-group="${esc(groupId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
@@ -58,24 +58,16 @@ function renderDrillCard(drill,{laneId=null,stationLive=false,timeRange=""}={}) 
 }
 function renderStation(block,start,end,plan,offset) {
   const live=state.live.active&&state.live.planId===activePlan()?.id&&state.live.currentBlockId===block.id;
-  const lanes=(block.lanes||[]).map((lane,i)=>{
-    const laneTime=lane.drills.reduce((n,d)=>n+d.minutes,0);
-    return `<section class="station-lane" data-drop-lane="${esc(lane.id)}">
-      <div class="lane-heading"><span>${esc(lane.name||"Station "+(i+1))}</span><small>${durationLabel(laneTime)}</small></div>
-      <div class="lane-drills">${lane.drills.map((drill,index)=>{const offsetBefore=lane.drills.slice(0,index).reduce((n,item)=>n+item.minutes,0);const drillStart=clockLabel(plan.start,offset+offsetBefore),drillEnd=clockLabel(plan.start,offset+offsetBefore+drill.minutes);return renderDrillCard(drill,{laneId:lane.id,stationLive:live,timeRange:drillStart+"–"+drillEnd});}).join("")||'<div class="lane-empty">Drop a drill here</div>'}</div>
-      <button class="lane-add" data-add-to-lane="${esc(lane.id)}">+ Add drill</button>
-    </section>`;
+  const stations=(block.lanes||[]).map((station,stationIndex)=>{
+    const groups=(station.groups||[]).map((group,groupIndex)=>{
+      let groupOffset=0;
+      const drills=group.drills.map((drill,index)=>{const startOffset=groupOffset;groupOffset+=drill.minutes;return renderDrillCard(drill,{laneId:station.id,groupId:group.id,stationLive:live&&stationIndex===0&&groupIndex===0&&index===0,timeRange:clockLabel(plan.start,offset+startOffset)+"–"+clockLabel(plan.start,offset+groupOffset)});}).join("");
+      return `<section class="station-group" data-drop-group="${esc(group.id)}"><div class="group-heading"><strong>${esc(group.name||"Group "+(groupIndex+1))}</strong><small>${durationLabel(groupOffset)}</small></div><div class="group-drills">${drills||'<div class="lane-empty">Drop a drill here</div>'}</div><button class="lane-add" data-add-to-group="${esc(group.id)}">+ Add drill</button></section>`;
+    }).join("");
+    const stationTime=Math.max(0,...(station.groups||[]).map(group=>group.drills.reduce((sum,drill)=>sum+drill.minutes,0)));
+    return `<section class="station-lane" data-station-id="${esc(station.id)}"><div class="lane-heading"><span>${esc(station.name||"Station "+(stationIndex+1))}</span><small>${durationLabel(stationTime)}</small></div><div class="station-groups">${groups}</div></section>`;
   }).join("");
-  return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}" style="--station-skill:#51788c">
-    <div class="station-heading">
-      <span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station">${grip}</span>
-      <button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button>
-      <button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station">···</button>
-      <button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station">×</button>
-    </div>
-    <div class="station-lanes">${lanes}</div>
-    <button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button>
-  </section>`;
+  return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}" style="--station-skill:#51788c"><div class="station-heading"><span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station rotation">${grip}</span><button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button><button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station rotation">×</button></div><div class="station-lanes">${stations}</div><button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button></section>`;
 }
 function renderPlanBlocks(plan) {
   let elapsed=0;
@@ -246,5 +238,5 @@ export function renderEditorSteps(steps=[]) {
 }
 export function renderStationEditor(block) {
   $("station-name").value=block.name;$("station-minutes").value=block.minutes||15;
-  $("station-lanes-editor").innerHTML=block.lanes.map(lane=>`<div class="station-lane-edit"><input data-lane-name="${esc(lane.id)}" value="${esc(lane.name)}" maxlength="50" aria-label="Station name"><span>${lane.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(lane.id)}" type="button" aria-label="Remove station">×</button></div>`).join("");
+  $("station-lanes-editor").innerHTML=block.lanes.map((station,index)=>`<section class="station-editor-card"><div class="station-lane-edit"><input data-lane-name="${esc(station.id)}" value="${esc(station.name)}" maxlength="50" aria-label="Station name"><span>${(station.groups||[]).reduce((n,g)=>n+g.drills.length,0)} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(station.id)}" type="button" aria-label="Remove station">×</button></div><div class="station-editor-groups">${(station.groups||[]).map((group,groupIndex)=>`<div class="station-group-edit"><input data-group-name="${esc(group.id)}" value="${esc(group.name)}" maxlength="50" aria-label="Group name"><span>${group.drills.length} drills</span><button class="mini-icon danger-text" data-remove-station-group="${esc(group.id)}" type="button" aria-label="Remove group">×</button></div>`).join("")}<button class="text-btn" type="button" data-add-station-group="${esc(station.id)}">+ Group</button></div></section>`).join("");
 }
