@@ -32,9 +32,12 @@ function renderPlansList() {
   $("plans-list").innerHTML=list.map(renderPlanCard).join("")||'<div class="empty-state">No plans yet.</div>';
 }
 function details(drill) {
-  const gear=equipmentText(drill);
+  const gear=equipmentText(drill),players=activeTeam()?.players||[];
+  const groups=(drill.grouping?.groups||[]).filter(group=>group.playerIds?.length).map(group=>{const names=players.filter(player=>group.playerIds.includes(player.id)).map(player=>player.name);return group.name+(names.length?": "+names.join(", "):"");});
   return `<div class="live-drill-details">
-    ${gear?`<div class="live-equipment"><strong>Gear</strong><span>${esc(gear)}</span></div>`:""}
+    ${(drill.tags||[]).length?`<div class="live-skills"><strong>Skills</strong><span>${skillLabels(drill.tags)}</span></div>`:""}
+    ${gear?`<div class="live-equipment"><strong>Equipment</strong><span>${esc(gear)}</span></div>`:""}
+    ${groups.length?`<div class="live-player-groups"><strong>Player groups</strong><span>${groups.map(esc).join(" · ")}</span></div>`:""}
     ${drill.notes?`<div class="drill-notes"><strong>Notes / focus</strong><span>${esc(drill.notes)}</span></div>`:""}
     ${drill.steps?.length?`<ol class="live-steps">${drill.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:'<p class="no-steps">No instructions yet.</p>'}
   </div>`;
