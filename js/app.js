@@ -90,6 +90,7 @@ function openDrillEditor(type,id=null){
  $("edit-name").value=item.name||"";$("edit-minutes").value=item.minutes||10;$("edit-notes").value=item.notes||"";
  renderEditorTags(item.tags||[]);renderEditorEquipment(clone(item.equipment||[]));renderEditorSteps(clone(item.steps||[]));
  $("delete-drill").hidden=type==="new"||type==="new-from-bank";$("delete-drill").textContent=type==="bank"?"Delete from bank":"Remove from plan";
+ $("update-bank-row").hidden=type!=="plan"||!item.bankId||!getBankDrill(item.bankId);$("update-drill-bank").checked=false;
  show("drill-sheet");
 }
 function editorEquipment(includeBlank=false){
@@ -154,12 +155,12 @@ function captureLaneNames(){
 }
 function addLane(){
  if(!stationDraft)return;captureLaneNames();
- stationDraft.lanes.push({id:uid("lane"),name:"Lane "+(stationDraft.lanes.length+1),drills:[]});renderStationEditor(stationDraft);
+ stationDraft.lanes.push({id:uid("lane"),name:"Station "+(stationDraft.lanes.length+1),drills:[]});renderStationEditor(stationDraft);
 }
 function removeLane(id){
- if(!stationDraft||stationDraft.lanes.length<=1)return toast("A station needs at least one lane.");
+ if(!stationDraft||stationDraft.lanes.length<=1)return toast("A station rotation needs at least one station.");
  captureLaneNames();const lane=stationDraft.lanes.find(x=>x.id===id);
- if(lane?.drills.length)return toast("Move the drills out of this lane first.");
+ if(lane?.drills.length)return toast("Move the drills out of this station first.");
  stationDraft.lanes=stationDraft.lanes.filter(x=>x.id!==id);renderStationEditor(stationDraft);
 }
 function saveStation(event){
@@ -182,8 +183,8 @@ function moveDrill(id,laneId,beforeId){if(practice.moveScheduledDrill(id,laneId,
 function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.laneId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
 function fitCurrentPlan(){
  const result=practice.fitPractice();
- if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"Not enough time: each drill in a station lane needs at least one minute.");
- renderApp();toast("Schedule adjusted to exactly "+result.target+" minutes.");
+ if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"The practice window is too short. Reduce the number of drills or extend the end time.");
+ renderApp();toast("Schedule adjusted to "+result.target+" minutes.");
 }
 function startLive(){
  const plan=activePlan();if(!plan?.blocks.length)return toast("Add a drill or station first.");
@@ -392,6 +393,7 @@ function endPlanDrag(){
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
+ document.addEventListener("pointerdown",event=>{const dropdown=$("drill-sheet").querySelector(".skill-picker-dropdown");if(dropdown?.open&&!dropdown.contains(event.target))dropdown.open=false;});
  $("brand-home").addEventListener("click",()=>{state.view="plans";state.planDetailOpen=false;renderApp();});
  $("toast-undo").addEventListener("click",()=>{if(undo()){renderApp();toast("Change undone.");}});
  $("create-plan").addEventListener("click",createPlan);
