@@ -40,7 +40,7 @@ function details(drill) {
   </div>`;
 }
 function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeRange=""}={}) {
-  const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&!stationLive&&state.live.currentBlockId===drill.id;
+  const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&state.live.currentBlockId===drill.id;
   const expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-group="${esc(groupId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
@@ -57,11 +57,11 @@ function renderDrillCard(drill,{laneId=null,groupId=null,stationLive=false,timeR
   </article>`;
 }
 function renderStation(block,start,end,plan,offset) {
-  const live=state.live.active&&state.live.planId===activePlan()?.id&&state.live.currentBlockId===block.id;
+  const live=state.live.active&&state.live.planId===plan.id&&(block.lanes||[]).some(station=>(station.groups||[]).some(group=>group.drills.some(drill=>drill.id===state.live.currentBlockId)));
   const stations=(block.lanes||[]).map((station,stationIndex)=>{
     const groups=(station.groups||[]).map((group,groupIndex)=>{
       let groupOffset=0;
-      const drills=group.drills.map((drill,index)=>{const startOffset=groupOffset;groupOffset+=drill.minutes;return renderDrillCard(drill,{laneId:station.id,groupId:group.id,stationLive:live&&stationIndex===0&&groupIndex===0&&index===0,timeRange:clockLabel(plan.start,offset+startOffset)+"–"+clockLabel(plan.start,offset+groupOffset)});}).join("");
+      const drills=group.drills.map((drill,index)=>{const startOffset=groupOffset;groupOffset+=drill.minutes;return renderDrillCard(drill,{laneId:station.id,groupId:group.id,timeRange:clockLabel(plan.start,offset+startOffset)+"–"+clockLabel(plan.start,offset+groupOffset)});}).join("");
       return `<section class="station-group" data-drop-group="${esc(group.id)}"><div class="group-heading"><strong>${esc(group.name||"Group "+(groupIndex+1))}</strong><small>${durationLabel(groupOffset)}</small></div><div class="group-drills">${drills||'<div class="lane-empty">Drop a drill here</div>'}</div><button class="lane-add" data-add-to-group="${esc(group.id)}">+ Add drill</button></section>`;
     }).join("");
     const stationTime=Math.max(0,...(station.groups||[]).map(group=>group.drills.reduce((sum,drill)=>sum+drill.minutes,0)));
@@ -92,10 +92,10 @@ function renderPlanDetail() {
   document.body.classList.toggle("live-active",live);
   $("live-bar").hidden=!live;$("live-start").hidden=live;
   if(live) {
-    const index=plan.blocks.findIndex(b=>b.id===state.live.currentBlockId);
-    $("live-position").textContent=(index+1)+" / "+plan.blocks.length;
+    const index=drills.findIndex(drill=>drill.id===state.live.currentBlockId);
+    $("live-position").textContent=(index+1)+" / "+drills.length;
     $("live-previous").disabled=index<=0;
-    $("live-next").textContent=index===plan.blocks.length-1?"Finish":"Next";
+    $("live-next").textContent=index===drills.length-1?"Finish":"Next";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
   $("fit-practice").textContent="Adjust practice to length";$("fit-practice").disabled=planned===windowM;
@@ -178,10 +178,7 @@ function renderStats() {
 export function renderEquipmentSheet() {
   const plan=activePlan();if(!plan)return;
   const list=equipmentTotals(plan);
-  $("equipment-checklist").innerHTML=list.length?list.map(item=>{
-    const key=item.name.toLowerCase(),checked=!!plan.equipmentChecked[key];
-    return `<label class="equipment-check-row ${checked?"is-checked":""}"><input type="checkbox" data-equipment-checked="${esc(key)}" ${checked?"checked":""}><span class="equipment-check"></span><span class="equipment-check-name"><strong>${esc(item.name)}</strong><small>${esc([...new Set(item.uses)].join(", "))}</small></span><b>× ${item.quantity}</b></label>`;
-  }).join(""):'<div class="empty-state">No equipment assigned.</div>';
+  $("equipment-checklist").innerHTML=list.length?list.map(item=>`<div class="equipment-check-row"><span class="equipment-check-name"><strong>${esc(item.name)}</strong><small>${esc([...new Set(item.uses)].join(", "))}</small></span><b>× ${item.quantity}</b></div>`).join(""):'<div class="empty-state">No equipment assigned.</div>';
 }
 export function renderGroupBoard() {
   const plan=activePlan(),drill=plan&&flattenDrills(plan).find(x=>x.id===state.groupingDrillId);if(!drill)return;
