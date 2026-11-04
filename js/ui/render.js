@@ -272,7 +272,7 @@ export function renderEditorEquipment(items=[]) {
 }
 export function renderEditorSteps(steps=[]) {
   const values=steps.length?steps:[""];
-  $("edit-steps").innerHTML=values.map((step,i)=>`<div class="edit-step-row"><span>${i+1}</span><textarea data-step-index="${i}" rows="2" maxlength="1600" placeholder="Instruction or coaching cue">${esc(step)}</textarea><button class="mini-icon danger-text" type="button" data-remove-step="${i}" aria-label="Remove step">×</button></div>`).join("");
+  $("edit-steps").innerHTML=values.map((step,i)=>`<div class="edit-step-row" draggable="true" data-step-row="${i}"><span class="step-grip" title="Drag to reorder">⠿</span><textarea data-step-index="${i}" rows="2" maxlength="1600" placeholder="Instruction or coaching cue">${esc(step)}</textarea><button class="mini-icon danger-text" type="button" data-remove-step="${i}" aria-label="Remove step">×</button></div>`).join("");
 }
 export function renderStationEditor(block) {
   $("station-name").value=block.name;$("station-minutes").value=block.minutes||15;
