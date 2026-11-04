@@ -137,3 +137,6 @@
 .drop-before{position:relative}
 .drop-before:before{content:"";position:absolute;left:0;right:0;top:-5px;height:4px;border-radius:4px;background:#207c9c;box-shadow:0 0 0 2px #fff;z-index:20}
 @media(max-width:430px){.live-bar{gap:5px;padding:7px!important}.live-bar>div:first-child{gap:5px;font-size:10px}.live-bar button{min-width:42px;padding:0 8px;font-size:11px}.live-bar #live-next{min-width:65px}.stats-date-range input{min-width:112px}}
+
+/* Keep drill picker actions distinct and comfortably tappable. */
+.bank-edit{min-width:44px;min-height:44px;font-size:18px;touch-action:manipulation}.library-main{touch-action:pan-y}
