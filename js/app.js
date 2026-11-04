@@ -415,7 +415,7 @@ function registerEvents(){
  $("live-start").addEventListener("click",startLive);
  $("live-next").addEventListener("click",advanceLive);
  $("live-previous").addEventListener("click",previousLive);
- $("live-exit").addEventListener("click",()=>endLive());
+
  $("plan-equipment").addEventListener("click",openEquipment);
  $("equipment-done").addEventListener("click",()=>{const shouldStart=pendingLiveStart;pendingLiveStart=false;close("equipment-sheet");if(shouldStart)beginLive();});
  $("equipment-sheet").addEventListener("close",()=>{pendingLiveStart=false;$("equipment-done").textContent="Done";});
@@ -432,6 +432,7 @@ function registerEvents(){
  $("import-drills").addEventListener("click",()=>$("drill-import-file").click());
  $("drill-import-file").addEventListener("change",async event=>{const file=event.target.files?.[0];if(!file)return;try{if(file.size>5000000)throw new Error("File is too large.");const data=JSON.parse(await file.text()),items=Array.isArray(data)?data:data.drills;if(!Array.isArray(items))throw new Error("This file does not contain a drill library.");const clean=items.filter(x=>x&&typeof x.name==="string").map(x=>({...x,id:uid("drill"),kind:"drill",source:"custom",tags:Array.isArray(x.tags)?x.tags:[],equipment:Array.isArray(x.equipment)?x.equipment:[],steps:Array.isArray(x.steps)?x.steps:[],notes:String(x.notes||""),grouping:{groups:[]}}));if(!clean.length)throw new Error("No valid drills found.");remember();const names=new Set(state.drillBank.map(d=>d.name.toLowerCase()));const unique=clean.filter(d=>!names.has(d.name.toLowerCase()));state.drillBank.push(...unique);persist();renderApp();toast("Imported "+unique.length+" drill"+(unique.length===1?"":"s")+".");}catch(error){toast(error.message||"Could not import drills.");}finally{event.target.value="";}});
  $("drill-form").addEventListener("submit",saveDrill);$("delete-drill").addEventListener("click",deleteEditorDrill);
+ $("edit-tags").addEventListener("change",()=>{const selected=$("edit-tags").querySelectorAll("input:checked").length;$("edit-skill-summary").textContent=selected?selected+" skills selected":"All skills";});
  $("add-equipment-row").addEventListener("click",()=>{const values=editorEquipment(true);values.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(values);});
  $("add-step").addEventListener("click",()=>{const values=editorSteps(true);values.push("");renderEditorSteps(values);});
  $("edit-equipment-rows").addEventListener("click",event=>{const button=event.target.closest("[data-remove-eq-row]");if(!button)return;const values=editorEquipment(true);values.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(values);});
