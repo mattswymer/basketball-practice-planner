@@ -41,7 +41,7 @@ function details(drill) {
   </div>`;
 }
 function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={}) {
-  const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&state.live.currentBlockId===drill.id;
+  const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&(state.live.currentDrillIds||[]).includes(drill.id);
   const expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-station="${esc(stationId||"")}" style="${skillStyle(drill.tags)}">
     <button class="drag-handle" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</button>
@@ -58,7 +58,7 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
   </article>`;
 }
 function renderStation(block,start,end,plan,offset) {
- const live=state.live.active&&state.live.planId===plan.id&&(block.stations||[]).some(s=>s.drills.some(d=>d.id===state.live.currentBlockId));
+ const live=state.live.active&&state.live.planId===plan.id&&state.live.currentBlockId===block.id;
  const stations=(block.stations||[]).map((station,index)=>{let elapsed=0;const drills=station.drills.map(drill=>{const from=elapsed;elapsed+=drill.minutes;return renderDrillCard(drill,{stationId:station.id,timeRange:clockLabel(plan.start,offset+from)+"–"+clockLabel(plan.start,offset+elapsed)});}).join("");
   return `<section class="station-lane" data-station-id="${esc(station.id)}" data-drop-station="${esc(station.id)}" data-parent-rotation="${esc(block.id)}" style="${skillStyle(station.drills.flatMap(d=>d.tags||[]))}"><div class="lane-heading"><span class="drag-handle station-grip" data-drag-kind="station" data-drag-id="${esc(station.id)}" data-rotation-id="${esc(block.id)}" aria-label="Hold and drag station">${grip}</span><strong>${esc(station.name||"Station "+(index+1))}</strong><small>${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="${esc(block.id)}" data-station-id="${esc(station.id)}" aria-label="Remove station">×</button></div><div class="station-drills">${drills||'<div class="lane-empty">Drop a drill here</div>'}</div><button class="lane-add" data-add-to-station="${esc(station.id)}">+ Add drill</button></section>`;
  }).join("");
@@ -87,10 +87,10 @@ function renderPlanDetail() {
   document.body.classList.toggle("live-active",live);
   $("live-bar").hidden=!live;$("live-start").hidden=live;
   if(live) {
-    const index=drills.findIndex(drill=>drill.id===state.live.currentBlockId);
-    $("live-position").textContent=(index+1)+" / "+drills.length;
+    const index=state.live.currentEventIndex||0,total=state.live.totalEvents||1;
+    $("live-position").textContent=(index+1)+" / "+total;
     $("live-previous").disabled=index<=0;
-    $("live-next").textContent=index===drills.length-1?"Finish":"Next";
+    $("live-next").textContent=index===total-1?"Finish →":"Next →";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
   $("fit-practice").textContent="Adjust to practice length";$("fit-practice").disabled=planned===windowM;
