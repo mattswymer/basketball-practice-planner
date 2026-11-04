@@ -52,7 +52,7 @@ export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentC
  return {kind:"drill",id:String(input.id||input.schedId||uid("drill")),bankId:input.bankId||input.drillId||null,
   name:String(input.name||"Untitled drill").trim()||"Untitled drill",minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
   tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment),catalog),
-  steps:stepsOf(input.steps??input.instructions),notes:String(input.coachNotes??input.notesText??input.setupNotes??input.focus??"").trim(),grouping:groupingOf(input.grouping),source:input.source||"custom"};
+  steps:stepsOf(input.steps??input.notes??input.instructions),notes:String(input.coachNotes??input.notesText??input.setupNotes??input.focus??"").trim(),grouping:groupingOf(input.grouping),source:input.source||"custom"};
 }
 function normalizeLane(input={},index=0,catalog=oldEquipmentCatalog){
  const raw=input.drill||input;
@@ -155,6 +155,7 @@ export function loadApp(){
   const desired=state.activePlanIds[team.id];
   state.activePlanIds[team.id]=state.plansByTeam[team.id].some(p=>p.id===desired)?desired:state.plansByTeam[team.id][0].id;
  }
+ SKILLS.sort((a,b)=>a.localeCompare(b));
  state.activePlanId=state.activePlanIds[state.activeTeamId];state.selectedTeamId=state.activeTeamId;state.statsTeamId=state.activeTeamId;
  state.live={active:false,currentBlockId:null,planId:null};state.skills=SKILLS;save();
 }
