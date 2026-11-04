@@ -48,11 +48,11 @@ function duplicatePlan(runAgain=false){
  remember();const copy=clone(source);copy.id=uid("plan");
  copy.name=source.name+(runAgain?" (run again)":" (copy)");
  if(runAgain)copy.date=localDate();
- copy.completedIds=[];copy.skippedIds=[];copy.equipmentChecked={};copy.createdAt=new Date().toISOString();
+ copy.equipmentChecked={};copy.createdAt=new Date().toISOString();
  const resetDrill=drill=>{drill.id=uid("drill");for(const group of drill.grouping?.groups||[])group.id=uid("group");};
  for(const block of copy.blocks){
   block.id=uid(block.kind==="station"?"station":"drill");
-  if(block.kind==="station")for(const lane of block.lanes){lane.id=uid("lane");lane.drills.forEach(resetDrill);}
+  if(block.kind==="station")for(const station of block.lanes){station.id=uid("station");for(const group of station.groups||[]){group.id=uid("group");group.drills.forEach(resetDrill);}}
   else resetDrill(block);
  }
  list.unshift(copy);state.plansByTeam[source.teamId]=list;setActivePlan(copy.id);
@@ -195,8 +195,8 @@ function startLive(){
 function beginLive(){
  const result=practice.startLive();if(!result.ok)return toast("Add a drill or station first.");
  state.planDetailOpen=true;state.view="plans";renderApp();requestWakeLock();
- const block=activePlan().blocks[result.index];
- setTimeout(()=>document.querySelector('[data-block-id="'+block.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),40);
+ const drill=flattenDrills(activePlan())[result.index];
+ setTimeout(()=>document.querySelector('[data-drill-card="'+drill.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"}),40);
  toast("Practice is live.");
 }
 function requestWakeLock(){
@@ -210,9 +210,9 @@ function advanceLive(){
  if(!outcome.ok)return;
  if(outcome.finished){releaseWakeLock();renderApp();toast("Practice finished.");return;}
  renderOnePlan();
- document.querySelector('[data-block-id="'+outcome.next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
+ document.querySelector('[data-drill-card="'+outcome.next.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});
 }
-function previousLive(){if(practice.moveLive(-1)){renderOnePlan();const block=activePlan().blocks.find(b=>b.id===state.live.currentBlockId);document.querySelector('[data-block-id="'+block.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});}}
+function previousLive(){if(practice.moveLive(-1)){renderOnePlan();const drill=flattenDrills(activePlan()).find(item=>item.id===state.live.currentBlockId);document.querySelector('[data-drill-card="'+drill.id+'"]')?.scrollIntoView({block:"center",behavior:"smooth"});}}
 function openGroups(drillId){
  if(!grouping.openDrillGroups(drillId))return;
  renderGroupBoard();show("group-sheet");
