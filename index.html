@@ -138,10 +138,10 @@
         <div class="stats-summary">
           <div><strong id="stats-plan-count">0</strong><span>PLANS</span></div>
           <div><strong id="stats-planned-total">0m</strong><span>PLANNED</span></div>
-          <div><strong id="stats-done-total">0m</strong><span>COMPLETED</span></div>
+          
         </div>
         <div class="stats-panel">
-          <div class="stats-panel-head"><h2>Time by skill</h2><span>PLANNED / COMPLETED</span></div>
+          <div class="stats-panel-head"><h2>Time by skill</h2><span>PLANNED</span></div>
           <div id="skill-stats" class="skill-stats"></div>
         </div>
         <div class="stats-panel">
@@ -174,7 +174,7 @@
     <form id="drill-form" class="sheet-form">
       <label class="full-field">Name<input id="edit-name" maxlength="120" required></label>
       <div class="form-grid">
-        <div class="full-field"><span class="form-label">SKILLS</span><div id="edit-tags" class="tag-options skill-picker" aria-label="Skills"></div></div>
+        <div class="full-field"><span class="form-label">SKILLS</span><details class="tag-filter skill-picker-dropdown"><summary id="edit-skill-summary">All skills</summary><div id="edit-tags" class="tag-filter-options skill-picker" aria-label="Skills"></div></details></div>
         <label>MINUTES<input id="edit-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
       </div>
       <div class="editor-section">
@@ -203,7 +203,7 @@
       <label class="full-field">Name<input id="station-name" maxlength="100" required></label>
       <div class="editor-section">
         <label class="full-field">TOTAL STATION TIME<input id="station-minutes" type="number" min="1" max="240" inputmode="numeric" required></label>
-        <div class="editor-section-head"><h3>Lanes</h3><button type="button" class="text-btn" id="add-lane">+ Lane</button></div>
+        <div class="editor-section-head"><h3>Stations</h3><button type="button" class="text-btn" id="add-lane">+ Station</button></div>
         <div id="station-lanes-editor"></div>
       </div>
       <div class="sheet-actions">
