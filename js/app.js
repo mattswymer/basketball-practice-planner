@@ -314,7 +314,7 @@ function handleClick(event){
  const deleteSkillButton=target.closest("[data-delete-skill]");if(deleteSkillButton){removeSkill(deleteSkillButton.dataset.deleteSkill);return;}
 }
 function beginPlanDrag(event){
- const handle=event.target.closest('[data-drag-kind="block"],[data-drag-kind="station"]');if(!handle)return;
+ const handle=event.target.closest('[data-drag-kind="block"],[data-drag-kind="station"],[data-drag-kind="drill"]');if(!handle)return;
  drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,rotationId:handle.dataset.rotationId||null,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
  drag.timer=setTimeout(()=>{if(!drag)return;drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);const source=handle.closest("[data-drill-card],[data-block-id],[data-station-id],[data-library-card]")||handle,rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;},event.pointerType==="mouse"?110:230);
 }
@@ -335,6 +335,19 @@ function movePlanDrag(event){
 }
 function endPlanDrag(){
  if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");item.ghost?.remove();document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));if(!item.active||!item.target)return;const target=item.target;
+ if(item.kind==="drill"){
+  const station=target.closest("[data-drop-station]"),card=target.closest("[data-drill-card]");
+  if(station){
+   const beforeId=card?.dataset.drillCard===item.id?null:card?.dataset.drillCard||null;
+   if(card?.dataset.drillCard===item.id)return;
+   practice.moveScheduledDrill(item.id,station.dataset.dropStation,beforeId);
+  }else{
+   const block=target.closest("[data-block-id]"),beforeId=block?.dataset.blockId||null;
+   if(beforeId===item.id)return;
+   practice.moveScheduledDrill(item.id,null,beforeId);
+  }
+  renderApp();return;
+ }
  if(item.kind==="block"){const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;}
  if(item.kind==="station"){const station=target.closest("[data-drop-station]"),block=target.closest("[data-block-id]");if(station&&station.dataset.parentRotation===item.rotationId){if(station.dataset.dropStation!==item.id)practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);}else{const beforeBlockId=station?.dataset.parentRotation||block?.dataset.blockId||null;practice.moveStationToSchedule(item.rotationId,item.id,beforeBlockId);}renderApp();return;}
 
