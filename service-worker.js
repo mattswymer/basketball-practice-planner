@@ -1,4 +1,4 @@
-const CACHE_NAME="basketball-planner-v27";
+const CACHE_NAME="basketball-planner-v28";
 const CORE_ASSETS=[
  "./","./index.html","./css/app.css","./js/app.js","./js/core/store.js",
  "./js/ui/render.js","./js/data/drills.js","./js/features/practice.js",
@@ -29,7 +29,12 @@ self.addEventListener("fetch",event=>{
  if(url.origin!==self.location.origin)return;
  event.respondWith(
   fetch(event.request).then(response=>{
-   if(response?.ok)caches.open(CACHE_NAME).then(cache=>cache.put(event.request,response.clone()));
+   if(response?.ok){
+    const cachedResponse=response.clone();
+    caches.open(CACHE_NAME)
+     .then(cache=>cache.put(event.request,cachedResponse))
+     .catch(()=>{});
+   }
    return response;
   }).catch(()=>caches.match(event.request.mode==="navigate"?"./index.html":event.request))
  );
