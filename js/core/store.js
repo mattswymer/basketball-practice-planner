@@ -67,23 +67,34 @@ function normalizeStation(input={},index=0,catalog=oldEquipmentCatalog){
  input=input&&typeof input==="object"?input:{};
  return {id:String(input.id||uid("station")),name:String(input.name||"Station "+(index+1)),drills:stationDrills(input,catalog)};
 }
+function distributeStationMinutes(station,target){
+ const drills=station?.drills||[];
+ if(!drills.length)return;
+ const total=Math.max(drills.length,Math.round(Number(target)||drills.length));
+ const weights=drills.map(drill=>Math.max(1,Number(drill.minutes)||1));
+ const sum=weights.reduce((x,y)=>x+y,0);
+ const raw=weights.map(weight=>(total-drills.length)*weight/sum);
+ const values=raw.map(value=>1+Math.floor(value));
+ let remainder=total-values.reduce((x,y)=>x+y,0);
+ const order=raw.map((value,index)=>({index,fraction:value-Math.floor(value)})).sort((x,y)=>y.fraction-x.fraction);
+ for(let index=0;remainder>0;index++,remainder--)values[order[index%order.length].index]++;
+ drills.forEach((drill,index)=>{drill.minutes=values[index];});
+}
 export function stationRounds(block){
- const count=Math.max(0,...(block?.stations||[]).map(station=>station.drills?.length||0));
- return Array.from({length:count},(_,index)=>Math.max(1,...(block.stations||[]).map(station=>Math.max(1,Number(station.drills?.[index]?.minutes)||1))));
+ const count=block?.stations?.length||0;
+ if(!count)return [];
+ const total=Math.max(count,Math.round(Number(block.minutes)||15));
+ const base=Math.floor(total/count),remainder=total%count;
+ return Array.from({length:count},(_,index)=>base+(index<remainder?1:0));
 }
 export function fitStationLanes(block,target=block?.minutes){
  if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));
- const rounds=stationRounds(block),minimum=rounds.length;
- if(!minimum){block.minutes=Math.max(1,Math.round(Number(target)||block.minutes||15));return block.minutes;}
- const total=Math.max(minimum,Math.min(240,Math.round(Number(target)||rounds.reduce((a,b)=>a+b,0))));
- const weight=rounds.reduce((a,b)=>a+b,0)||minimum;
- const raw=rounds.map(value=>(total-minimum)*value/weight);
- const values=raw.map(value=>1+Math.floor(value));
- let remainder=total-values.reduce((a,b)=>a+b,0);
- const order=raw.map((value,index)=>({index,fraction:value-Math.floor(value)})).sort((a,b)=>b.fraction-a.fraction);
- for(let i=0;remainder>0;i++,remainder--)values[order[i%order.length].index]++;
- block.stations.forEach(station=>station.drills.forEach((drill,index)=>{drill.minutes=values[index]??drill.minutes;}));
+ const count=Math.max(1,block.stations?.length||0);
+ const total=Math.max(count,Math.min(240,Math.round(Number(target)||block.minutes||15)));
+ const perVisit=Math.max(1,Math.floor(total/count));
+ for(const station of block.stations||[])distributeStationMinutes(station,perVisit);
  block.minutes=total;
+ block.rotationModel="cyclic-v1";
  return total;
 }
 export function normalizeBlock(input={},catalog=oldEquipmentCatalog){
@@ -91,8 +102,10 @@ export function normalizeBlock(input={},catalog=oldEquipmentCatalog){
  if(input.kind==="station"||input.type==="station"){
   const source=input.stations||input.lanes||input.groups||[];
   const stations=Array.isArray(source)?source.map((station,index)=>normalizeStation(station,index,catalog)):[];
-  const duration=stationRounds({stations}).reduce((sum,minutes)=>sum+minutes,0);
-  return {kind:"station",id:String(input.id||input.schedId||uid("rotation")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||duration||15))),stations};
+  const longestVisit=Math.max(0,...stations.map(station=>(station.drills||[]).reduce((sum,drill)=>sum+drill.minutes,0)));
+  const legacyDuration=longestVisit?longestVisit*Math.max(1,stations.length):Number(input.minutes??input.duration)||15;
+  const minutes=input.rotationModel==="cyclic-v1"?Number(input.minutes)||15:legacyDuration;
+  return {kind:"station",id:String(input.id||input.schedId||uid("rotation")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(minutes))),rotationModel:"cyclic-v1",stations};
  }
  return normalizeDrill(input,"",catalog);
 }
@@ -187,7 +200,7 @@ export function drillsInBlock(block){return block?.kind==="station"?(block.stati
 export function flattenDrills(plan){return (plan?.blocks||[]).flatMap(drillsInBlock);}
 export function findPlanDrill(plan,id){return flattenDrills(plan).find(d=>d.id===id)||null;}
 export function locatePlanDrill(plan,id){for(const block of plan?.blocks||[]){if(block.kind==="drill"&&block.id===id)return {drill:block,list:plan.blocks,stationId:null,block};if(block.kind==="station")for(const station of block.stations||[]){const index=station.drills.findIndex(d=>d.id===id);if(index>=0)return {drill:station.drills[index],list:station.drills,stationId:station.id,block};}}return null;}
-export function blockMinutes(block){if(block?.kind==="station")return stationRounds(block).reduce((sum,minutes)=>sum+minutes,0)||Math.max(1,Math.round(Number(block.minutes)||15));return Math.max(1,Math.round(Number(block?.minutes)||1));}
+export function blockMinutes(block){return Math.max(1,Math.round(Number(block?.minutes)||1));}
 export function totalPracticeMinutes(plan){return (plan?.blocks||[]).reduce((sum,b)=>sum+blockMinutes(b),0);}
 export function durationLabel(n){n=Math.max(0,Math.round(n||0));return n>=60?Math.floor(n/60)+"h"+(n%60?String(n%60).padStart(2,"0"):""):n+"m";}
 export function timeWindow(plan){const [sh,sm]=(plan.start||"18:00").split(":").map(Number),[eh,em]=(plan.end||"19:30").split(":").map(Number);return eh*60+em-(sh*60+sm);}
@@ -196,12 +209,16 @@ export function skillColor(skill){const fallback=PALETTE[Math.max(0,SKILLS.index
 export function copyDrill(drill){return {...clone(drill),kind:"drill",id:uid("drill"),bankId:drill.id,source:"scheduled",grouping:{groups:[]}};}
 export function equipmentTotals(plan){
  const players=Math.max(1,state.teams.find(team=>team.id===plan?.teamId)?.players.length||0);
+ const total=value=>value.perPlayerQuantity+value.fixedQuantity;
  const demand=drill=>{
   const result=new Map();
   for(const item of drill.equipment||[]){
-   const key=item.name.toLowerCase(),value=result.get(key)||{name:item.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};
-   if(item.perPlayer)value.perPlayerQuantity+=item.quantity*players;else value.fixedQuantity+=item.quantity;
-   value.uses.add(drill.name);result.set(key,value);
+   const key=item.name.toLowerCase();
+   const value=result.get(key)||{name:item.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};
+   if(item.perPlayer)value.perPlayerQuantity+=item.quantity*players;
+   else value.fixedQuantity+=item.quantity;
+   value.uses.add(drill.name);
+   result.set(key,value);
   }
   return result;
  };
@@ -210,26 +227,34 @@ export function equipmentTotals(plan){
   for(const [key,value] of source){
    if(!target.has(key)){target.set(key,{...value,uses:new Set(value.uses)});continue;}
    const current=target.get(key);
-   if(value.perPlayerQuantity+value.fixedQuantity>current.perPlayerQuantity+current.fixedQuantity){current.perPlayerQuantity=value.perPlayerQuantity;current.fixedQuantity=value.fixedQuantity;}
+   if(total(value)>total(current)){
+    current.perPlayerQuantity=value.perPlayerQuantity;
+    current.fixedQuantity=value.fixedQuantity;
+   }
    value.uses.forEach(name=>current.uses.add(name));
   }
  };
  for(const block of plan?.blocks||[]){
-  if(block.kind==="drill"){merge(peak,demand(block));continue;}
-  const rounds=stationRounds(block);
-  for(let index=0;index<rounds.length;index++){
-   const simultaneous=new Map();
+  const simultaneous=new Map();
+  if(block.kind==="drill")merge(simultaneous,demand(block));
+  else{
    for(const station of block.stations||[]){
-    const drill=station.drills?.[index];if(!drill)continue;
-    for(const [key,value] of demand(drill)){
+    const stationDemand=new Map();
+    for(const drill of station.drills||[])merge(stationDemand,demand(drill));
+    for(const [key,value] of stationDemand){
      if(!simultaneous.has(key))simultaneous.set(key,{...value,uses:new Set(value.uses)});
-     else{const current=simultaneous.get(key);current.perPlayerQuantity+=value.perPlayerQuantity;current.fixedQuantity+=value.fixedQuantity;value.uses.forEach(name=>current.uses.add(name));}
+     else{
+      const current=simultaneous.get(key);
+      current.perPlayerQuantity=Math.max(current.perPlayerQuantity,value.perPlayerQuantity);
+      current.fixedQuantity+=value.fixedQuantity;
+      value.uses.forEach(name=>current.uses.add(name));
+     }
     }
    }
-   merge(peak,simultaneous);
   }
+  merge(peak,simultaneous);
  }
- return [...peak.values()].map(value=>({name:value.name,quantity:value.perPlayerQuantity+value.fixedQuantity,uses:[...value.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
+ return [...peak.values()].map(value=>({name:value.name,quantity:total(value),uses:[...value.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export function remember(){
  history.push(clone({teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,activePlanId:state.activePlanId,skills:SKILLS,skillColors:state.skillColors}));
