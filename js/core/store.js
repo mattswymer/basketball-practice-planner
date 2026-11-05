@@ -46,7 +46,7 @@ function equipmentOf(input,legacy="",catalog=oldEquipmentCatalog){
 }
 function groupingOf(input){
  const groups=Array.isArray(input?.groups)?input.groups:[];
- return {groups:groups.map((g,i)=>({id:String(g.id||uid("group")),name:String(g.name||"Group "+(i+1)),playerIds:[...new Set((g.playerIds||[]).map(String))]}))};
+ return {groups:groups.map((g,i)=>{g=g&&typeof g==="object"?g:{};return {id:String(g.id||uid("group")),name:String(g.name||"Group "+(i+1)),playerIds:[...new Set((Array.isArray(g.playerIds)?g.playerIds:[]).map(String))]};})};
 }
 export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentCatalog){
  input=input&&typeof input==="object"?input:{};
