@@ -482,6 +482,37 @@ function registerEvents(){
  $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&drag){clearTimeout(drag.timer);drag.ghost?.remove();drag=null;document.body.classList.remove("dragging-active");document.querySelectorAll(".dragging,.drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("dragging","drop-target","drop-before","drop-after"));}});
+ document.addEventListener("keydown",event=>{
+  if(!["ArrowUp","ArrowDown"].includes(event.key))return;
+  const handle=event.target.closest?.('[data-drag-kind="drill"],[data-drag-kind="station"],[data-drag-kind="block"]');
+  if(!handle)return;
+  const direction=event.key==="ArrowUp"?-1:1,kind=handle.dataset.dragKind;
+  if(kind==="drill"){
+   const card=handle.closest("[data-drill-card]"),station=card?.closest("[data-drop-station]");
+   if(station){
+    const cards=[...station.querySelectorAll(".station-drills > [data-drill-card]")],index=cards.indexOf(card);
+    const before=direction<0?cards[index-1]?.dataset.drillCard:cards[index+2]?.dataset.drillCard||null;
+    if(direction<0&&!before)return;
+    practice.moveScheduledDrill(handle.dataset.dragId,station.dataset.dropStation,before);
+   }else{
+    const wrapper=card?.closest(".plan-block-wrap"),blocks=[...$("plan-blocks").querySelectorAll(":scope > [data-block-id]")],index=blocks.indexOf(wrapper);
+    const before=direction<0?blocks[index-1]?.dataset.blockId:blocks[index+2]?.dataset.blockId||null;
+    if(direction<0&&!before)return;
+    practice.moveScheduledDrill(handle.dataset.dragId,null,before);
+   }
+  }else if(kind==="station"){
+   const rotationId=handle.dataset.rotationId,lanes=[...handle.closest(".station-lanes").querySelectorAll(":scope > [data-drop-station]")],index=lanes.indexOf(handle.closest("[data-drop-station]"));
+   const before=direction<0?lanes[index-1]?.dataset.dropStation:lanes[index+2]?.dataset.dropStation||null;
+   if(direction<0&&!before)return;
+   practice.reorderStation(rotationId,handle.dataset.dragId,before);
+  }else{
+   const block=handle.closest("[data-block-id]"),blocks=[...$("plan-blocks").querySelectorAll(":scope > [data-block-id]")],index=blocks.indexOf(block);
+   const before=direction<0?blocks[index-1]?.dataset.blockId:blocks[index+2]?.dataset.blockId||null;
+   if(direction<0&&!before)return;
+   practice.reorderScheduledBlock(handle.dataset.dragId,before);
+  }
+  event.preventDefault();renderApp();
+ });
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
  $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
  $("add-player").addEventListener("click",addPlayer);$("new-player-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPlayer();}});
