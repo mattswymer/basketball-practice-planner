@@ -81,8 +81,10 @@ function distributeStationMinutes(station,target){
  drills.forEach((drill,index)=>{drill.minutes=values[index];});
 }
 export function stationRounds(block){
- const count=block?.stations?.length||0;
+ const stations=block?.stations||[],count=stations.length;
  if(!count)return [];
+ const visitMinutes=Math.max(0,...stations.map(station=>(station.drills||[]).reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0)));
+ if(visitMinutes)return Array(count).fill(visitMinutes);
  const total=Math.max(count,Math.round(Number(block.minutes)||15));
  const base=Math.floor(total/count),remainder=total%count;
  return Array.from({length:count},(_,index)=>base+(index<remainder?1:0));
@@ -93,9 +95,10 @@ export function fitStationLanes(block,target=block?.minutes){
  const total=Math.max(count,Math.min(240,Math.round(Number(target)||block.minutes||15)));
  const perVisit=Math.max(1,Math.floor(total/count));
  for(const station of block.stations||[])distributeStationMinutes(station,perVisit);
- block.minutes=total;
+ const hasActivities=(block.stations||[]).some(station=>station.drills?.length);
+ block.minutes=hasActivities?perVisit*count:total;
  block.rotationModel="cyclic-v1";
- return total;
+ return block.minutes;
 }
 export function normalizeBlock(input={},catalog=oldEquipmentCatalog){
  input=input&&typeof input==="object"?input:{};
@@ -200,7 +203,13 @@ export function drillsInBlock(block){return block?.kind==="station"?(block.stati
 export function flattenDrills(plan){return (plan?.blocks||[]).flatMap(drillsInBlock);}
 export function findPlanDrill(plan,id){return flattenDrills(plan).find(d=>d.id===id)||null;}
 export function locatePlanDrill(plan,id){for(const block of plan?.blocks||[]){if(block.kind==="drill"&&block.id===id)return {drill:block,list:plan.blocks,stationId:null,block};if(block.kind==="station")for(const station of block.stations||[]){const index=station.drills.findIndex(d=>d.id===id);if(index>=0)return {drill:station.drills[index],list:station.drills,stationId:station.id,block};}}return null;}
-export function blockMinutes(block){return Math.max(1,Math.round(Number(block?.minutes)||1));}
+export function blockMinutes(block){
+ if(block?.kind==="station"){
+  const rounds=stationRounds(block);
+  return rounds.length?rounds.reduce((sum,minutes)=>sum+minutes,0):Math.max(1,Math.round(Number(block.minutes)||15));
+ }
+ return Math.max(1,Math.round(Number(block?.minutes)||1));
+}
 export function totalPracticeMinutes(plan){return (plan?.blocks||[]).reduce((sum,b)=>sum+blockMinutes(b),0);}
 export function durationLabel(n){n=Math.max(0,Math.round(n||0));return n>=60?Math.floor(n/60)+"h"+(n%60?String(n%60).padStart(2,"0"):""):n+"m";}
 export function timeWindow(plan){const [sh,sm]=(plan.start||"18:00").split(":").map(Number),[eh,em]=(plan.end||"19:30").split(":").map(Number);return eh*60+em-(sh*60+sm);}
