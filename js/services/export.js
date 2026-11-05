@@ -27,12 +27,11 @@ export function exportPracticePDF() {
     const minutes=Math.max(1,Math.round(Number(block.minutes)||1));
     const blockStart=clock(plan.start,elapsed);
     if(block.kind==="station"){
-      const rounds=stationRounds(block);
       for(const [stationIndex,station] of (block.stations||[]).entries()){
         entries.push({type:"station",name:block.name||"Station rotation",lane:station.name||"Station "+(stationIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes});
         let stationOffset=0;
-        for(const [roundIndex,drill] of (station.drills||[]).entries()){
-          const duration=rounds[roundIndex]||Math.max(1,Number(drill.minutes)||1);
+        for(const drill of station.drills||[]){
+          const duration=Math.max(1,Number(drill.minutes)||1);
           entries.push({type:"drill",drill,number:++sequence,lane:station.name||"Station "+(stationIndex+1),station:block.name||"Station rotation",start:clock(plan.start,elapsed+stationOffset),end:clock(plan.start,elapsed+stationOffset+duration)});
           stationOffset+=duration;
         }
