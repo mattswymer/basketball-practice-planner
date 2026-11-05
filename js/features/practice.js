@@ -26,7 +26,7 @@ function eventsForStation(block){
 export function liveEvents(plan=activePlan()){
  const events=[];for(const block of plan?.blocks||[]){if(block.kind==="station")events.push(...eventsForStation(block));else events.push({blockId:block.id,minuteOffset:0,activeDrillIds:[block.id]});}return events;
 }
-function applyLiveEvent(event,index,total){state.live.currentBlockId=event.blockId;state.live.currentMinute=event.minuteOffset;state.live.currentDrillIds=event.activeDrillIds.slice();state.live.currentEventIndex=index;state.live.totalEvents=total;}
+function applyLiveEvent(event,index,total){state.live.currentBlockId=event.blockId;state.live.currentMinute=event.minuteOffset;state.live.currentDrillIds=event.activeDrillIds.slice();state.live.currentEventIndex=index;state.live.totalEvents=total;state.live.currentRound=event.round||1;state.live.currentRounds=event.rounds||1;state.live.currentRoundMinutes=event.roundMinutes||0;}
 export function refreshLive(plan=activePlan(),persist=true){
  if(!state.live.active||!plan||state.live.planId!==plan.id)return false;
  const events=liveEvents(plan);if(!events.length){stopLive();return false;}
