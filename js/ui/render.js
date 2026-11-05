@@ -44,6 +44,7 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&(state.live.currentDrillIds||[]).includes(drill.id);
   const expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-station="${esc(stationId||"")}" style="${skillStyle(drill.tags)}">
+    <span class="drag-handle drill-grip" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</span>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
       <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
