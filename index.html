@@ -7,10 +7,6 @@
   <meta name="description" content="A mobile-first basketball practice planner.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/basketball.svg" type="image/svg+xml">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/basketball-192.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="icon" href="icons/basketball-192.png" type="image/png" sizes="192x192">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Basketball Practice Planner</title>
@@ -45,13 +41,14 @@
 
         <section id="plan-detail-view" hidden>
           <button class="back-link" id="back-to-plans"><span aria-hidden="true">←</span> Plans</button>
+          <div class="plan-context-row"><span id="plan-team-chip" class="plan-team-chip"></span></div>
           <div class="plan-title-row">
             <input id="plan-name" class="plan-name-input" maxlength="100" aria-label="Practice plan name">
             <div class="plan-title-actions">
               <button class="icon-btn" id="duplicate-plan" aria-label="Duplicate plan" title="Duplicate plan">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V4h12v12h-4M4 8h12v12H4z"/></svg>
               </button>
-              <button class="icon-btn" id="plan-equipment" aria-label="Equipment checklist" title="Equipment">
+              <button class="icon-btn" id="plan-equipment" aria-label="View equipment" title="Equipment">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v13H5zM8 7V4h8v3M8 11h8M8 15h5"/></svg>
               </button>
               <button class="icon-btn" id="plan-pdf" aria-label="Download PDF" title="PDF">
@@ -77,7 +74,7 @@
           </div>
           <div class="schedule-heading">
             <div><p class="eyebrow">PRACTICE FLOW</p><h2>Schedule</h2></div>
-            <div class="plan-actions"><button class="small-btn" id="fit-practice">Adjust practice to length</button><button class="small-btn" id="add-station">+ Station</button></div>
+            <div class="plan-actions"><button class="small-btn" id="fit-practice">Adjust practice to length</button><button class="small-btn" id="add-station">+ Rotation</button></div>
           </div>
           <div class="practice-workspace">
             <div class="practice-schedule">
@@ -154,7 +151,6 @@
       </section>
     </main>
 
-    <button id="floating-add" class="floating-add" aria-label="Add a drill" hidden>+</button>
 
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-tab active" data-view="plans" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 5h16v15H4zM8 3v4M16 3v4M4 10h16M8 14h3M8 17h7"/></svg><span>Plans</span></button>
