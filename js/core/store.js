@@ -15,7 +15,7 @@ const read=(key,fallback)=>{try{const v=localStorage.getItem(key);return v===nul
 export const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 const word={a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
 const number=x=>word[String(x||"").toLowerCase()]||Math.max(1,Number(x)||1);
-function tagsOf(input){return [...new Set([...(input.tags||[]),input.primarySkill].filter(x=>typeof x==="string"&&SKILLS.includes(x)))];}
+function tagsOf(input){input=input&&typeof input==="object"?input:{};return [...new Set([...(Array.isArray(input.tags)?input.tags:[]),input.primarySkill].filter(value=>typeof value==="string"&&SKILLS.includes(value)))];}
 function stepsOf(input){const v=Array.isArray(input)?input:String(input||"").split(/\r?\n/);return v.map(x=>String(x||"").replace(/^\s*(?:\d+[A-Za-z]?[.)]|[-•])\s*/,"").trim()).filter(Boolean);}
 function parseEquipment(text){
  const s=String(text||"").toLowerCase(),out=[];
@@ -49,17 +49,56 @@ function groupingOf(input){
  return {groups:groups.map((g,i)=>({id:String(g.id||uid("group")),name:String(g.name||"Group "+(i+1)),playerIds:[...new Set((g.playerIds||[]).map(String))]}))};
 }
 export function normalizeDrill(input={},legacyEquipment="",catalog=oldEquipmentCatalog){
+ input=input&&typeof input==="object"?input:{};
  return {kind:"drill",id:String(input.id||input.schedId||uid("drill")),bankId:input.bankId||input.drillId||null,
   name:String(input.name||"Untitled drill").trim()||"Untitled drill",minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||10))),
   tags:tagsOf(input),equipment:equipmentOf(input.equipmentItems||input.equipment,input.equipmentText||(typeof input.equipment==="string"?input.equipment:legacyEquipment),catalog),
   steps:stepsOf(input.steps??input.notes??input.instructions),notes:String(input.coachNotes??input.notesText??input.setupNotes??input.focus??"").trim(),grouping:groupingOf(input.grouping),source:input.source||"custom"};
 }
-function normalizeStation(input={},index=0,catalog=oldEquipmentCatalog){return {id:String(input.id||uid("station")),name:String(input.name||"Station "+(index+1)),drills:(input.drills||[]).map(x=>normalizeDrill(x,"",catalog))};}
-function distributeStationMinutes(station,target){const drills=station?.drills||[];if(!drills.length)return;const total=Math.max(drills.length,Math.round(Number(target)||drills.length)),weights=drills.map(d=>Math.max(1,Number(d.minutes)||1)),sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>(total-drills.length)*w/sum),values=raw.map(v=>1+Math.floor(v));let rem=total-values.reduce((a,b)=>a+b,0);const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);for(let i=0;rem>0;i++,rem--)values[order[i%order.length].i]++;drills.forEach((d,i)=>d.minutes=values[i]);}
-export function fitStationLanes(block,target=block?.minutes){if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));const min=Math.max(1,...(block.stations||[]).map(s=>s.drills?.length||0)),minutes=Math.max(min,Math.round(Number(target)||block.minutes||15));for(const station of block.stations||[])distributeStationMinutes(station,minutes);block.minutes=minutes;return minutes;}
-export function normalizeBlock(input={},catalog=oldEquipmentCatalog){if(input.kind==="station"||input.type==="station"){const stations=(input.stations||[]).map((s,i)=>normalizeStation(s,i,catalog)),implicit=Math.max(0,...stations.map(s=>s.drills.reduce((n,d)=>n+d.minutes,0))),block={kind:"station",id:String(input.id||input.schedId||uid("rotation")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||implicit||15))),stations};fitStationLanes(block,block.minutes);return block;}return normalizeDrill(input,"",catalog);}
+function stationDrills(input,catalog){
+ const direct=Array.isArray(input?.drills)?input.drills:[];
+ const groups=Array.isArray(input?.groups)?input.groups:[];
+ const lanes=Array.isArray(input?.lanes)?input.lanes:[];
+ const grouped=groups.flatMap(group=>Array.isArray(group?.drills)?group.drills:[]);
+ const nested=lanes.flatMap(lane=>Array.isArray(lane?.groups)?lane.groups.flatMap(group=>Array.isArray(group?.drills)?group.drills:[]):Array.isArray(lane?.drills)?lane.drills:[]);
+ return (direct.length?direct:grouped.length?grouped:nested).map(item=>normalizeDrill(item,"",catalog));
+}
+function normalizeStation(input={},index=0,catalog=oldEquipmentCatalog){
+ input=input&&typeof input==="object"?input:{};
+ return {id:String(input.id||uid("station")),name:String(input.name||"Station "+(index+1)),drills:stationDrills(input,catalog)};
+}
+export function stationRounds(block){
+ const count=Math.max(0,...(block?.stations||[]).map(station=>station.drills?.length||0));
+ return Array.from({length:count},(_,index)=>Math.max(1,...(block.stations||[]).map(station=>Math.max(1,Number(station.drills?.[index]?.minutes)||1))));
+}
+export function fitStationLanes(block,target=block?.minutes){
+ if(!block||block.kind!=="station")return Math.max(1,Math.round(Number(target)||1));
+ const rounds=stationRounds(block),minimum=rounds.length;
+ if(!minimum){block.minutes=Math.max(1,Math.round(Number(target)||block.minutes||15));return block.minutes;}
+ const total=Math.max(minimum,Math.min(240,Math.round(Number(target)||rounds.reduce((a,b)=>a+b,0))));
+ const weight=rounds.reduce((a,b)=>a+b,0)||minimum;
+ const raw=rounds.map(value=>(total-minimum)*value/weight);
+ const values=raw.map(value=>1+Math.floor(value));
+ let remainder=total-values.reduce((a,b)=>a+b,0);
+ const order=raw.map((value,index)=>({index,fraction:value-Math.floor(value)})).sort((a,b)=>b.fraction-a.fraction);
+ for(let i=0;remainder>0;i++,remainder--)values[order[i%order.length].index]++;
+ block.stations.forEach(station=>station.drills.forEach((drill,index)=>{drill.minutes=values[index]??drill.minutes;}));
+ block.minutes=total;
+ return total;
+}
+export function normalizeBlock(input={},catalog=oldEquipmentCatalog){
+ input=input&&typeof input==="object"?input:{};
+ if(input.kind==="station"||input.type==="station"){
+  const source=input.stations||input.lanes||input.groups||[];
+  const stations=Array.isArray(source)?source.map((station,index)=>normalizeStation(station,index,catalog)):[];
+  const duration=stationRounds({stations}).reduce((sum,minutes)=>sum+minutes,0);
+  return {kind:"station",id:String(input.id||input.schedId||uid("rotation")),name:String(input.name||"Station rotation"),minutes:Math.max(1,Math.min(240,Math.round(Number(input.minutes??input.duration)||duration||15))),stations};
+ }
+ return normalizeDrill(input,"",catalog);
+}
 export function normalizePlan(input={},teamId="",catalog=oldEquipmentCatalog){
- const blocks=Array.isArray(input.blocks)?input.blocks.map(block=>normalizeBlock(block,catalog)):(input.schedule||[]).map(block=>normalizeBlock(block,catalog));
+ input=input&&typeof input==="object"?input:{};
+ const blocks=Array.isArray(input.blocks)?input.blocks.map(block=>normalizeBlock(block,catalog)):(Array.isArray(input.schedule)?input.schedule:[]).map(block=>normalizeBlock(block,catalog));
  return {id:String(input.id||uid("plan")),teamId:String(input.teamId||teamId),name:String(input.name||"Practice plan"),
   date:String(input.date||localDate()),start:String(input.start||input.startTime||"18:00"),end:String(input.end||input.endTime||"19:30"),
   blocks,
@@ -75,12 +114,12 @@ function normalizePlayer(p,i=0){
  const raw=String(p||"").trim(),match=raw.match(/^#?\s*(\d{1,3})\s+(.+)$/);
  return {id:uid("player"),...(match?{number:match[1]}:{}),name:match?match[2].trim():raw||"Player "+(i+1)};
 }
-function normalizeTeam(t={},i=0){const roster=Array.isArray(t.players)?t.players:(t.roster||[]);return {id:String(t.id||uid("team")),name:String(t.name||"Team "+(i+1)),players:roster.map(normalizePlayer).filter(p=>p.name)};}
+function normalizeTeam(t={},i=0){t=t&&typeof t==="object"?t:{};const roster=Array.isArray(t.players)?t.players:Array.isArray(t.roster)?t.roster:[];return {id:String(t.id||uid("team")),name:String(t.name||"Team "+(i+1)),players:roster.map(normalizePlayer).filter(p=>p.name)};}
 function bankMerge(saved,catalog=oldEquipmentCatalog){
  const seeds=(DATA.PRESET_DRILLS||[]).map(drill=>normalizeDrill(drill,"",catalog)),old=Array.isArray(saved)?saved:[];
- const result=seeds.map(seed=>{const found=old.find(x=>x&&((x.id&&x.id===seed.id)||((x.name||"").toLowerCase()===seed.name.toLowerCase()&&x.source!=="custom")));return found?normalizeDrill({...seed,...found,id:seed.id,source:seed.source},"",catalog):seed;});
- const names=new Set(seeds.map(x=>x.name.toLowerCase()));
- return result.concat(old.filter(x=>x&&x.source==="custom"&&!names.has(String(x.name||"").toLowerCase())).map(drill=>normalizeDrill(drill,"",catalog)));
+ const result=seeds.map(seed=>{const found=old.find(item=>item?.id===seed.id);return found?normalizeDrill({...seed,...found,id:seed.id,source:seed.source},"",catalog):seed;});
+ const seedIds=new Set(seeds.map(seed=>seed.id));
+ return result.concat(old.filter(item=>item&&item.source==="custom"&&!seedIds.has(item.id)).map(drill=>normalizeDrill(drill,"",catalog)));
 }
 function emptyPlan(teamId,name="Practice plan"){return {id:uid("plan"),teamId,name,date:localDate(),start:"18:00",end:"19:30",blocks:[],equipmentChecked:{},createdAt:new Date().toISOString()};}
 function migratePlans(teams,activeId,catalog=oldEquipmentCatalog){
@@ -91,16 +130,26 @@ function migratePlans(teams,activeId,catalog=oldEquipmentCatalog){
  }
  return result;
 }
+function backupBeforeMigration(){
+ const key="bbp_migration_backup_v4";
+ if(localStorage.getItem(key))return;
+ const snapshot={};
+ [APP_KEY,LEGACY_APP_KEY,...Object.values(OLD)].forEach(name=>{const value=localStorage.getItem(name);if(value!==null)snapshot[name]=value;});
+ try{localStorage.setItem(key,JSON.stringify({createdAt:new Date().toISOString(),values:snapshot}));}
+ catch(error){console.error("Could not create migration backup",error);}
+}
+function safeColor(value,fallback){return typeof value==="string"&&/^#[0-9a-f]{6}$/i.test(value)?value:fallback;}
 export function loadApp(){
- oldEquipmentCatalog=read(OLD.equipment,[]);
+ const equipment=read(OLD.equipment,[]);oldEquipmentCatalog=Array.isArray(equipment)?equipment:[];
  const app=read(APP_KEY,read(LEGACY_APP_KEY,null));
+ if(!app||Number(app.version||0)<4)backupBeforeMigration();
  if(app&&Array.isArray(app.teams)){
   SKILLS.splice(0,SKILLS.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_SKILLS));
-  state.skillColors={...DEFAULT_COLORS,...(app.skillColors||{})};
+  state.skillColors={...DEFAULT_COLORS,...Object.fromEntries(Object.entries(app.skillColors||{}).filter(([skill])=>SKILLS.includes(skill)).map(([skill,color])=>[skill,safeColor(color,DEFAULT_COLORS[skill]||PALETTE[0])]))};
   state.teams=app.teams.map(normalizeTeam);
   state.activeTeamId=state.teams.some(t=>t.id===app.activeTeamId)?app.activeTeamId:state.teams[0]?.id;
   state.drillBank=bankMerge(app.drillBank,oldEquipmentCatalog);
-  state.plansByTeam={};for(const team of state.teams)state.plansByTeam[team.id]=(app.plansByTeam?.[team.id]||[]).map(p=>normalizePlan(p,team.id,oldEquipmentCatalog));
+  state.plansByTeam={};for(const team of state.teams){const plans=app.plansByTeam?.[team.id];state.plansByTeam[team.id]=(Array.isArray(plans)?plans:[]).map(p=>normalizePlan(p,team.id,oldEquipmentCatalog));}
   state.activePlanIds={...(app.activePlanIds||{})};
  }else{
   const teams=read(OLD.teams,[{id:"t1",name:"Team 1",roster:[]},{id:"t2",name:"Team 2",roster:[]}]);
@@ -123,7 +172,7 @@ export function loadApp(){
 }
 export function save(){
  if(state.activeTeamId)state.activePlanIds[state.activeTeamId]=state.activePlanId;
- const data={version:3,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,
+ const data={version:4,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,
   plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:[...SKILLS],skillColors:state.skillColors};
  try{localStorage.setItem(APP_KEY,JSON.stringify(data));const status=document.getElementById("save-status");if(status){status.textContent="Saved";status.title="Changes saved on this device.";status.dataset.state="saved";}}catch(error){console.error("Could not save planner",error);const status=document.getElementById("save-status");if(status){status.textContent="Not saved";status.title="Storage failed. Download a backup before leaving.";status.dataset.state="error";}}
 }
@@ -138,19 +187,49 @@ export function drillsInBlock(block){return block?.kind==="station"?(block.stati
 export function flattenDrills(plan){return (plan?.blocks||[]).flatMap(drillsInBlock);}
 export function findPlanDrill(plan,id){return flattenDrills(plan).find(d=>d.id===id)||null;}
 export function locatePlanDrill(plan,id){for(const block of plan?.blocks||[]){if(block.kind==="drill"&&block.id===id)return {drill:block,list:plan.blocks,stationId:null,block};if(block.kind==="station")for(const station of block.stations||[]){const index=station.drills.findIndex(d=>d.id===id);if(index>=0)return {drill:station.drills[index],list:station.drills,stationId:station.id,block};}}return null;}
-export function blockMinutes(block){return block?.kind==="station"?Math.max(1,Math.round(Number(block.minutes)||15)):Math.max(1,Math.round(Number(block?.minutes)||1));}
+export function blockMinutes(block){if(block?.kind==="station")return stationRounds(block).reduce((sum,minutes)=>sum+minutes,0)||Math.max(1,Math.round(Number(block.minutes)||15));return Math.max(1,Math.round(Number(block?.minutes)||1));}
 export function totalPracticeMinutes(plan){return (plan?.blocks||[]).reduce((sum,b)=>sum+blockMinutes(b),0);}
 export function durationLabel(n){n=Math.max(0,Math.round(n||0));return n>=60?Math.floor(n/60)+"h"+(n%60?String(n%60).padStart(2,"0"):""):n+"m";}
-export function timeWindow(plan){const [sh,sm]=(plan.start||"18:00").split(":").map(Number),[eh,em]=(plan.end||"19:30").split(":").map(Number);let n=eh*60+em-(sh*60+sm);return n<=0?n+1440:n;}
+export function timeWindow(plan){const [sh,sm]=(plan.start||"18:00").split(":").map(Number),[eh,em]=(plan.end||"19:30").split(":").map(Number);return eh*60+em-(sh*60+sm);}
 export function clockLabel(start,offset){const [h,m]=(start||"18:00").split(":").map(Number),n=h*60+m+offset,day=Math.floor(n/1440),hour=Math.floor(n/60)%24;return (hour%12||12)+":"+String(n%60).padStart(2,"0")+(hour>=12?"p":"a")+(day?" +"+day+"d":"");}
-export function skillColor(skill){return state.skillColors[skill]||PALETTE[Math.max(0,SKILLS.indexOf(skill))%PALETTE.length]||"#55758a";}
+export function skillColor(skill){const fallback=PALETTE[Math.max(0,SKILLS.indexOf(skill))%PALETTE.length]||"#55758a";return safeColor(state.skillColors[skill],safeColor(DEFAULT_COLORS[skill],fallback));}
 export function copyDrill(drill){return {...clone(drill),kind:"drill",id:uid("drill"),bankId:drill.id,source:"scheduled",grouping:{groups:[]}};}
 export function equipmentTotals(plan){
- const players=Math.max(1,state.teams.find(t=>t.id===plan?.teamId)?.players.length||0),total=x=>x.perPlayerQuantity+x.fixedQuantity;
- const demand=drill=>{const map=new Map();for(const x of drill.equipment||[]){const key=x.name.toLowerCase(),v=map.get(key)||{name:x.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};if(x.perPlayer)v.perPlayerQuantity+=x.quantity*players;else v.fixedQuantity+=x.quantity;v.uses.add(drill.name);map.set(key,v);}return map;};
- const peak=new Map(),merge=(target,source)=>{for(const [key,v]of source){if(!target.has(key))target.set(key,{...v,uses:new Set(v.uses)});else{const t=target.get(key);if(total(v)>total(t)){t.perPlayerQuantity=v.perPlayerQuantity;t.fixedQuantity=v.fixedQuantity;}v.uses.forEach(n=>t.uses.add(n));}}};
- for(const block of plan?.blocks||[]){const simultaneous=new Map();if(block.kind==="drill")merge(simultaneous,demand(block));else for(const station of block.stations||[]){const stationDemand=new Map();for(const drill of station.drills||[])merge(stationDemand,demand(drill));for(const [key,v]of stationDemand){if(!simultaneous.has(key))simultaneous.set(key,{...v,uses:new Set(v.uses)});else{const t=simultaneous.get(key);t.perPlayerQuantity=Math.max(t.perPlayerQuantity,v.perPlayerQuantity);t.fixedQuantity+=v.fixedQuantity;v.uses.forEach(n=>t.uses.add(n));}}}merge(peak,simultaneous);}
- return [...peak.values()].map(v=>({name:v.name,quantity:total(v),uses:[...v.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
+ const players=Math.max(1,state.teams.find(team=>team.id===plan?.teamId)?.players.length||0);
+ const demand=drill=>{
+  const result=new Map();
+  for(const item of drill.equipment||[]){
+   const key=item.name.toLowerCase(),value=result.get(key)||{name:item.name,perPlayerQuantity:0,fixedQuantity:0,uses:new Set()};
+   if(item.perPlayer)value.perPlayerQuantity+=item.quantity*players;else value.fixedQuantity+=item.quantity;
+   value.uses.add(drill.name);result.set(key,value);
+  }
+  return result;
+ };
+ const peak=new Map();
+ const merge=(target,source)=>{
+  for(const [key,value] of source){
+   if(!target.has(key)){target.set(key,{...value,uses:new Set(value.uses)});continue;}
+   const current=target.get(key);
+   if(value.perPlayerQuantity+value.fixedQuantity>current.perPlayerQuantity+current.fixedQuantity){current.perPlayerQuantity=value.perPlayerQuantity;current.fixedQuantity=value.fixedQuantity;}
+   value.uses.forEach(name=>current.uses.add(name));
+  }
+ };
+ for(const block of plan?.blocks||[]){
+  if(block.kind==="drill"){merge(peak,demand(block));continue;}
+  const rounds=stationRounds(block);
+  for(let index=0;index<rounds.length;index++){
+   const simultaneous=new Map();
+   for(const station of block.stations||[]){
+    const drill=station.drills?.[index];if(!drill)continue;
+    for(const [key,value] of demand(drill)){
+     if(!simultaneous.has(key))simultaneous.set(key,{...value,uses:new Set(value.uses)});
+     else{const current=simultaneous.get(key);current.perPlayerQuantity+=value.perPlayerQuantity;current.fixedQuantity+=value.fixedQuantity;value.uses.forEach(name=>current.uses.add(name));}
+    }
+   }
+   merge(peak,simultaneous);
+  }
+ }
+ return [...peak.values()].map(value=>({name:value.name,quantity:value.perPlayerQuantity+value.fixedQuantity,uses:[...value.uses]})).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export function remember(){
  history.push(clone({teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,activePlanId:state.activePlanId,skills:SKILLS,skillColors:state.skillColors}));
