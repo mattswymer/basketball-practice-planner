@@ -2,6 +2,8 @@
 
 A mobile-first basketball practice planner built with static HTML, CSS, and JavaScript. No build step or backend is required. Data is stored locally in the browser.
 
+**Live app:** https://mattswymer.github.io/basketball-practice-planner/
+
 ## Practice plans
 - Create plans for multiple teams and set practice dates and time windows.
 - Add, edit, remove, and reorder drills.
