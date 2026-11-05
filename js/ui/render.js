@@ -60,6 +60,8 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
 function renderStation(block,start,end,plan,offset) {
  const live=state.live.active&&state.live.planId===plan.id&&state.live.currentBlockId===block.id;
  const rounds=stationRounds(block);
+ const minRound=rounds.length?Math.min(...rounds):0,maxRound=rounds.length?Math.max(...rounds):0;
+ const roundLabel=minRound===maxRound?minRound+" min per round":minRound+"–"+maxRound+" min per round";
  const stations=(block.stations||[]).map((station,index)=>{
   let elapsed=0;
   const drills=station.drills.map(drill=>renderDrillCard(drill,{stationId:station.id})).join("");
@@ -72,7 +74,7 @@ function renderStation(block,start,end,plan,offset) {
  }).join("");
  return \`<section class="station-block \${live?"current-popout":""}" data-block-id="\${esc(block.id)}" data-drop-block="\${esc(block.id)}">
   <div class="station-heading"><button type="button" class="drag-handle block-grip" data-drag-kind="block" data-drag-id="\${esc(block.id)}" aria-label="Move station rotation" title="Drag to move">\${grip}</button>
-   <button class="station-title" data-edit-station="\${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>\${esc(block.name)}</strong><small>\${start} – \${end} · \${blockMinutes(block)} min · \${rounds.length} rounds</small></button>
+   <button class="station-title" data-edit-station="\${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>\${esc(block.name)}</strong><small>\${start} – \${end} · \${blockMinutes(block)} min · \${state.live.active&&live?("Round "+(state.live.currentRound||1)+" of "+rounds.length+" · "):""}\${rounds.length} rounds · \${roundLabel}</small></button>
    <button class="mini-icon" data-edit-station="\${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="\${esc(block.id)}" aria-label="Delete station rotation">×</button>
   </div>
   <p class="station-rotation-note">Groups rotate to the next station at the end of each round.</p>
