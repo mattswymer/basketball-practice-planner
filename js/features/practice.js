@@ -14,14 +14,33 @@ export function fitPractice(plan=activePlan()){
  remember();blocks.forEach((b,i)=>b.kind==="station"?fitStationLanes(b,values[i]):b.minutes=values[i]);refreshLive(plan,false);save();return {ok:true,total:target,target};
 }
 function eventsForStation(block){
- let minuteOffset=0;
- const rounds=stationRounds(block);
- return rounds.map((minutes,index)=>{
-  const activeDrillIds=(block.stations||[]).flatMap(station=>station.drills||[]).map(drill=>drill.id);
-  const event={blockId:block.id,minuteOffset,activeDrillIds,round:index+1,rounds:rounds.length,roundMinutes:minutes};
-  minuteOffset+=minutes;
-  return event;
- }).filter(event=>event.activeDrillIds.length);
+ const stations=block.stations||[],rounds=stationRounds(block);
+ const visitDuration=rounds[0]||0,boundaries=new Set([0]);
+ for(const station of stations){
+  let elapsed=0;
+  for(const drill of station.drills||[]){
+   elapsed+=Math.max(1,Number(drill.minutes)||1);
+   if(elapsed<visitDuration)boundaries.add(elapsed);
+  }
+ }
+ const offsets=[...boundaries].sort((a,b)=>a-b),events=[];
+ let roundStart=0;
+ rounds.forEach((roundMinutes,roundIndex)=>{
+  for(const minuteOffset of offsets){
+   const activeDrillIds=[];
+   for(const station of stations){
+    let elapsed=0;
+    for(const drill of station.drills||[]){
+     const end=elapsed+Math.max(1,Number(drill.minutes)||1);
+     if(minuteOffset>=elapsed&&minuteOffset<end){activeDrillIds.push(drill.id);break;}
+     elapsed=end;
+    }
+   }
+   if(activeDrillIds.length)events.push({blockId:block.id,minuteOffset:roundStart+minuteOffset,activeDrillIds,round:roundIndex+1,rounds:rounds.length,roundMinutes});
+  }
+  roundStart+=roundMinutes;
+ });
+ return events;
 }
 export function liveEvents(plan=activePlan()){
  const events=[];for(const block of plan?.blocks||[]){if(block.kind==="station")events.push(...eventsForStation(block));else events.push({blockId:block.id,minuteOffset:0,activeDrillIds:[block.id]});}return events;
