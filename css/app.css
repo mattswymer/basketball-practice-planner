@@ -174,7 +174,7 @@
 
 /* Drill cards: white body with skill color only in the top strip. */
 .drill-card,.library-card,.practice-bank-list .library-card{background:#fff!important;border:1px solid #d8e1e5!important}
-.drill-card{grid-template-columns:minmax(0,1fr) auto!important}
+.drill-card{grid-template-columns:44px minmax(0,1fr) auto!important}
 .drill-card-main{padding-top:15px!important}
 .library-card{position:relative;padding-top:12px!important}
 .drill-card.current-popout{background:#fff!important;border:2px solid #6b8997!important;box-shadow:0 8px 22px #173d5520!important;transform:none!important}
