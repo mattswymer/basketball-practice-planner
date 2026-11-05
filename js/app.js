@@ -1,6 +1,6 @@
 import {
  state,SKILLS,uid,clone,esc,localDate,loadApp,save,remember,undo,activeTeam,activePlan,plansForTeam,
- setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill
+ setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill,normalizeDrill,timeWindow
 } from "./core/store.js";
 import {
  renderApp,renderBankPicker,renderOnePlan,renderOneTeam,renderEquipment,renderPracticeBankPanel,renderEditorTags,
@@ -46,7 +46,7 @@ function switchTeam(id){
  if(state.live.active){pendingExitView="switch-team";pendingExitTeamId=id;show("exit-live-sheet");return;}
  setActiveTeam(id);state.selectedTeamId=id;state.statsTeamId=id;state.planDetailOpen=false;renderApp();
 }
-function changeView(view){if(state.live.active&&view!=="plans"){pendingExitView=view;pendingExitTeamId=null;show("exit-live-sheet");return;}state.view=view;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
+function changeView(view){if(state.live.active&&view!=="plans"){pendingExitView=view;pendingExitTeamId=null;show("exit-live-sheet");return;}state.view=view;if(view==="plans")state.planDetailOpen=false;if(view==="teams"&&!state.selectedTeamId)state.selectedTeamId=state.activeTeamId;if(view==="stats")state.statsTeamId||=state.activeTeamId;renderApp();}
 function openBank(stationId=null){
  if(!activePlan())return toast("Create a practice plan first.");
  pendingStationId=stationId;$("bank-search").value="";$("bank-tag-options").querySelectorAll("input").forEach(x=>x.checked=false);$("bank-sort").value="name";renderBankPicker();show("bank-sheet");
@@ -145,7 +145,7 @@ function moveDrill(id,stationId,beforeId){if(practice.moveScheduledDrill(id,stat
 function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!found?.stationId)return;practice.moveScheduledDrill(id,null,null);renderApp();}
 function fitCurrentPlan(){
  const result=practice.fitPractice();
- if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":"The practice window is too short. Reduce the number of drills or extend the end time.");
+ if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":result.reason==="invalid-window"?"End time must be later than start time.":"The practice window is too short. Reduce the number of drills or extend the end time.");
  renderApp();toast("Schedule adjusted to "+result.target+" minutes.");
 }
 function startLive(){
@@ -278,7 +278,11 @@ function checkEquipment(key,value){
  plan.equipmentChecked[key]=value;persist();
  document.querySelector('[data-equipment-checked="'+CSS.escape(key)+'"]')?.closest(".equipment-check-row")?.classList.toggle("is-checked",value);
 }
-function updatePlan(field,value){const plan=activePlan();if(!plan||plan[field]===value)return;remember();plan[field]=value;persist();renderOnePlan();}
+function updatePlan(field,value){
+ const plan=activePlan();if(!plan||plan[field]===value)return;
+ if((field==="start"||field==="end")&&timeWindow({...plan,[field]:value})<=0){toast("End time must be later than start time.");renderOnePlan();return;}
+ remember();plan[field]=value;persist();renderOnePlan();
+}
 function backupRestore(event){
  const file=event.target.files?.[0];if(!file)return;
  if(!window.confirm("Restore this backup? It will replace all teams, plans, drills, and skill settings currently stored on this device.")){event.target.value="";return;}
@@ -310,47 +314,114 @@ function handleClick(event){
  const addGroupButton=target.closest("#add-drill-group");if(addGroupButton){addGroup();return;}
  const randomizeButton=target.closest("#randomize-drill-groups");if(randomizeButton){randomizeGroups();return;}
  const deleteGroupButton=target.closest("[data-delete-drill-group]");if(deleteGroupButton){deleteGroup(deleteGroupButton.dataset.deleteDrillGroup);return;}
- const saveSkillButton=target.closest("[data-save-skill]");if(saveSkillButton){saveSkill(saveSkillButton.dataset.saveSkill);return;}
  const deleteSkillButton=target.closest("[data-delete-skill]");if(deleteSkillButton){removeSkill(deleteSkillButton.dataset.deleteSkill);return;}
 }
+function activatePlanDrag(event){
+ if(!drag||drag.active)return;
+ clearTimeout(drag.timer);
+ drag.active=true;
+ const handle=drag.handle;
+ handle.classList.add("dragging");
+ document.body.classList.add("dragging-active");
+ navigator.vibrate?.(12);
+ const source=handle.closest("[data-drill-card],[data-block-id],[data-station-id],[data-library-card]")||handle;
+ const rect=source.getBoundingClientRect();
+ const ghost=source.cloneNode(true);
+ ghost.classList.add("drag-ghost");
+ ghost.style.pointerEvents="none";
+ ghost.style.width=rect.width+"px";
+ ghost.style.left=rect.left+"px";
+ ghost.style.top=rect.top+"px";
+ document.body.appendChild(ghost);
+ drag.ghost=ghost;
+ drag.ghostX=event.clientX-rect.left;
+ drag.ghostY=event.clientY-rect.top;
+}
 function beginPlanDrag(event){
- const handle=event.target.closest('[data-drag-kind="block"],[data-drag-kind="station"],[data-drag-kind="drill"]');if(!handle)return;
- drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,rotationId:handle.dataset.rotationId||null,startX:event.clientX,startY:event.clientY,active:false,target:null,ghost:null};
- drag.timer=setTimeout(()=>{if(!drag)return;drag.active=true;handle.classList.add("dragging");document.body.classList.add("dragging-active");navigator.vibrate?.(12);const source=handle.closest("[data-drill-card],[data-block-id],[data-station-id],[data-library-card]")||handle,rect=source.getBoundingClientRect(),ghost=source.cloneNode(true);ghost.classList.add("drag-ghost");ghost.style.pointerEvents="none";ghost.style.width=rect.width+"px";ghost.style.left=rect.left+"px";ghost.style.top=rect.top+"px";document.body.appendChild(ghost);drag.ghost=ghost;drag.ghostX=event.clientX-rect.left;drag.ghostY=event.clientY-rect.top;},event.pointerType==="mouse"?110:230);
+ const handle=event.target.closest('[data-drag-kind="block"],[data-drag-kind="station"],[data-drag-kind="drill"]');
+ if(!handle)return;
+ drag={kind:handle.dataset.dragKind,id:handle.dataset.dragId,rotationId:handle.dataset.rotationId||null,startX:event.clientX,startY:event.clientY,pointerType:event.pointerType,handle,active:false,target:null,hit:null,ghost:null};
+ try{handle.setPointerCapture(event.pointerId);}catch{}
+ if(event.pointerType!=="mouse")drag.timer=setTimeout(()=>activatePlanDrag(event),230);
 }
 function movePlanDrag(event){
  if(!drag)return;
- if(!drag.active){if(Math.abs(event.clientX-drag.startX)>12||Math.abs(event.clientY-drag.startY)>12){clearTimeout(drag.timer);drag=null;}return;}
+ const distance=Math.hypot(event.clientX-drag.startX,event.clientY-drag.startY);
+ if(!drag.active){
+  if(drag.pointerType==="mouse"&&distance>=4)activatePlanDrag(event);
+  else if(drag.pointerType!=="mouse"&&distance>12){clearTimeout(drag.timer);drag=null;}
+  if(!drag?.active)return;
+ }
  event.preventDefault();
  const scroller=$("main-content"),bounds=scroller.getBoundingClientRect(),edge=64;
  if(event.clientY<bounds.top+edge)scroller.scrollTop-=Math.max(7,(bounds.top+edge-event.clientY)*.32);
  else if(event.clientY>bounds.bottom-edge)scroller.scrollTop+=Math.max(7,(event.clientY-(bounds.bottom-edge))*.32);
  if(drag.ghost){drag.ghost.style.left=(event.clientX-drag.ghostX)+"px";drag.ghost.style.top=(event.clientY-drag.ghostY)+"px";}
- document.querySelectorAll(".drop-target,.drop-before").forEach(el=>el.classList.remove("drop-target","drop-before"));
- const target=document.elementFromPoint(event.clientX,event.clientY);
- const dest=target?.closest("[data-drop-station]")||target?.closest("[data-block-id]")||target?.closest("[data-drop-root]");
- drag.target=dest||null;
- const block=dest?.closest("[data-block-id]"),station=dest?.closest("[data-drop-station]");
- if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");else if(drag.kind==="station"&&station&&station.dataset.dropStation!==drag.id)station.classList.add("drop-before");else dest?.classList.add("drop-target");
+ document.querySelectorAll(".drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("drop-target","drop-before","drop-after"));
+ const hit=document.elementFromPoint(event.clientX,event.clientY);
+ const station=hit?.closest("[data-drop-station]");
+ const block=hit?.closest("[data-block-id]");
+ const root=hit?.closest("[data-drop-root]");
+ drag.hit=hit||null;
+ drag.target=station||block||root||null;
+ const card=hit?.closest("[data-drill-card]");
+ if(drag.kind==="drill"&&card&&card.dataset.drillCard!==drag.id){
+  const rect=card.getBoundingClientRect();
+  card.classList.add(event.clientY>rect.top+rect.height/2?"drop-after":"drop-before");
+ }else if(drag.kind==="block"&&block&&block.dataset.blockId!==drag.id)block.classList.add("drop-before");
+ else if(drag.kind==="station"&&station&&station.dataset.dropStation!==drag.id)station.classList.add("drop-before");
+ else drag.target?.classList.add("drop-target");
 }
-function endPlanDrag(){
- if(!drag)return;const item=drag;clearTimeout(item.timer);drag=null;document.body.classList.remove("dragging-active");item.ghost?.remove();document.querySelectorAll(".dragging,.drop-target,.drop-before").forEach(el=>el.classList.remove("dragging","drop-target","drop-before"));if(!item.active||!item.target)return;const target=item.target;
+function nextDropId(card,after,station){
+ if(!after)return card.dataset.drillCard||null;
+ if(station){
+  const cards=[...card.closest(".station-drills").querySelectorAll(":scope > [data-drill-card]")];
+  return cards[cards.indexOf(card)+1]?.dataset.drillCard||null;
+ }
+ const wrapper=card.closest(".plan-block-wrap");
+ let next=wrapper?.nextElementSibling;
+ while(next&&!next.matches("[data-block-id]"))next=next.nextElementSibling;
+ return next?.dataset.blockId||null;
+}
+function endPlanDrag(event){
+ if(!drag)return;
+ const item=drag;clearTimeout(item.timer);drag=null;
+ document.body.classList.remove("dragging-active");
+ item.ghost?.remove();
+ document.querySelectorAll(".dragging,.drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("dragging","drop-target","drop-before","drop-after"));
+ if(!item.active||!item.target)return;
+ const hit=item.hit||event.target;
+ const station=hit.closest?.("[data-drop-station]")||item.target.closest("[data-drop-station]");
+ const card=hit.closest?.("[data-drill-card]");
  if(item.kind==="drill"){
-  const station=target.closest("[data-drop-station]"),card=target.closest("[data-drill-card]");
+  if(card?.dataset.drillCard===item.id)return;
   if(station){
-   const beforeId=card?.dataset.drillCard===item.id?null:card?.dataset.drillCard||null;
-   if(card?.dataset.drillCard===item.id)return;
-   practice.moveScheduledDrill(item.id,station.dataset.dropStation,beforeId);
+   const after=card&&event.clientY>card.getBoundingClientRect().top+card.getBoundingClientRect().height/2;
+   practice.moveScheduledDrill(item.id,station.dataset.dropStation,card?nextDropId(card,after,true):null);
   }else{
-   const block=target.closest("[data-block-id]"),beforeId=block?.dataset.blockId||null;
-   if(beforeId===item.id)return;
+   const block=hit.closest?.("[data-block-id]")||item.target.closest("[data-block-id]");
+   if(block?.dataset.blockId===item.id)return;
+   const after=card&&event.clientY>card.getBoundingClientRect().top+card.getBoundingClientRect().height/2;
+   const beforeId=card?nextDropId(card,after,false):block?.dataset.blockId||null;
    practice.moveScheduledDrill(item.id,null,beforeId);
   }
   renderApp();return;
  }
- if(item.kind==="block"){const block=target.closest("[data-block-id]");if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}return;}
- if(item.kind==="station"){const station=target.closest("[data-drop-station]"),block=target.closest("[data-block-id]");if(station&&station.dataset.parentRotation===item.rotationId){if(station.dataset.dropStation!==item.id)practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);}else{const beforeBlockId=station?.dataset.parentRotation||block?.dataset.blockId||null;practice.moveStationToSchedule(item.rotationId,item.id,beforeBlockId);}renderApp();return;}
-
+ if(item.kind==="block"){
+  const block=hit.closest?.("[data-block-id]")||item.target.closest("[data-block-id]");
+  if(block&&block.dataset.blockId!==item.id){practice.reorderScheduledBlock(item.id,block.dataset.blockId);renderApp();}
+  return;
+ }
+ if(item.kind==="station"){
+  if(station&&station.dataset.parentRotation===item.rotationId){
+   if(station.dataset.dropStation!==item.id)practice.reorderStation(item.rotationId,item.id,station.dataset.dropStation);
+  }else{
+   const block=hit.closest?.("[data-block-id]")||item.target.closest("[data-block-id]");
+   const beforeBlockId=station?.dataset.parentRotation||block?.dataset.blockId||null;
+   practice.moveStationToSchedule(item.rotationId,item.id,beforeBlockId);
+  }
+  renderApp();
+ }
 }
 function registerEvents(){
  document.addEventListener("click",handleClick);
@@ -367,7 +438,6 @@ function registerEvents(){
  $("plan-start").addEventListener("change",e=>updatePlan("start",e.target.value));
  $("plan-end").addEventListener("change",e=>updatePlan("end",e.target.value));
  $("add-drill-to-plan").addEventListener("click",()=>openBank(null));
- $("floating-add").addEventListener("click",()=>openBank(null));
  $("add-station").addEventListener("click",()=>openStation());
  $("fit-practice").addEventListener("click",fitCurrentPlan);
  $("duplicate-plan").addEventListener("click",openDuplicate);
@@ -395,9 +465,10 @@ function registerEvents(){
  $("new-bank-drill").addEventListener("click",()=>openDrillEditor("new"));
  $("export-drills").addEventListener("click",()=>{const data={app:"basketball-practice-planner-drills",version:1,drills:state.drillBank};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="basketball-drills.json";a.click();URL.revokeObjectURL(url);toast("Drill library exported.");});
  $("import-drills").addEventListener("click",()=>$("drill-import-file").click());
- $("drill-import-file").addEventListener("change",async event=>{const file=event.target.files?.[0];if(!file)return;try{if(file.size>5000000)throw new Error("File is too large.");const data=JSON.parse(await file.text()),items=Array.isArray(data)?data:data.drills;if(!Array.isArray(items))throw new Error("This file does not contain a drill library.");const clean=items.filter(x=>x&&typeof x.name==="string").map(x=>({...x,id:uid("drill"),kind:"drill",source:"custom",tags:Array.isArray(x.tags)?x.tags:[],equipment:Array.isArray(x.equipment)?x.equipment:[],steps:Array.isArray(x.steps)?x.steps:[],notes:String(x.notes||""),grouping:{groups:[]}}));if(!clean.length)throw new Error("No valid drills found.");remember();const names=new Set(state.drillBank.map(d=>d.name.toLowerCase()));const unique=clean.filter(d=>!names.has(d.name.toLowerCase()));state.drillBank.push(...unique);persist();renderApp();toast("Imported "+unique.length+" drill"+(unique.length===1?"":"s")+".");}catch(error){toast(error.message||"Could not import drills.");}finally{event.target.value="";}});
+ $("drill-import-file").addEventListener("change",async event=>{const file=event.target.files?.[0];if(!file)return;try{if(file.size>5000000)throw new Error("File is too large.");const data=JSON.parse(await file.text()),items=Array.isArray(data)?data:data.drills;if(!Array.isArray(items))throw new Error("This file does not contain a drill library.");const clean=items.filter(x=>x&&typeof x.name==="string").map(x=>normalizeDrill({...x,id:uid("drill"),source:"custom",grouping:{groups:[]}}));if(!clean.length)throw new Error("No valid drills found.");remember();const names=new Set(state.drillBank.map(d=>d.name.toLowerCase()));const unique=clean.filter(d=>!names.has(d.name.toLowerCase()));state.drillBank.push(...unique);persist();renderApp();toast("Imported "+unique.length+" drill"+(unique.length===1?"":"s")+".");}catch(error){toast(error.message||"Could not import drills.");}finally{event.target.value="";}});
  $("drill-form").addEventListener("submit",saveDrill);$("delete-drill").addEventListener("click",deleteEditorDrill);
- $("edit-tags").addEventListener("change",()=>{const selected=$("edit-tags").querySelectorAll("input:checked").length;$("edit-skill-summary").textContent=selected?selected+" skills selected":"All skills";});
+ $("edit-tags").addEventListener("change",()=>{const selected=$("edit-tags").querySelectorAll("input:checked").length;$("edit-skill-summary").textContent=selected?selected+" skills selected":"Select skills";});
+ $("skill-list").addEventListener("change",event=>{const input=event.target.closest("[data-skill-name],[data-skill-color]");if(input)saveSkill(input.dataset.skillName||input.closest(".skill-edit-row")?.querySelector("[data-skill-name]")?.dataset.skillName);});
  $("add-equipment-row").addEventListener("click",()=>{const values=editorEquipment(true);values.push({name:"",quantity:1,perPlayer:false});renderEditorEquipment(values);});
  $("add-step").addEventListener("click",()=>{const values=editorSteps(true);values.push("");renderEditorSteps(values);});
  $("edit-equipment-rows").addEventListener("click",event=>{const button=event.target.closest("[data-remove-eq-row]");if(!button)return;const values=editorEquipment(true);values.splice(Number(button.dataset.removeEqRow),1);renderEditorEquipment(values);});
@@ -410,6 +481,7 @@ function registerEvents(){
 
  $("plan-blocks").addEventListener("pointerdown",beginPlanDrag);document.addEventListener("pointermove",movePlanDrag,{passive:false});
  document.addEventListener("pointerup",endPlanDrag);document.addEventListener("pointercancel",endPlanDrag);
+ document.addEventListener("keydown",event=>{if(event.key==="Escape"&&drag){clearTimeout(drag.timer);drag.ghost?.remove();drag=null;document.body.classList.remove("dragging-active");document.querySelectorAll(".dragging,.drop-target,.drop-before,.drop-after").forEach(el=>el.classList.remove("dragging","drop-target","drop-before","drop-after"));}});
  $("new-team").addEventListener("click",addTeamDialog);$("edit-team-name").addEventListener("click",renameTeamDialog);
  $("team-form").addEventListener("submit",submitTeam);$("delete-team").addEventListener("click",()=>deleteTeam());
  $("add-player").addEventListener("click",addPlayer);$("new-player-name").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPlayer();}});
