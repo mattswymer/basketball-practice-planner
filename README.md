@@ -9,7 +9,7 @@ A mobile-first basketball practice planner built with static HTML, CSS, and Java
 - Duplicate plans and export printable PDFs.
 
 ## Station rotations
-A rotation contains multiple stations, each with an ordered list of activities. Groups start at different stations and move to the next station at each whistle. Activities in the same round run concurrently; the round duration is determined by the longest activity in that round. The rotation duration is the sum of its rounds.
+A rotation contains multiple stations. Groups begin at different stations and move to the next station together at each whistle. A complete rotation has one round per station, so every group visits every station once. Each station can contain an ordered sequence of activities; the round lasts long enough for the longest station sequence to finish. All stations operate concurrently during each round. Total rotation time is the round duration multiplied by the number of stations.
 
 ## Drill library and teams
 - Maintain a reusable drill bank with skills, equipment, notes, and instructions.
