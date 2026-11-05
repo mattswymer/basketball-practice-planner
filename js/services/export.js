@@ -145,7 +145,7 @@ export async function importBackup(file) {
   const isLegacy=Array.isArray(data.schedule)||!!data.schedulesByTeam;
   if(!isCurrent&&!isLegacy)throw new Error("That file is not a planner backup.");
   const current=localStorage.getItem("bbp_app_v2");
-  if(current!==null&&!localStorage.getItem("bbp_pre_restore_backup_v1"))localStorage.setItem("bbp_pre_restore_backup_v1",JSON.stringify({createdAt:new Date().toISOString(),value:current}));
+  if(current!==null)localStorage.setItem("bbp_pre_restore_backup_"+Date.now(),JSON.stringify({createdAt:new Date().toISOString(),value:current}));
   if(isCurrent) {
     localStorage.setItem("bbp_app_v2",JSON.stringify(data));
     return;
