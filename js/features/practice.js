@@ -7,7 +7,7 @@ export function fitPractice(plan=activePlan()){
  if(!plan||!plan.blocks.length)return {ok:false,reason:"empty"};
  const target=timeWindow(plan),blocks=plan.blocks;
  if(target<=0)return {ok:false,reason:"invalid-window"};
- const minimums=blocks.map(block=>block.kind==="station"?Math.max(1,...(block.stations||[]).map(station=>station.drills?.length||0)):1),minimumTotal=minimums.reduce((a,b)=>a+b,0);
+ const minimums=blocks.map(block=>block.kind==="station"?Math.max(1,block.stations?.length||0):1),minimumTotal=minimums.reduce((a,b)=>a+b,0);
  if(target<minimumTotal)return {ok:false,reason:"too-many-blocks"};
  const weights=blocks.map(b=>Math.max(1,blockMinutes(b))),sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>(target-minimumTotal)*w/sum),values=raw.map((v,i)=>minimums[i]+Math.floor(v));
  let rem=target-values.reduce((a,b)=>a+b,0);const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);for(let i=0;rem>0;i++,rem--)values[order[i%order.length].i]++;
