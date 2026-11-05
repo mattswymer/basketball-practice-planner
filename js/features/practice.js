@@ -11,7 +11,10 @@ export function fitPractice(plan=activePlan()){
  if(target<minimumTotal)return {ok:false,reason:"too-many-blocks"};
  const weights=blocks.map(b=>Math.max(1,blockMinutes(b))),sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>(target-minimumTotal)*w/sum),values=raw.map((v,i)=>minimums[i]+Math.floor(v));
  let rem=target-values.reduce((a,b)=>a+b,0);const order=raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);for(let i=0;rem>0;i++,rem--)values[order[i%order.length].i]++;
- remember();blocks.forEach((b,i)=>b.kind==="station"?fitStationLanes(b,values[i]):b.minutes=values[i]);refreshLive(plan,false);save();return {ok:true,total:target,target};
+ remember();blocks.forEach((block,index)=>block.kind==="station"?fitStationLanes(block,values[index]):block.minutes=values[index]);
+ let total=blocks.reduce((sum,block)=>sum+blockMinutes(block),0);
+ if(total<target){for(let index=blocks.length-1;index>=0&&total<target;index--){if(blocks[index].kind==="drill"){blocks[index].minutes+=target-total;total=target;}}}
+ refreshLive(plan,false);save();return {ok:true,total,target};
 }
 function eventsForStation(block){
  const stations=block.stations||[],rounds=stationRounds(block);
