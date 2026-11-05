@@ -224,3 +224,9 @@
  .brand-mark{min-width:0}
  .brand-mark span:last-child{font-size:13px}
 }
+
+
+@media(max-width:390px){
+ .app-header{flex-wrap:nowrap}
+ .header-actions{display:flex;align-items:center;flex:0 0 auto;white-space:nowrap}
+}
