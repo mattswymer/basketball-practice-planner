@@ -62,12 +62,8 @@ function renderStation(block,start,end,plan,offset) {
  const rounds=stationRounds(block);
  const stations=(block.stations||[]).map((station,index)=>{
   let elapsed=0;
-  const drills=station.drills.map((drill,roundIndex)=>{
-   const minutes=rounds[roundIndex]||drill.minutes||1;
-   const from=elapsed;elapsed+=minutes;
-   const range=clockLabel(plan.start,offset+from)+"–"+clockLabel(plan.start,offset+elapsed);
-   return renderDrillCard(drill,{stationId:station.id,timeRange:range});
-  }).join("");
+  const drills=station.drills.map(drill=>renderDrillCard(drill,{stationId:station.id})).join("");
+  elapsed=station.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0);
   return \`<section class="station-lane" data-station-id="\${esc(station.id)}" data-drop-station="\${esc(station.id)}" data-parent-rotation="\${esc(block.id)}" style="\${skillStyle(station.drills.flatMap(d=>d.tags||[]))}">
    <div class="lane-heading"><button type="button" class="drag-handle station-grip" data-drag-kind="station" data-drag-id="\${esc(station.id)}" data-rotation-id="\${esc(block.id)}" aria-label="Move \${esc(station.name)}" title="Drag to move">\${grip}</button><strong>\${esc(station.name||"Station "+(index+1))}</strong><small>\${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="\${esc(block.id)}" data-station-id="\${esc(station.id)}" aria-label="Remove station">×</button></div>
    <div class="station-drills">\${drills||'<div class="lane-empty">No activities yet.</div>'}</div>
