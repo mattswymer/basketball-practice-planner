@@ -17,7 +17,7 @@ function eventsForStation(block){
  let minuteOffset=0;
  const rounds=stationRounds(block);
  return rounds.map((minutes,index)=>{
-  const activeDrillIds=(block.stations||[]).map(station=>station.drills?.[index]?.id).filter(Boolean);
+  const activeDrillIds=(block.stations||[]).flatMap(station=>station.drills||[]).map(drill=>drill.id);
   const event={blockId:block.id,minuteOffset,activeDrillIds,round:index+1,rounds:rounds.length,roundMinutes:minutes};
   minuteOffset+=minutes;
   return event;
