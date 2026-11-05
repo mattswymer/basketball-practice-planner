@@ -146,7 +146,7 @@ function moveToMainPlan(id){const found=locatePlanDrill(activePlan(),id);if(!fou
 function fitCurrentPlan(){
  const result=practice.fitPractice();
  if(!result.ok)return toast(result.reason==="empty"?"Add some drills first.":result.reason==="invalid-window"?"End time must be later than start time.":"The practice window is too short. Reduce the number of drills or extend the end time.");
- renderApp();toast("Schedule adjusted to "+result.target+" minutes.");
+ renderApp();toast("Schedule adjusted to "+result.total+" minutes.");
 }
 function startLive(){
  const plan=activePlan();if(!plan?.blocks.length)return toast("Add a drill or station first.");
