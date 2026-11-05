@@ -1,4 +1,4 @@
-import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals, clockLabel, blockMinutes } from "../core/store.js";
+import { state, activeTeam, activePlan, flattenDrills, skillColor, durationLabel, totalPracticeMinutes, equipmentTotals, clockLabel, blockMinutes, stationRounds } from "../core/store.js";
 function colorHex(hex) {
   const value=String(hex||"#52758a").replace("#","");
   return [0,2,4].map(i=>parseInt(value.slice(i,i+2),16)||80);
@@ -27,9 +27,15 @@ export function exportPracticePDF() {
     const minutes=Math.max(1,Math.round(Number(block.minutes)||1));
     const blockStart=clock(plan.start,elapsed);
     if(block.kind==="station"){
+      const rounds=stationRounds(block);
       for(const [stationIndex,station] of (block.stations||[]).entries()){
-        entries.push({type:"station",name:block.name||"Station rotation",lane:station.name||"Station "+(stationIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes:block.minutes||minutes});
-        let stationOffset=0;for(const drill of station.drills||[]){const duration=Math.max(1,Math.round(Number(drill.minutes)||1));entries.push({type:"drill",drill,number:++sequence,lane:station.name||"Station "+(stationIndex+1),station:block.name||"Station rotation",start:clock(plan.start,elapsed+stationOffset),end:clock(plan.start,elapsed+stationOffset+duration)});stationOffset+=duration;}
+        entries.push({type:"station",name:block.name||"Station rotation",lane:station.name||"Station "+(stationIndex+1),start:blockStart,end:clock(plan.start,elapsed+minutes),minutes});
+        let stationOffset=0;
+        for(const [roundIndex,drill] of (station.drills||[]).entries()){
+          const duration=rounds[roundIndex]||Math.max(1,Number(drill.minutes)||1);
+          entries.push({type:"drill",drill,number:++sequence,lane:station.name||"Station "+(stationIndex+1),station:block.name||"Station rotation",start:clock(plan.start,elapsed+stationOffset),end:clock(plan.start,elapsed+stationOffset+duration)});
+          stationOffset+=duration;
+        }
       }
     }else{
       entries.push({type:"drill",drill:block,number:++sequence,lane:"",station:"",start:blockStart,end:clock(plan.start,elapsed+minutes)});
@@ -129,14 +135,19 @@ export function exportPracticePDF() {
 }
 
 export function exportBackup() {
-  const data={app:"basketball-practice-planner",version:3,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:state.skills,skillColors:state.skillColors};
+  const data={app:"basketball-practice-planner",version:4,exportedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:state.skills,skillColors:state.skillColors};
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
   const a=document.createElement("a");a.href=url;a.download="basketball-practice-backup.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 export async function importBackup(file) {
   if(!file||file.size>8000000) throw new Error("Backup file is too large or missing.");
   const data=JSON.parse(await file.text());
-  if(data.app==="basketball-practice-planner"&&Array.isArray(data.teams)&&data.plansByTeam) {
+  const isCurrent=data.app==="basketball-practice-planner"&&Array.isArray(data.teams)&&data.plansByTeam&&typeof data.plansByTeam==="object";
+  const isLegacy=Array.isArray(data.schedule)||!!data.schedulesByTeam;
+  if(!isCurrent&&!isLegacy)throw new Error("That file is not a planner backup.");
+  const current=localStorage.getItem("bbp_app_v2");
+  if(current!==null&&!localStorage.getItem("bbp_pre_restore_backup_v1"))localStorage.setItem("bbp_pre_restore_backup_v1",JSON.stringify({createdAt:new Date().toISOString(),value:current}));
+  if(isCurrent) {
     localStorage.setItem("bbp_app_v2",JSON.stringify(data));
     return;
   }
