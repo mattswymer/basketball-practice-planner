@@ -66,21 +66,21 @@ function renderStation(block,start,end,plan,offset) {
   let elapsed=0;
   const drills=station.drills.map(drill=>renderDrillCard(drill,{stationId:station.id})).join("");
   elapsed=station.drills.reduce((sum,drill)=>sum+Math.max(1,Number(drill.minutes)||1),0);
-  return \`<section class="station-lane" data-station-id="\${esc(station.id)}" data-drop-station="\${esc(station.id)}" data-parent-rotation="\${esc(block.id)}" style="\${skillStyle(station.drills.flatMap(d=>d.tags||[]))}">
-   <div class="lane-heading"><button type="button" class="drag-handle station-grip" data-drag-kind="station" data-drag-id="\${esc(station.id)}" data-rotation-id="\${esc(block.id)}" aria-label="Move \${esc(station.name)}" title="Drag to move">\${grip}</button><strong>\${esc(station.name||"Station "+(index+1))}</strong><small>\${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="\${esc(block.id)}" data-station-id="\${esc(station.id)}" aria-label="Remove station">×</button></div>
-   <div class="station-drills">\${drills||'<div class="lane-empty">No activities yet.</div>'}</div>
-   <button class="lane-add" data-add-to-station="\${esc(station.id)}">+ Add activity</button>
-  </section>\`;
+  return `<section class="station-lane" data-station-id="${esc(station.id)}" data-drop-station="${esc(station.id)}" data-parent-rotation="${esc(block.id)}" style="${skillStyle(station.drills.flatMap(d=>d.tags||[]))}">
+   <div class="lane-heading"><button type="button" class="drag-handle station-grip" data-drag-kind="station" data-drag-id="${esc(station.id)}" data-rotation-id="${esc(block.id)}" aria-label="Move ${esc(station.name)}" title="Drag to move">${grip}</button><strong>${esc(station.name||"Station "+(index+1))}</strong><small>${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="${esc(block.id)}" data-station-id="${esc(station.id)}" aria-label="Remove station">×</button></div>
+   <div class="station-drills">${drills||'<div class="lane-empty">No activities yet.</div>'}</div>
+   <button class="lane-add" data-add-to-station="${esc(station.id)}">+ Add activity</button>
+  </section>`;
  }).join("");
- return \`<section class="station-block \${live?"current-popout":""}" data-block-id="\${esc(block.id)}" data-drop-block="\${esc(block.id)}">
-  <div class="station-heading"><button type="button" class="drag-handle block-grip" data-drag-kind="block" data-drag-id="\${esc(block.id)}" aria-label="Move station rotation" title="Drag to move">\${grip}</button>
-   <button class="station-title" data-edit-station="\${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>\${esc(block.name)}</strong><small>\${start} – \${end} · \${blockMinutes(block)} min · \${state.live.active&&live?("Round "+(state.live.currentRound||1)+" of "+rounds.length+" · "):""}\${rounds.length} rounds · \${roundLabel}</small></button>
-   <button class="mini-icon" data-edit-station="\${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="\${esc(block.id)}" aria-label="Delete station rotation">×</button>
+ return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}">
+  <div class="station-heading"><button type="button" class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Move station rotation" title="Drag to move">${grip}</button>
+   <button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${blockMinutes(block)} min · ${state.live.active&&live?("Round "+(state.live.currentRound||1)+" of "+rounds.length+" · "):""}${rounds.length} rounds · ${roundLabel}</small></button>
+   <button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station rotation">×</button>
   </div>
   <p class="station-rotation-note">Groups rotate to the next station at the end of each round.</p>
-  <div class="station-lanes">\${stations}</div>
-  <button class="lane-add add-lane-inline" data-add-lane-inline="\${esc(block.id)}">+ Station</button>
- </section>\`;
+  <div class="station-lanes">${stations}</div>
+  <button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button>
+ </section>`;
 }
 function renderPlanBlocks(plan) {
   let elapsed=0;
