@@ -1,4 +1,4 @@
-import {state,SKILLS,esc,activeTeam,activePlan,plansForTeam,flattenDrills,blockMinutes,totalPracticeMinutes,durationLabel,clockLabel,skillColor,equipmentTotals} from "../core/store.js";
+import {state,SKILLS,esc,activeTeam,activePlan,plansForTeam,flattenDrills,blockMinutes,totalPracticeMinutes,durationLabel,clockLabel,skillColor,equipmentTotals,stationRounds} from "../core/store.js";
 const $=id=>document.getElementById(id);
 const hidden=(id,value)=>{if($(id))$(id).hidden=value;};
 const grip='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1.2"/><circle cx="16" cy="6" r="1.2"/><circle cx="8" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/><circle cx="8" cy="18" r="1.2"/><circle cx="16" cy="18" r="1.2"/></svg>';
@@ -44,7 +44,7 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
   const plan=activePlan(),current=state.live.active&&state.live.planId===plan?.id&&(state.live.currentDrillIds||[]).includes(drill.id);
   const expanded=current||stationLive;
   return `<article class="drill-card ${current?"current-popout":""}" data-drill-card="${esc(drill.id)}" data-parent-station="${esc(stationId||"")}" style="${skillStyle(drill.tags)}">
-    <span class="drag-handle drill-grip" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Hold and drag drill">${grip}</span>
+    <button type="button" class="drag-handle drill-grip" data-drag-kind="drill" data-drag-id="${esc(drill.id)}" aria-label="Move ${esc(drill.name)}" title="Drag to move">${grip}</button>
     <button class="drill-card-main" data-edit-plan-drill="${esc(drill.id)}">
       <span class="drill-name">${esc(drill.name)}</span>
       <span class="drill-subline"><b>${drill.minutes} min</b> ${timeRange?"<span>"+esc(timeRange)+"</span>":""} ${skillLabels(drill.tags)}</span>
@@ -59,10 +59,30 @@ function renderDrillCard(drill,{stationId=null,stationLive=false,timeRange=""}={
 }
 function renderStation(block,start,end,plan,offset) {
  const live=state.live.active&&state.live.planId===plan.id&&state.live.currentBlockId===block.id;
- const stations=(block.stations||[]).map((station,index)=>{let elapsed=0;const drills=station.drills.map(drill=>{const from=elapsed;elapsed+=drill.minutes;return renderDrillCard(drill,{stationId:station.id,timeRange:clockLabel(plan.start,offset+from)+"–"+clockLabel(plan.start,offset+elapsed)});}).join("");
-  return `<section class="station-lane" data-station-id="${esc(station.id)}" data-drop-station="${esc(station.id)}" data-parent-rotation="${esc(block.id)}" style="${skillStyle(station.drills.flatMap(d=>d.tags||[]))}"><div class="lane-heading"><span class="drag-handle station-grip" data-drag-kind="station" data-drag-id="${esc(station.id)}" data-rotation-id="${esc(block.id)}" aria-label="Hold and drag station">${grip}</span><strong>${esc(station.name||"Station "+(index+1))}</strong><small>${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="${esc(block.id)}" data-station-id="${esc(station.id)}" aria-label="Remove station">×</button></div><div class="station-drills">${drills||'<div class="lane-empty">No drills yet.</div>'}</div><button class="lane-add" data-add-to-station="${esc(station.id)}">+ Add drill</button></section>`;
+ const rounds=stationRounds(block);
+ const stations=(block.stations||[]).map((station,index)=>{
+  let elapsed=0;
+  const drills=station.drills.map((drill,roundIndex)=>{
+   const minutes=rounds[roundIndex]||drill.minutes||1;
+   const from=elapsed;elapsed+=minutes;
+   const range=clockLabel(plan.start,offset+from)+"–"+clockLabel(plan.start,offset+elapsed);
+   return renderDrillCard(drill,{stationId:station.id,timeRange:range});
+  }).join("");
+  return \`<section class="station-lane" data-station-id="\${esc(station.id)}" data-drop-station="\${esc(station.id)}" data-parent-rotation="\${esc(block.id)}" style="\${skillStyle(station.drills.flatMap(d=>d.tags||[]))}">
+   <div class="lane-heading"><button type="button" class="drag-handle station-grip" data-drag-kind="station" data-drag-id="\${esc(station.id)}" data-rotation-id="\${esc(block.id)}" aria-label="Move \${esc(station.name)}" title="Drag to move">\${grip}</button><strong>\${esc(station.name||"Station "+(index+1))}</strong><small>\${durationLabel(elapsed)}</small><button class="mini-icon danger-text" data-remove-station="\${esc(block.id)}" data-station-id="\${esc(station.id)}" aria-label="Remove station">×</button></div>
+   <div class="station-drills">\${drills||'<div class="lane-empty">No activities yet.</div>'}</div>
+   <button class="lane-add" data-add-to-station="\${esc(station.id)}">+ Add activity</button>
+  </section>\`;
  }).join("");
- return `<section class="station-block ${live?"current-popout":""}" data-block-id="${esc(block.id)}" data-drop-block="${esc(block.id)}"><div class="station-heading"><span class="drag-handle block-grip" data-drag-kind="block" data-drag-id="${esc(block.id)}" aria-label="Hold and drag station rotation">${grip}</span><button class="station-title" data-edit-station="${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>${esc(block.name)}</strong><small>${start} – ${end} · ${block.minutes} min</small></button><button class="mini-icon" data-edit-station="${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="${esc(block.id)}" aria-label="Delete station rotation">×</button></div><div class="station-lanes">${stations}</div><button class="lane-add add-lane-inline" data-add-lane-inline="${esc(block.id)}">+ Station</button></section>`;
+ return \`<section class="station-block \${live?"current-popout":""}" data-block-id="\${esc(block.id)}" data-drop-block="\${esc(block.id)}">
+  <div class="station-heading"><button type="button" class="drag-handle block-grip" data-drag-kind="block" data-drag-id="\${esc(block.id)}" aria-label="Move station rotation" title="Drag to move">\${grip}</button>
+   <button class="station-title" data-edit-station="\${esc(block.id)}"><span class="station-label">STATION ROTATION</span><strong>\${esc(block.name)}</strong><small>\${start} – \${end} · \${blockMinutes(block)} min · \${rounds.length} rounds</small></button>
+   <button class="mini-icon" data-edit-station="\${esc(block.id)}" aria-label="Edit station rotation">···</button><button class="mini-icon danger-text" data-delete-block="\${esc(block.id)}" aria-label="Delete station rotation">×</button>
+  </div>
+  <p class="station-rotation-note">Groups rotate to the next station at the end of each round.</p>
+  <div class="station-lanes">\${stations}</div>
+  <button class="lane-add add-lane-inline" data-add-lane-inline="\${esc(block.id)}">+ Station</button>
+ </section>\`;
 }
 function renderPlanBlocks(plan) {
   let elapsed=0;
@@ -78,6 +98,8 @@ function renderPlanBlocks(plan) {
 function renderPlanDetail() {
   const plan=activePlan();if(!plan)return;
   $("plan-name").value=plan.name;$("plan-date").value=plan.date;$("plan-start").value=plan.start;$("plan-end").value=plan.end;
+  const team=state.teams.find(item=>item.id===plan.teamId);
+  $("plan-team-chip").textContent=team?.name||"No team";
   const drills=flattenDrills(plan);
   $("plan-drill-count").textContent=drills.length;
   $("plan-total-time").textContent=durationLabel(totalPracticeMinutes(plan));
@@ -93,12 +115,13 @@ function renderPlanDetail() {
     $("live-next").textContent=index===total-1?"Finish →":"Next →";
   }
   const windowM=practiceWindow(plan),planned=totalPracticeMinutes(plan),over=planned-windowM;
-  $("fit-practice").textContent="Adjust to practice length";$("fit-practice").disabled=planned===windowM;
-  const warning=$("practice-time-warning");warning.hidden=planned===windowM;warning.textContent=over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:`${durationLabel(windowM-planned)} available · ${durationLabel(planned)} planned.`;
+  $("fit-practice").textContent="Adjust to practice length";$("fit-practice").disabled=windowM<=0||planned===windowM;
+  const warning=$("practice-time-warning");warning.hidden=windowM>0&&planned===windowM;
+  warning.textContent=windowM<=0?"End time must be later than start time.":over>0?`Over practice time by ${durationLabel(over)} · ${durationLabel(planned)} planned for a ${durationLabel(windowM)} window.`:`${durationLabel(windowM-planned)} available · ${durationLabel(planned)} planned.`;
 }
 function practiceWindow(plan) {
   const [h1,m1]=(plan.start||"18:00").split(":").map(Number),[h2,m2]=(plan.end||"19:30").split(":").map(Number);
-  let n=h2*60+m2-(h1*60+m1);if(n<=0)n+=1440;return n;
+  return h2*60+m2-(h1*60+m1);
 }
 function renderPlanView() {
   const detail=!!state.planDetailOpen&&!!activePlan();
@@ -190,7 +213,6 @@ export function renderSkillManager() {
   $("skill-list").innerHTML=[...SKILLS].sort((a,b)=>a.localeCompare(b)).map(skill=>`<div class="skill-edit-row">
     <input data-skill-name="${esc(skill)}" value="${esc(skill)}" maxlength="40" aria-label="Skill name">
     <input data-skill-color="${esc(skill)}" type="color" value="${skillColor(skill)}" aria-label="Skill color">
-    <button class="mini-icon" data-save-skill="${esc(skill)}" aria-label="Save skill">✓</button>
     <button class="mini-icon danger-text" data-delete-skill="${esc(skill)}" aria-label="Delete skill">×</button>
   </div>`).join("")||'<div class="empty-state">No skills. Add one below.</div>';
 }
@@ -200,7 +222,6 @@ export function renderApp() {
     const active=button.dataset.view===state.view;button.classList.toggle("active",active);
     if(active)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");
   });
-  hidden("floating-add",!(state.view==="plans"&&state.planDetailOpen));
   hidden("header-pdf",!(state.view==="plans"&&state.planDetailOpen));
   renderPlanView();renderDrillLibrary();renderTeams();renderStats();
 }
@@ -210,7 +231,7 @@ export function renderOneTeam(){renderTeams();}
 export function renderEquipment(){renderEquipmentSheet();}
 export function renderEditorTags(selected=[]) {
   $("edit-tags").innerHTML=SKILLS.map(skill=>`<label class="tag-option" style="--chip:${skillColor(skill)}"><input type="checkbox" value="${esc(skill)}" ${selected.includes(skill)?"checked":""}><span>${esc(skill)}</span></label>`).join("")||'<div class="empty-state">Add a skill in the Skills screen.</div>';
-  const summary=$("edit-skill-summary");if(summary)summary.textContent=selected.length?selected.length+" skills selected":"All skills";
+  const summary=$("edit-skill-summary");if(summary)summary.textContent=selected.length?selected.length+" skills selected":"Select skills";
 }
 export function renderEditorEquipment(items=[]) {
   $("edit-equipment-rows").innerHTML=items.map((item,i)=>`<div class="edit-equipment-row">
@@ -224,4 +245,4 @@ export function renderEditorSteps(steps=[]) {
   const values=steps.length?steps:[""];
   $("edit-steps").innerHTML=values.map((step,i)=>`<div class="edit-step-row" draggable="true" data-step-row="${i}"><span class="step-grip" title="Drag to reorder">⠿</span><textarea data-step-index="${i}" rows="2" maxlength="1600" placeholder="Instruction or coaching cue">${esc(step)}</textarea><button class="mini-icon danger-text" type="button" data-remove-step="${i}" aria-label="Remove step">×</button></div>`).join("");
 }
-export function renderStationEditor(block) {$("station-name").value=block.name;$("station-minutes").value=block.minutes||15;$("station-lanes-editor").innerHTML=block.stations.map((station,index)=>`<section class="station-editor-card"><div class="station-lane-edit"><input data-station-name="${esc(station.id)}" value="${esc(station.name)}" maxlength="50" aria-label="Station name"><span>${station.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(station.id)}" type="button" aria-label="Remove station">×</button></div></section>`).join("");}
+export function renderStationEditor(block) {$("station-name").value=block.name;$("station-minutes").value=blockMinutes(block)||15;$("station-lanes-editor").innerHTML=block.stations.map((station,index)=>`<section class="station-editor-card"><div class="station-lane-edit"><input data-station-name="${esc(station.id)}" value="${esc(station.name)}" maxlength="50" aria-label="Station name"><span>${station.drills.length} drills</span><button class="mini-icon danger-text" data-remove-lane="${esc(station.id)}" type="button" aria-label="Remove station">×</button></div></section>`).join("");}
