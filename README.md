@@ -1,4 +1,4 @@
-# Basketball Practice Planner
+# Basketball Practice Planne
 
 A mobile-first basketball practice planner built with static HTML, CSS, and JavaScript. No build step or backend is required. Data is stored locally in the browser.
 
