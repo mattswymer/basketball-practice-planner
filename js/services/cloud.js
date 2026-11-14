@@ -47,18 +47,10 @@ export async function initializeCloud() {
 
     signInGoogle: async () => {
       const provider = new authSdk.GoogleAuthProvider();
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (isMobile) {
-        return authSdk.signInWithRedirect(auth, provider);
-      }
-      try {
-        return await authSdk.signInWithPopup(auth, provider);
-      } catch (error) {
-        if (error && error.code === "auth/popup-blocked") {
-          return authSdk.signInWithRedirect(auth, provider);
-        }
-        throw error;
-      }
+      // GitHub Pages cannot host Firebase's same-origin redirect helper.
+      // Use a user-initiated popup on every device to avoid third-party
+      // storage restrictions that can break mobile redirect sign-in.
+      return authSdk.signInWithPopup(auth, provider);
     },
 
     signInEmail: (email, password) =>
