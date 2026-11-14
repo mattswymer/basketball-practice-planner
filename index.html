@@ -14,12 +14,33 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section id="auth-gate" class="auth-gate" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="auth-mark" aria-hidden="true">🏀</div>
+      <h1 id="auth-title">Basketball Practice Planner</h1>
+      <p class="auth-intro">Sign in to keep your teams, drills, and practice plans synchronized across devices.</p>
+      <button type="button" id="google-sign-in" class="google-sign-in">Continue with Google</button>
+      <div class="auth-divider"><span>or use email</span></div>
+      <form id="auth-form" class="auth-form">
+        <label>Email address<input id="auth-email" type="email" autocomplete="email" required></label>
+        <label>Password<input id="auth-password" type="password" autocomplete="current-password" minlength="6" required></label>
+        <button type="submit" id="auth-submit" class="primary-btn">Sign in</button>
+      </form>
+      <div class="auth-actions">
+        <button type="button" id="forgot-password" class="text-action">Forgot password?</button>
+        <button type="button" id="auth-mode-toggle" class="text-action">Need an account? Create one</button>
+      </div>
+      <p id="auth-message" class="auth-message" role="status" aria-live="polite">Connecting to Firebase…</p>
+      <button type="button" id="auth-offline" class="secondary-btn auth-offline" hidden>Open saved data on this device</button>
+    </div>
+  </section>
+  <div class="app-shell" id="app-shell" hidden>
     <header class="app-header">
       <button class="brand-mark" id="brand-home" aria-label="Basketball Practice Planner">
         <span aria-hidden="true">🏀</span><span>Practice Planner</span>
       </button>
-      <div class="header-actions" id="header-actions"><span id="save-status" class="save-status" role="status">Saved</span>
+      <div class="header-actions" id="header-actions"><span id="account-label" class="account-label"></span><span id="save-status" class="save-status" role="status">Saved locally</span>
+        <button class="icon-btn" id="sign-out" aria-label="Sign out" title="Sign out" hidden>↪</button>
         <button class="icon-btn" id="header-menu" aria-label="Backup and restore" title="Backup">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
         </button>
@@ -242,7 +263,7 @@
   <dialog id="backup-sheet" class="sheet short-sheet">
     <div class="sheet-grabber"></div>
     <div class="sheet-head"><div><p class="eyebrow">YOUR DATA</p><h2>Backup</h2></div><button class="close-sheet" data-close="backup-sheet" aria-label="Close">×</button></div>
-    <p class="sheet-subtitle">Plans and teams are stored on this device.</p>
+    <p class="sheet-subtitle">Your planner is synchronized to your cloud account. Download a backup whenever you need an extra copy.</p>
     <button class="wide-action" id="export-backup">Download backup</button>
     <button class="wide-action" id="import-backup">Restore backup</button>
     <input type="file" id="backup-file" accept="application/json,.json" hidden>
