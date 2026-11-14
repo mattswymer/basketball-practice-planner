@@ -21,6 +21,7 @@
 
 /* Current screen layouts */
 .drill-header-actions,.roster-actions,.plan-actions{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;white-space:nowrap}
 .team-workspace{display:grid;gap:12px}
 .team-list{display:grid;grid-template-columns:1fr;gap:7px;overflow:visible;padding:0}
 .team-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:5px;align-items:center}
