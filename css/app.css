@@ -230,3 +230,32 @@
  .app-header{flex-wrap:nowrap}
  .header-actions{display:flex;align-items:center;flex:0 0 auto;white-space:nowrap}
 }
+
+
+/* Cloud sign-in */
+#auth-gate[hidden],.app-shell[hidden]{display:none!important}
+.auth-gate{min-height:100dvh;display:grid;place-items:center;padding:22px;background:#edf2f4}
+.auth-card{width:min(100%,420px);padding:30px 26px;border:1px solid #d7e1e5;border-radius:20px;background:#fff;box-shadow:0 16px 50px #173d5512}
+.auth-mark{display:grid;place-items:center;width:48px;height:48px;margin:0 auto 12px;border-radius:14px;background:#e8f0f3;font-size:25px}
+.auth-card h1{margin:0;text-align:center;color:#173e56;font-size:25px;line-height:1.15}
+.auth-intro{margin:10px auto 22px;max-width:330px;text-align:center;color:#70818a;font-size:13px;line-height:1.5}
+.google-sign-in{width:100%;min-height:46px;border:1px solid #cbd7dc;border-radius:11px;background:#fff;color:#263f4c;font-size:14px;font-weight:750;cursor:pointer}
+.google-sign-in:hover{background:#f7fafb}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:#91a0a7;font-size:11px}
+.auth-divider:before,.auth-divider:after{content:"";height:1px;flex:1;background:#e4eaed}
+.auth-form{display:grid;gap:12px}
+.auth-form label{display:grid;gap:6px;color:#526974;font-size:12px;font-weight:750}
+.auth-form input{width:100%;min-height:44px;padding:0 12px;border:1px solid #d5e0e4;border-radius:10px;background:#fff;color:#243b46;font:inherit;font-size:14px}
+.auth-form input:focus{outline:2px solid #8bb3c2;outline-offset:1px}
+.auth-form .primary-btn{width:100%;min-height:46px;margin-top:4px}
+.auth-actions{display:flex;justify-content:space-between;gap:10px;margin-top:12px}
+.text-action{border:0;background:transparent;color:#286b85;font-size:11px;font-weight:750;cursor:pointer;padding:6px 0}
+.auth-message{min-height:18px;margin:14px 0 0;color:#668078;text-align:center;font-size:12px;line-height:1.4}
+.auth-message[data-state="error"]{color:#b44b49}
+.auth-offline{width:100%;margin-top:8px}
+.account-label{max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#778b94;font-size:10px}
+#sign-out{font-size:18px}
+@media(max-width:520px){
+ .auth-card{padding:25px 19px}
+ .account-label{display:none}
+}
