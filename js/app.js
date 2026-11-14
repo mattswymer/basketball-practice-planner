@@ -551,13 +551,8 @@ let cloudSaveActive=false;
 let cloudActivation=0;
 let eventsRegistered=false;
 let creatingAccount=false;
-const clientId=(()=> {
- try {
-  let value=localStorage.getItem("bbp_cloud_client_id");
-  if(!value){value=crypto.randomUUID();localStorage.setItem("bbp_cloud_client_id",value);}
-  return value;
- } catch { return crypto.randomUUID(); }
-})();
+// Unique per open tab so another tab on the same device receives live updates.
+const clientId=crypto.randomUUID();
 
 function setCloudStatus(label,title=label,stateName="saved"){
  const status=$("save-status");
