@@ -8,6 +8,13 @@ const OLD={teams:"cyb_teams_v1",active:"cyb_active_team_v1",bank:"cyb_drill_bank
 export const SKILLS=[...DEFAULT_SKILLS];
 export const state={teams:[],activeTeamId:null,drillBank:[],plansByTeam:{},activePlanIds:{},activePlanId:null,view:"plans",live:{active:false,currentBlockId:null,planId:null},planDetailOpen:false,selectedTeamId:null,statsTeamId:null,skills:SKILLS,skillColors:{...DEFAULT_COLORS},groupingDrillId:null};
 let history=[];
+let cloudSaveHandler=null;
+let loadingApp=false;
+export function setCloudSaveHandler(handler){cloudSaveHandler=typeof handler==="function"?handler:null;}
+export function getAppData(){
+ if(state.activeTeamId)state.activePlanIds[state.activeTeamId]=state.activePlanId;
+ return {version:4,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:[...SKILLS],skillColors:state.skillColors};
+}
 export const clone=x=>JSON.parse(JSON.stringify(x));
 export const uid=(p="id")=>p+"-"+(crypto.randomUUID?.()||Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8));
 export const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -155,9 +162,9 @@ function backupBeforeMigration(){
  catch(error){console.error("Could not create migration backup",error);}
 }
 function safeColor(value,fallback){return typeof value==="string"&&/^#[0-9a-f]{6}$/i.test(value)?value:fallback;}
-export function loadApp(){
+export function loadApp(appOverride=null){
  const equipment=read(OLD.equipment,[]);oldEquipmentCatalog=Array.isArray(equipment)?equipment:[];
- const app=read(APP_KEY,read(LEGACY_APP_KEY,null));
+ const app=appOverride||read(APP_KEY,read(LEGACY_APP_KEY,null));
  if(!app||Number(app.version||0)<4)backupBeforeMigration();
  if(app&&Array.isArray(app.teams)){
   SKILLS.splice(0,SKILLS.length,...(Array.isArray(app.skills)?app.skills.map(x=>typeof x==="string"?x:x?.name).filter(Boolean):DEFAULT_SKILLS));
@@ -184,13 +191,20 @@ export function loadApp(){
  }
  SKILLS.sort((a,b)=>a.localeCompare(b));
  state.activePlanId=state.activePlanIds[state.activeTeamId];state.selectedTeamId=state.activeTeamId;state.statsTeamId=state.activeTeamId;
- state.live={active:false,currentBlockId:null,planId:null};state.skills=SKILLS;save();
+ state.live={active:false,currentBlockId:null,planId:null};state.skills=SKILLS;loadingApp=true;save();loadingApp=false;
 }
 export function save(){
- if(state.activeTeamId)state.activePlanIds[state.activeTeamId]=state.activePlanId;
- const data={version:4,updatedAt:new Date().toISOString(),teams:state.teams,activeTeamId:state.activeTeamId,drillBank:state.drillBank,
-  plansByTeam:state.plansByTeam,activePlanIds:state.activePlanIds,skills:[...SKILLS],skillColors:state.skillColors};
- try{localStorage.setItem(APP_KEY,JSON.stringify(data));const status=document.getElementById("save-status");if(status){status.textContent="Saved";status.title="Changes saved on this device.";status.dataset.state="saved";}}catch(error){console.error("Could not save planner",error);const status=document.getElementById("save-status");if(status){status.textContent="Not saved";status.title="Storage failed. Download a backup before leaving.";status.dataset.state="error";}}
+ const data=getAppData();
+ try{
+  localStorage.setItem(APP_KEY,JSON.stringify(data));
+  const status=document.getElementById("save-status");
+  if(status){status.textContent="Saved locally";status.title="Changes saved on this device.";status.dataset.state="saved";}
+  if(!loadingApp&&cloudSaveHandler)cloudSaveHandler(data);
+ }catch(error){
+  console.error("Could not save planner",error);
+  const status=document.getElementById("save-status");
+  if(status){status.textContent="Not saved";status.title="Storage failed. Download a backup before leaving.";status.dataset.state="error";}
+ }
 }
 export function activeTeam(){return state.teams.find(t=>t.id===state.activeTeamId)||state.teams[0]||null;}
 export function activePlan(){return (state.plansByTeam[state.activeTeamId]||[]).find(p=>p.id===state.activePlanId)||null;}
