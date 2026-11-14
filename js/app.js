@@ -1,5 +1,5 @@
 import {
- state,SKILLS,uid,clone,esc,localDate,loadApp,save,remember,undo,activeTeam,activePlan,plansForTeam,
+ state,SKILLS,uid,clone,esc,localDate,loadApp,save,remember,undo,activeTeam,activePlan,plansForTeam,setCloudSaveHandler,getAppData,
  setActiveTeam,setActivePlan,getBankDrill,findPlanDrill,locatePlanDrill,flattenDrills,copyDrill,normalizeDrill,timeWindow
 } from "./core/store.js";
 import {
@@ -285,8 +285,8 @@ function updatePlan(field,value){
 }
 function backupRestore(event){
  const file=event.target.files?.[0];if(!file)return;
- if(!window.confirm("Restore this backup? It will replace all teams, plans, drills, and skill settings currently stored on this device.")){event.target.value="";return;}
- importBackup(file).then(()=>{toast("Backup restored. Reloading…");setTimeout(()=>location.reload(),300);}).catch(error=>toast(error.message||"Could not restore backup.")).finally(()=>event.target.value="");
+ if(!window.confirm("Restore this backup? It will replace the cloud-synced planner data on this account and its devices.")){event.target.value="";return;}
+ importBackup(file).then(()=>{loadApp();save();renderApp();close("backup-sheet");toast("Backup restored. Syncing to your cloud account…");}).catch(error=>toast(error.message||"Could not restore backup.")).finally(()=>event.target.value="");
 }
 function handleClick(event){
  const target=event.target;
@@ -538,4 +538,254 @@ function registerEvents(){
  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&state.live.active&&!wakeLock)requestWakeLock();});
  if("serviceWorker"in navigator)navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
 }
-loadApp();registerEvents();renderApp();
+
+// ── Cloud account and synchronization ──────────────────────────────────────
+let cloudApi=null;
+let signedInUser=null;
+let cloudReady=false;
+let cloudUnsubscribe=null;
+let cloudTimer=null;
+let pendingCloudData=null;
+let offlineDirtyData=null;
+let cloudSaveActive=false;
+let cloudActivation=0;
+let eventsRegistered=false;
+let creatingAccount=false;
+const clientId=(()=> {
+ try {
+  let value=localStorage.getItem("bbp_cloud_client_id");
+  if(!value){value=crypto.randomUUID();localStorage.setItem("bbp_cloud_client_id",value);}
+  return value;
+ } catch { return crypto.randomUUID(); }
+})();
+
+function setCloudStatus(label,title=label,stateName="saved"){
+ const status=$("save-status");
+ if(!status)return;
+ status.textContent=label;
+ status.title=title;
+ status.dataset.state=stateName;
+}
+function showAuthMessage(message,isError=true){
+ const node=$("auth-message");
+ if(!node)return;
+ node.textContent=message||"";
+ node.dataset.state=isError?"error":"info";
+}
+function friendlyAuthError(error){
+ const messages={
+  "auth/invalid-credential":"That email/password combination wasn't recognized.",
+  "auth/user-not-found":"No account was found for that email address.",
+  "auth/wrong-password":"The password is incorrect.",
+  "auth/invalid-email":"Enter a valid email address.",
+  "auth/weak-password":"Choose a password with at least 6 characters.",
+  "auth/email-already-in-use":"An account already uses that email. Try signing in instead.",
+  "auth/unauthorized-domain":"This website isn't authorized yet. Add mattswymer.github.io under Firebase Authentication → Settings → Authorized domains.",
+  "auth/operation-not-allowed":"That sign-in method isn't enabled in Firebase Authentication.",
+  "auth/popup-closed-by-user":"The Google sign-in window was closed before sign-in finished.",
+  "auth/network-request-failed":"Could not reach Firebase. Check your internet connection.",
+  "auth/too-many-requests":"Too many attempts. Wait a little and try again."
+ };
+ return messages[error?.code]||error?.message||"Something went wrong. Please try again.";
+}
+function registerAppOnce(){
+ if(eventsRegistered)return;
+ registerEvents();
+ eventsRegistered=true;
+ $("sign-out").addEventListener("click",async()=>{
+  if(!cloudApi||!signedInUser)return;
+  $("sign-out").disabled=true;
+  await flushCloudSave();
+  try{await cloudApi.signOut();}
+  catch(error){toast("Could not sign out: "+friendlyAuthError(error));}
+  finally{$("sign-out").disabled=false;}
+ });
+}
+function queueCloudSave(data){
+ if(!signedInUser)return;
+ const copy=JSON.parse(JSON.stringify(data));
+ if(!cloudReady){
+  offlineDirtyData=copy;
+  setCloudStatus("Saved locally","Changes are saved on this device. Cloud sync will resume when the connection returns.","saved");
+  return;
+ }
+ pendingCloudData=copy;
+ setCloudStatus("Syncing…","Your latest changes are being saved to Firebase.","saving");
+ clearTimeout(cloudTimer);
+ cloudTimer=setTimeout(flushCloudSave,700);
+}
+async function flushCloudSave(){
+ if(!cloudReady||!signedInUser||!pendingCloudData||cloudSaveActive)return;
+ clearTimeout(cloudTimer);cloudTimer=null;
+ const sending=pendingCloudData;
+ pendingCloudData=null;
+ cloudSaveActive=true;
+ let failed=false;
+ try{
+  await cloudApi.savePlannerState(signedInUser.uid,sending,clientId);
+  if(!pendingCloudData)setCloudStatus("Synced","Your latest changes are saved in the cloud.","saved");
+ }catch(error){
+  failed=true;
+  if(!pendingCloudData)pendingCloudData=sending;
+  console.error("Planner cloud save failed",error);
+  setCloudStatus("Local only","Your changes are safe on this device, but Firebase did not confirm the cloud save. Check your connection and Firebase rules.","error");
+ }finally{
+  cloudSaveActive=false;
+  if(pendingCloudData&&!failed&&cloudReady&&signedInUser){
+   cloudTimer=setTimeout(flushCloudSave,150);
+  }
+ }
+}
+function startCloudListener(user){
+ if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
+ let firstSnapshot=true;
+ cloudUnsubscribe=cloudApi.watchPlannerState(user.uid,(remote,metadata)=>{
+  if(firstSnapshot){firstSnapshot=false;return;}
+  if(!cloudReady||!remote?.state||metadata?.fromCache||metadata?.hasPendingWrites)return;
+  if(remote.clientId===clientId)return;
+  if(cloudTimer||pendingCloudData||cloudSaveActive)return;
+  loadApp(remote.state);
+  renderApp();
+  setCloudStatus("Synced","Updated from another device.","saved");
+ },error=>{
+  console.error("Planner cloud listener failed",error);
+  setCloudStatus("Sync issue","Cloud updates from other devices are temporarily unavailable.","error");
+ });
+}
+async function activateCloudUser(user){
+ const activation=++cloudActivation;
+ signedInUser=user;
+ cloudReady=false;
+ setCloudSaveHandler(null);
+ if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
+ $("auth-gate").hidden=false;
+ $("app-shell").hidden=true;
+ showAuthMessage("Loading your saved planner…",false);
+ try{
+  const remote=await cloudApi.getPlannerState(user.uid);
+  if(activation!==cloudActivation)return;
+  const unsynced=offlineDirtyData;
+  if(unsynced)loadApp(unsynced);
+  else if(remote?.state)loadApp(remote.state);
+  else loadApp();
+
+  $("account-label").textContent=user.displayName||user.email||"Signed in";
+  $("sign-out").hidden=false;
+  $("app-shell").hidden=false;
+  $("auth-gate").hidden=true;
+  registerAppOnce();
+  setCloudSaveHandler(queueCloudSave);
+  cloudReady=true;
+  renderApp();
+
+  if(unsynced||!remote){
+   offlineDirtyData=null;
+   pendingCloudData=getAppData();
+   setCloudStatus("Syncing…","Uploading this device's saved planner data to Firebase.","saving");
+   await flushCloudSave();
+  }else{
+   setCloudStatus("Synced","Your planner is loaded from Firebase.","saved");
+  }
+  startCloudListener(user);
+ }catch(error){
+  if(activation!==cloudActivation)return;
+  console.error("Could not load planner cloud data",error);
+  loadApp(offlineDirtyData||null);
+  $("account-label").textContent=user.email||"Signed in (offline)";
+  $("sign-out").hidden=false;
+  $("app-shell").hidden=false;
+  $("auth-gate").hidden=true;
+  registerAppOnce();
+  cloudReady=false;
+  setCloudSaveHandler(queueCloudSave);
+  renderApp();
+  setCloudStatus("Saved locally","Cloud is unavailable. Your changes are being kept on this device until synchronization can resume.","error");
+  toast("Cloud unavailable. Your planner is still usable and will save locally.");
+ }
+}
+function openLocalPlanner(){
+ cloudActivation++;
+ if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
+ signedInUser=null;cloudReady=false;offlineDirtyData=null;pendingCloudData=null;
+ setCloudSaveHandler(null);
+ loadApp();
+ $("account-label").textContent="This device only";
+ $("sign-out").hidden=true;
+ $("auth-gate").hidden=true;
+ $("app-shell").hidden=false;
+ registerAppOnce();
+ renderApp();
+ setCloudStatus("Local only","You are using this device's saved copy. Sign in to synchronize with the cloud.","error");
+}
+function setAuthBusy(busy){
+ $("google-sign-in").disabled=busy;
+ $("auth-submit").disabled=busy;
+ $("auth-mode-toggle").disabled=busy;
+ $("forgot-password").disabled=busy;
+}
+function bindAuthControls(){
+ $("auth-mode-toggle").addEventListener("click",()=>{
+  creatingAccount=!creatingAccount;
+  $("auth-submit").textContent=creatingAccount?"Create account":"Sign in";
+  $("auth-mode-toggle").textContent=creatingAccount?"Already have an account? Sign in":"Need an account? Create one";
+  $("auth-password").autocomplete=creatingAccount?"new-password":"current-password";
+  showAuthMessage(creatingAccount?"Create your account with an email address and password.":"Sign in with your existing account.",false);
+ });
+ $("auth-form").addEventListener("submit",async event=>{
+  event.preventDefault();
+  const email=$("auth-email").value.trim();
+  const password=$("auth-password").value;
+  setAuthBusy(true);showAuthMessage(creatingAccount?"Creating account…":"Signing in…",false);
+  try{
+   if(creatingAccount)await cloudApi.createEmailAccount(email,password);
+   else await cloudApi.signInEmail(email,password);
+  }catch(error){showAuthMessage(friendlyAuthError(error));}
+  finally{setAuthBusy(false);}
+ });
+ $("google-sign-in").addEventListener("click",async()=>{
+  setAuthBusy(true);showAuthMessage("Opening Google sign-in…",false);
+  try{await cloudApi.signInGoogle();}
+  catch(error){showAuthMessage(friendlyAuthError(error));}
+  finally{setAuthBusy(false);}
+ });
+ $("forgot-password").addEventListener("click",async()=>{
+  const email=$("auth-email").value.trim();
+  if(!email){showAuthMessage("Enter your email address first.");$("auth-email").focus();return;}
+  try{await cloudApi.sendPasswordReset(email);showAuthMessage("Password reset email sent. Check your inbox.",false);}
+  catch(error){showAuthMessage(friendlyAuthError(error));}
+ });
+}
+$("auth-offline").addEventListener("click",openLocalPlanner);
+window.addEventListener("online",()=>{
+ if(!signedInUser)return;
+ if(!cloudReady)activateCloudUser(signedInUser);
+ else if(pendingCloudData)flushCloudSave();
+ else queueCloudSave(getAppData());
+});
+
+async function startCloudApp(){
+ showAuthMessage("Connecting to Firebase…",false);
+ try{
+  const module=await import("./services/cloud.js");
+  cloudApi=await module.initializeCloud();
+  bindAuthControls();
+  cloudApi.onAuthStateChanged(user=>{
+   if(user)activateCloudUser(user);
+   else{
+    cloudActivation++;
+    if(cloudUnsubscribe){cloudUnsubscribe();cloudUnsubscribe=null;}
+    signedInUser=null;cloudReady=false;offlineDirtyData=null;pendingCloudData=null;
+    setCloudSaveHandler(null);
+    $("app-shell").hidden=true;
+    $("auth-gate").hidden=false;
+    $("sign-out").hidden=true;
+    showAuthMessage("Sign in to load your cloud-saved practices.",false);
+   }
+  });
+ }catch(error){
+  console.error("Firebase initialization failed",error);
+  showAuthMessage("Cloud sign-in could not load. Check your internet connection, or open the saved copy on this device.",true);
+  $("auth-offline").hidden=false;
+ }
+}
+startCloudApp();
