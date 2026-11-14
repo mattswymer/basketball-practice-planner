@@ -90,8 +90,8 @@ export async function initializeCloud() {
       firestoreSdk.onSnapshot(
         plannerDocument(userId),
         { includeMetadataChanges: true },
-        (snapshot, metadata) => {
-          if (snapshot.exists()) onChange(snapshot.data(), metadata);
+        (snapshot) => {
+          if (snapshot.exists()) onChange(snapshot.data(), snapshot.metadata);
         },
         onError
       )
