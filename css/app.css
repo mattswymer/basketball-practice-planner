@@ -259,3 +259,5 @@
  .auth-card{padding:25px 19px}
  .account-label{display:none}
 }
+
+#sign-out[hidden],.auth-offline[hidden]{display:none!important}
