@@ -780,6 +780,7 @@ async function startCloudApp(){
     $("auth-gate").hidden=false;
     $("sign-out").hidden=true;
     showAuthMessage("Sign in to load your cloud-saved practices.",false);
+    if(!navigator.onLine)$("auth-offline").hidden=false;
    }
   });
  }catch(error){
